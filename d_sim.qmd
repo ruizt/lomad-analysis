@@ -1,0 +1,251 @@
+---
+title: "Run"
+format: html
+editor: visual
+---
+
+-   generate simulated data
+-   fit null model
+-   parametric bootstrap
+-   d should be input then outfputted
+
+```{r}
+library(tidyverse)
+library(fda)
+library(ggplot2)
+ph_o2_blockdata <- read.csv("~/OceanAcidification/ocean-acidification/data_preprocessing/ph_o2_blockdata.csv")
+```
+
+## Generate Simulated Data
+
+```{r}
+
+# create first set of fourier coefficients
+generate_fourier_coef <- function(nb, sd0 = 2, p=2.5) {
+  K <- (nb - 1) / 2
+  k <- rep(1:K, each = 2) #coefficient index vector
+  sd_k <- sd0 / (k^p) 
+  rnorm(2 * K, mean = 0, sd = sd_k)
+}
+
+
+# ##### UNIT SPHERE METHOD ######
+# 
+# # generate pair of coefficients
+# generate_coef_pair <- function(nb, sd0 = 2, d = 1, p=2.5, seed = NULL) {
+#   if (!is.null(seed)) set.seed(seed)
+# 
+#   # first coefficient vector
+#   coef1 <- generate_fourier_coef(nb, sd0)
+# 
+#   # second coefficient vector at distance d
+#   z <- rnorm(length(coef1)) # random direction on unit sphere
+#   direction <- z / sqrt(sum(z^2)) #direction u vect
+#   coef2 <- coef1 + d * direction
+# 
+#   list(coef1 = coef1, coef2 = coef2)
+# }
+
+
+##### SPHERE TO ELLIPSE TRANSFORM METHOD #######
+generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
+  
+  if (!is.null(seed)) set.seed(seed)
+  
+  coef1 <- generate_fourier_coef(nb, sd0, p)
+  
+  # uniform sphere direction
+  z <- rnorm(length(coef1))
+  u <- z / sqrt(sum(z^2))  # unit length
+  
+  # ellipsoid axes (impose similar decay structure)
+  axes <- 1 / (1:length(coef1))^p
+  
+  # scale to ellipse
+  dir <- u * axes
+  
+  # renormalize
+  dir <- dir / sqrt(sum(dir^2))
+  
+  # shift by d
+  coef2 <- coef1 + d * dir
+  
+  list(coef1 = coef1, coef2 = coef2)
+}
+
+
+
+sim_fn <- function(n = 500, ar.cor = 0.9, sigma = 0.3, nb = 25, sd0 = 2, d = 2, p=2.5, plotit = TRUE) {
+  # simulate random periodic drift
+  fb <- create.fourier.basis(rangeval = c(0, n), nbasis = nb, period = n)
+  
+  # generate two coefficient sets at distance d
+  coefs <- generate_coef_pair(nb = nb, sd0 = sd0, d = d, p=p)
+  
+  
+  # construct trends
+  x1 <- (eval.basis(1:n, basisobj = fb)[, -1] %*% coefs$coef1) |> scale()
+  x2 <- (eval.basis(1:n, basisobj = fb)[, -1] %*% coefs$coef2) |> scale()
+  
+  
+  # simulate noise series
+  noise1 <- arima.sim(model = list(order = c(1, 0, 0), ar = ar.cor),
+                      n = n,
+                      rand.gen = function(t){rnorm(t, mean = 0, sd = sigma)},
+                      n.start = 100)
+  noise2 <- arima.sim(model = list(order = c(1, 0, 0), ar = ar.cor),
+                      n = n,
+                      rand.gen = function(t){rnorm(t, mean = 0, sd = sigma)},
+                      n.start = 100)
+  
+  # add noise to drift
+  y1 <- x1 + noise1
+  y2 <- x2 + noise2
+  
+  if (plotit) {
+    ylim <- c(-1.1, 1.1) * max(abs(c(x1, y1, y2)))
+    plot(x1, type = "l", ylim = ylim)
+    lines(y1, col = "red")
+    lines(y2, col = "blue")
+    
+  }
+  
+  out <- list(x1 = x1, x2 = x2, y1 = y1, y2 = y2, coef1 = coefs$coef1, coef2 = coefs$coef2)
+}
+
+
+#set.seed(111525)
+x <- sim_fn(n = 500, nb = 25, sd0 = 2, d = 1, p=2.5)
+
+y1 <- x[["y1"]]
+y2 <- x[["y2"]]
+```
+
+## Fit Null Model
+
+```{r}
+nullmodel <- fit_null_model(y1,
+               y2,
+               q = NULL,
+               h = NULL,
+               alpha = 0.05,
+               rho0 = 0,
+               max_pq = 2)
+
+
+entry_rate <- nullmodel[["expected_asymptotic"]][["entry_rate"]]
+mean_run_length <- nullmodel[["expected_asymptotic"]][["mean_run_length"]]
+```
+
+## Parametric Bootstrap
+
+```{r}
+boot <- bootstrap_local_corr(nullmodel) 
+
+entry_rate <- boot[["expected_asymptotic"]][["entry_rate"]]
+mean_run_length <- boot[["expected_asymptotic"]][["mean_run_length"]]
+
+p.entry <- boot[["p_values"]][["entry_rate"]]
+p.length <- boot[["p_values"]][["mean_run_length"]]
+
+```
+
+## d simulation
+
+print("simulations completed = ", i)
+
+```{r}
+# N: number of simulation 
+d_sim <- function(N = 5, d = 1){
+  
+  sim <- matrix(NA, nrow = N, ncol = 6)
+  colnames(sim) <- c("d",
+                     "sim_n",
+                         "entry_rate",
+                         "p.entry",
+                         "mean_run_length",
+                         "p.length")
+  
+  for (i in 1:N){
+  
+  x <- sim_fn(n = 500, 
+              ar.cor = 0.9, 
+              sigma = 0.3, 
+              nb = 25, 
+              sd0 = 2, 
+              d = d, 
+              p=2.5, 
+              plotit = FALSE)
+  
+  nullmodel <- fit_null_model(x$y1,
+               x$y2,
+               q = NULL,
+               h = NULL,
+               alpha = 0.05,
+               rho0 = 0,
+               max_pq = 2)
+  
+  boot <- bootstrap_local_corr(nullmodel) 
+  
+  entry_rate <- boot[["expected_asymptotic"]][["entry_rate"]]
+  mean_run_length <- boot[["expected_asymptotic"]][["mean_run_length"]]
+
+  p.entry <- boot[["p_values"]][["entry_rate"]]
+  p.length <- boot[["p_values"]][["mean_run_length"]]
+  
+  sim[i,] <- c(d, 
+               i,
+               entry_rate, 
+               p.entry, 
+               mean_run_length, 
+               p.length)
+  }
+  return(as.data.frame(sim))
+}
+
+
+d_vals <- c(7.6,  8,  8.4,  8.8,  9.2,  9.6,  10,  10.4,  10.8,  11.2, 11.6, 12)
+d_data <- map_dfr(d_vals, ~ d_sim(N = 50, d = .x))
+
+write_csv(d_data, "f5.csv")
+```
+
+```{r}
+new <- d_data |>
+  mutate(reject_entry = case_when(
+    p.entry >= 0.05 ~ "no",
+    p.entry < 0.05 ~ "yes"
+  ),
+  reject_length = case_when(
+    p.length >= 0.05 ~ "no",
+    p.length < 0.05 ~ "yes")
+  ) |>
+  group_by(d) |>
+  summarise(
+    n_sim = n(),                           
+    n_reject1 = sum(reject_entry == "yes", na.rm = TRUE),
+    n_reject2 = sum(reject_length == "yes", na.rm = TRUE),
+    prop_reject_entry = n_reject1 / n_sim,
+    prop_reject_length = n_reject2 / n_sim        
+  ) |>
+  ungroup()
+
+
+
+
+p1 <- new |>
+ggplot(aes(x = d, y = prop_reject_entry)) +
+  geom_point() +
+  theme_minimal()
+p1
+
+p2 <- new |>
+ggplot(aes(x = d, y = prop_reject_length)) +
+  geom_point() +
+  theme_minimal()
+p2
+
+
+```
+
+-run 7.6, 8, 8.4, 8.8, 9.2, 9.6, 10, 10.4, 10.8, 11.2, 11.6, 12
