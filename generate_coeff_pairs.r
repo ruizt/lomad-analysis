@@ -11,7 +11,7 @@ generate_fourier_coef <- function(nb, sd0 = 2, p=2.5) {
 }
 
 
-# ##### UNIT SPHERE METHOD ######
+#### UNIT SPHERE METHOD ####
 # 
 # # generate pair of coefficients
 # generate_coef_pair <- function(nb, sd0 = 2, d = 1, p=2.5, seed = NULL) {
@@ -29,7 +29,9 @@ generate_fourier_coef <- function(nb, sd0 = 2, p=2.5) {
 # }
 
 
-##### SPHERE TO ELLIPSE TRANSFORM METHOD #######
+#### SPHERE TO ELLIPSE TRANSFORM METHOD ####
+# slightly different decay structures each time
+
 generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
   
   if (!is.null(seed)) set.seed(seed)
@@ -40,8 +42,8 @@ generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
   z <- rnorm(length(coef1))
   u <- z / sqrt(sum(z^2))  # unit length
   
-  # ellipsoid axes (low freq = long)
-  axes <- 1 / (1:length(coef1))^p
+  # ellipsoid axes (impose more relaxed decay structure)
+  axes <- 1 / (1:length(coef1))^(p*runif(1, 0.7, 1.4))
   
   # scale to ellipse
   dir <- u * axes
@@ -65,7 +67,11 @@ sqrt(sum((coefs$coef2 - coefs$coef1)^2))
 
 
 #### Plot Series Against Each Other ####
-coefs <- generate_coef_pair(nb = 25, d = 2)
+nb <- 25
+n <- 500
+d <- 2
+
+coefs <- generate_coef_pair(nb = nb, d = d, seed=NULL)
 
 coef1 <- coefs$coef1
 coef2 <- coefs$coef2
