@@ -7,19 +7,17 @@ editor: visual
 -   generate simulated data
 -   fit null model
 -   parametric bootstrap
--   d should be input then outfputted
 
 ```{r}
 library(tidyverse)
 library(fda)
 library(ggplot2)
-ph_o2_blockdata <- read.csv("~/OceanAcidification/ocean-acidification/data_preprocessing/ph_o2_blockdata.csv")
 ```
 
 ## Generate Simulated Data
 
+#### Coefficients
 ```{r}
-
 # create first set of fourier coefficients
 generate_fourier_coef <- function(nb, sd0 = 2, p=2.5) {
   K <- (nb - 1) / 2
@@ -29,7 +27,7 @@ generate_fourier_coef <- function(nb, sd0 = 2, p=2.5) {
 }
 
 
-# ##### UNIT SPHERE METHOD ######
+#### UNIT SPHERE METHOD ####
 # 
 # # generate pair of coefficients
 # generate_coef_pair <- function(nb, sd0 = 2, d = 1, p=2.5, seed = NULL) {
@@ -47,7 +45,9 @@ generate_fourier_coef <- function(nb, sd0 = 2, p=2.5) {
 # }
 
 
-##### SPHERE TO ELLIPSE TRANSFORM METHOD #######
+#### SPHERE TO ELLIPSE TRANSFORM METHOD ####
+# slightly different decay structures each time
+
 generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
   
   if (!is.null(seed)) set.seed(seed)
@@ -58,8 +58,8 @@ generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
   z <- rnorm(length(coef1))
   u <- z / sqrt(sum(z^2))  # unit length
   
-  # ellipsoid axes (impose similar decay structure)
-  axes <- 1 / (1:length(coef1))^p
+  # ellipsoid axes (impose more relaxed decay structure)
+  axes <- 1 / (1:length(coef1))^(p*runif(1, 0.7, 1.4))
   
   # scale to ellipse
   dir <- u * axes
@@ -72,9 +72,10 @@ generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
   
   list(coef1 = coef1, coef2 = coef2)
 }
+```
 
-
-
+#### Noise
+```{r}
 sim_fn <- function(n = 500, ar.cor = 0.9, sigma = 0.3, nb = 25, sd0 = 2, d = 2, p=2.5, plotit = TRUE) {
   # simulate random periodic drift
   fb <- create.fourier.basis(rangeval = c(0, n), nbasis = nb, period = n)
@@ -87,20 +88,46 @@ sim_fn <- function(n = 500, ar.cor = 0.9, sigma = 0.3, nb = 25, sd0 = 2, d = 2, 
   x1 <- (eval.basis(1:n, basisobj = fb)[, -1] %*% coefs$coef1) |> scale()
   x2 <- (eval.basis(1:n, basisobj = fb)[, -1] %*% coefs$coef2) |> scale()
   
-  
-  # simulate noise series
-  noise1 <- arima.sim(model = list(order = c(1, 0, 0), ar = ar.cor),
-                      n = n,
-                      rand.gen = function(t){rnorm(t, mean = 0, sd = sigma)},
-                      n.start = 100)
-  noise2 <- arima.sim(model = list(order = c(1, 0, 0), ar = ar.cor),
-                      n = n,
-                      rand.gen = function(t){rnorm(t, mean = 0, sd = sigma)},
-                      n.start = 100)
-  
+  # Adding noise
+  ar.cor <- 0.5 
+  sigma <- 0.7
+
+  # ARMA model coefficients
+
+  # Short Memory Coefs MA1
+  phi1 <- 0
+  phi2 <- 0
+  theta1 <- 0.25
+  theta2 <- 0
+
+  # # Slow decay Coefs with ARMA 21
+  # phi1 <- 0.8
+  # phi2 <- 0.1
+  # theta1 <- 0.3
+  # theta2 <- 0
+
+  ar.coefs <- c(phi1, phi2)        # AR coefs
+  ma.coefs <- c(theta1, theta2)    # MA coefs
+
+  noise1 <- arima.sim(
+    model = list(order = c(2, 0, 2), ar = ar.coefs, ma = ma.coefs),
+    n = n,
+    rand.gen = function(t){ rnorm(t, mean = 0, sd = sigma) },
+    n.start = 100
+  )
+
+  noise2 <- arima.sim(
+    model = list(order = c(2, 0, 2), ar = ar.coefs, ma = ma.coefs),
+    n = n,
+    rand.gen = function(t){ rnorm(t, mean = 0, sd = sigma) },
+    n.start = 100
+  )
+
   # add noise to drift
   y1 <- x1 + noise1
   y2 <- x2 + noise2
+  
+  # Unsure of lambda placement?
   
   if (plotit) {
     ylim <- c(-1.1, 1.1) * max(abs(c(x1, y1, y2)))
@@ -110,16 +137,17 @@ sim_fn <- function(n = 500, ar.cor = 0.9, sigma = 0.3, nb = 25, sd0 = 2, d = 2, 
     
   }
   
-  out <- list(x1 = x1, x2 = x2, y1 = y1, y2 = y2, coef1 = coefs$coef1, coef2 = coefs$coef2)
+  out <- list(y1 = y1, y2 = y2)
 }
 
 
-#set.seed(111525)
+# Test
 x <- sim_fn(n = 500, nb = 25, sd0 = 2, d = 1, p=2.5)
 
 y1 <- x[["y1"]]
 y2 <- x[["y2"]]
 ```
+
 
 ## Fit Null Model
 
@@ -133,6 +161,7 @@ nullmodel <- fit_null_model(y1,
                max_pq = 2)
 
 
+# Test
 entry_rate <- nullmodel[["expected_asymptotic"]][["entry_rate"]]
 mean_run_length <- nullmodel[["expected_asymptotic"]][["mean_run_length"]]
 ```
@@ -142,6 +171,7 @@ mean_run_length <- nullmodel[["expected_asymptotic"]][["mean_run_length"]]
 ```{r}
 boot <- bootstrap_local_corr(nullmodel) 
 
+# Test
 entry_rate <- boot[["expected_asymptotic"]][["entry_rate"]]
 mean_run_length <- boot[["expected_asymptotic"]][["mean_run_length"]]
 
@@ -151,8 +181,6 @@ p.length <- boot[["p_values"]][["mean_run_length"]]
 ```
 
 ## d simulation
-
-print("simulations completed = ", i)
 
 ```{r}
 # N: number of simulation 
@@ -245,7 +273,4 @@ ggplot(aes(x = d, y = prop_reject_length)) +
   theme_minimal()
 p2
 
-
 ```
-
--run 7.6, 8, 8.4, 8.8, 9.2, 9.6, 10, 10.4, 10.8, 11.2, 11.6, 12
