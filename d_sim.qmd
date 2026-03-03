@@ -76,7 +76,7 @@ generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
 
 #### Noise
 ```{r}
-sim_fn <- function(n = 500, ar.cor = 0.9, sigma = 0.3, nb = 25, sd0 = 2, d = 2, p=2.5, plotit = TRUE) {
+sim_fn_noise <- function(n = 500, ar.cor = 0.9, sigma = 0.3, nb = 25, sd0 = 2, d = 2, p=2.5, plotit = TRUE) {
   # simulate random periodic drift
   fb <- create.fourier.basis(rangeval = c(0, n), nbasis = nb, period = n)
   
@@ -147,7 +147,55 @@ x <- sim_fn(n = 500, nb = 25, sd0 = 2, d = 1, p=2.5)
 y1 <- x[["y1"]]
 y2 <- x[["y2"]]
 ```
+#### Simple Noise
+```{r}
+sim_fn <- function(n = 500, ar.cor = 0.9, sigma = 0.3, nb = 25, sd0 = 2, d = 2, p=2.5, plotit = TRUE) {
+  # simulate random periodic drift
+  fb <- create.fourier.basis(rangeval = c(0, n), nbasis = nb, period = n)
+  
+  # generate two coefficient sets at distance d
+  coefs <- generate_coef_pair(nb = nb, sd0 = sd0, d = d, p=p)
+  
+  
+  # construct trends
+  x1 <- (eval.basis(1:n, basisobj = fb)[, -1] %*% coefs$coef1) |> scale()
+  x2 <- (eval.basis(1:n, basisobj = fb)[, -1] %*% coefs$coef2) |> scale()
+  
+  
+   # simulate noise series
+  noise1 <- arima.sim(model = list(order = c(1, 0, 0), ar = ar.cor),
+                      n = n,
+                      rand.gen = function(t){rnorm(t, mean = 0, sd = sigma)},
+                      n.start = 100)
+  noise2 <- arima.sim(model = list(order = c(1, 0, 0), ar = ar.cor),
+                      n = n,
+                      rand.gen = function(t){rnorm(t, mean = 0, sd = sigma)},
+                      n.start = 100)
+  
+  # add noise to drift
+  y1 <- x1 + noise1
+  y2 <- x2 + noise2
+  
+  # Unsure of lambda placement?
+  
+  if (plotit) {
+    ylim <- c(-1.1, 1.1) * max(abs(c(x1, y1, y2)))
+    plot(x1, type = "l", ylim = ylim)
+    lines(y1, col = "red")
+    lines(y2, col = "blue")
+    
+  }
+  
+  out <- list(y1 = y1, y2 = y2)
+}
 
+
+# Test
+x <- sim_fn(n = 500, nb = 25, sd0 = 2, d = 1, p=2.5)
+
+y1 <- x[["y1"]]
+y2 <- x[["y2"]]
+```
 
 ## Fit Null Model
 
@@ -233,10 +281,68 @@ d_sim <- function(N = 5, d = 1){
 
 
 d_vals <- c(7.6,  8,  8.4,  8.8,  9.2,  9.6,  10,  10.4,  10.8,  11.2, 11.6, 12)
+d_data <- map_dfr(d_vals, ~ d_sim(N = 75, d = .x))
+
+write_csv(d_data, "order1.csv")
+```
+
+```{r}
+# N: number of simulation 
+d_sim <- function(N = 5, d = 1){
+  
+  sim <- matrix(NA, nrow = N, ncol = 6)
+  colnames(sim) <- c("d",
+                     "sim_n",
+                         "entry_rate",
+                         "p.entry",
+                         "mean_run_length",
+                         "p.length")
+  
+  for (i in 1:N){
+  
+  x <- sim_fn_noise(n = 500, 
+              ar.cor = 0.9, 
+              sigma = 0.3, 
+              nb = 25, 
+              sd0 = 2, 
+              d = d, 
+              p=2.5, 
+              plotit = FALSE)
+  
+  nullmodel <- fit_null_model(x$y1,
+               x$y2,
+               q = NULL,
+               h = NULL,
+               alpha = 0.05,
+               rho0 = 0,
+               max_pq = 2)
+  
+  boot <- bootstrap_local_corr(nullmodel) 
+  
+  entry_rate <- boot[["expected_asymptotic"]][["entry_rate"]]
+  mean_run_length <- boot[["expected_asymptotic"]][["mean_run_length"]]
+
+  p.entry <- boot[["p_values"]][["entry_rate"]]
+  p.length <- boot[["p_values"]][["mean_run_length"]]
+  
+  sim[i,] <- c(d, 
+               i,
+               entry_rate, 
+               p.entry, 
+               mean_run_length, 
+               p.length)
+  }
+  return(as.data.frame(sim))
+}
+
+
+d_vals <- c(7.6,  8,  8.4,  8.8,  9.2,  9.6,  10,  10.4,  10.8,  11.2, 11.6, 12)
 d_data <- map_dfr(d_vals, ~ d_sim(N = 50, d = .x))
 
-write_csv(d_data, "f5.csv")
+# write_csv(d_data, "n.csv")
 ```
+
+
 
 ```{r}
 new <- d_data |>
