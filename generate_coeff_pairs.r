@@ -43,6 +43,7 @@ generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
   u <- z / sqrt(sum(z^2))  # unit length
   
   # ellipsoid axes (decay structure that is a function of distance)
+  ## relax decay as d increases
   axes <- 1 / (1:length(coef1))^(p-0.1*d) 
   
   # scale to ellipse
@@ -62,7 +63,6 @@ generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
 #### Test Euclidean Distance ####
 coefs <- generate_coef_pair(25, d=2)
 sqrt(sum((coefs$coef2 - coefs$coef1)^2))
-
 
 
 
