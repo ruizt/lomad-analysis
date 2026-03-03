@@ -33,7 +33,7 @@ generate_fourier_coef <- function(nb, sd0 = 2, p=2.5) {
 # slightly different decay structures each time
 
 generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
-  
+
   if (!is.null(seed)) set.seed(seed)
   
   coef1 <- generate_fourier_coef(nb, sd0, p)
@@ -42,8 +42,8 @@ generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
   z <- rnorm(length(coef1))
   u <- z / sqrt(sum(z^2))  # unit length
   
-  # ellipsoid axes (impose more relaxed decay structure)
-  axes <- 1 / (1:length(coef1))^(p*runif(1, 0.7, 1.4))
+  # ellipsoid axes (decay structure that is a function of distance)
+  axes <- 1 / (1:length(coef1))^(p-0.1*d) 
   
   # scale to ellipse
   dir <- u * axes
