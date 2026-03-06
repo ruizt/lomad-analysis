@@ -1,0 +1,240 @@
+
+---
+title: "Noise"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(ggplot2)
+library(tidyverse)
+library(fda)
+library(stats)
+library(roll)
+library(forecast)
+```
+
+# Coefficients
+```{r}
+#| code-fold: true
+# create first set of fourier coefficients
+generate_fourier_coef <- function(nb, sd0 = 2, p=2.5) {
+  K <- (nb - 1) / 2
+  k <- rep(1:K, each = 2) #coefficient index vector
+  sd_k <- sd0 / (k^p) 
+  rnorm(2 * K, mean = 0, sd = sd_k)
+}
+##### SPHERE TO ELLIPSE TRANSFORM METHOD #######
+generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
+  
+  if (!is.null(seed)) set.seed(seed)
+  
+  coef1 <- generate_fourier_coef(nb, sd0, p)
+  
+  # uniform sphere direction
+  z <- rnorm(length(coef1))
+  u <- z / sqrt(sum(z^2))  # unit length
+  
+  # ellipsoid axes (impose similar decay structure)
+  axes <- 1 / (1:length(coef1))^p
+  
+  # scale to ellipse
+  dir <- u * axes
+  
+  # renormalize
+  dir <- dir / sqrt(sum(dir^2))
+  
+  # shift by d
+  coef2 <- coef1 + d * dir
+  
+  list(coef1 = coef1, coef2 = coef2)
+}
+#### Test Euclidean Distance ####
+coefs <- generate_coef_pair(25, d=2)
+# sqrt(sum((coefs$coef2 - coefs$coef1)^2))
+#### Plot Series Against Each Other ####
+coefs <- generate_coef_pair(nb = 25, d = 1)
+coef1 <- coefs$coef1
+coef2 <- coefs$coef2
+fb <- create.fourier.basis(rangeval = c(0, 500), nbasis = 25, period = 500)
+Phi <- eval.basis(1:500, fb)[, -1]
+x1 <- as.numeric(Phi %*% coef1)
+x2 <- as.numeric(Phi %*% coef2)
+# plot(x1, type = 'l')
+# plot(x2, type = 'l')
+# x.state <- (eval.basis(1:n, basisobj = fb)[, -1] %*% fb.coef) |> scale()
+x.state <- x1
+n <- length(x.state)
+```
+
+# Setting window length and High/Low SNR values
+
+```{r}
+# fix S2_y to make it mean of sd of x.state over a rolling time window
+window_frac <- 0.1   # proportion of length
+window_min  <- 10 
+window <- max(window_min, round(window_frac * n))
+lambda_low  <- 0.5  
+lambda_high <- 2 
+```
+
+# Function
+
+```{r}
+# first getting the local rolling variance of x.state for checks and s2_y_obs
+loc_var <- roll_var(x.state, width = window, center = TRUE, min_obs = 2)
+s2_y_obs <- mean(loc_var, na.rm = TRUE)
+
+# function for generating noise
+simulate_arma_noise <- function(x.state, window, s2_y_obs,
+                                ar.coefs, ma.coefs,
+                                lambda_target,
+                                n_start = 100,
+                                ma_lag_max = 200,
+                                name = NULL) {
+  n <- length(x.state)
+  # Theoretical autocorrelation up to window-1
+  rho <- ARMAacf(ar = ar.coefs, ma = ma.coefs, lag.max = (window - 1))
+  # Convert to infinite MA to compute stationary variance (unit innovation variance)
+  psi <- ARMAtoMA(ar = ar.coefs, ma = ma.coefs, lag.max = ma_lag_max)
+  psi_full <- c(1, psi)
+  #Var(noise) when innovation variance sigma^2 = 1
+  gamma0_unit <- sum(psi_full^2)  
+  gamma_unit  <- gamma0_unit * rho # gamma(k) when sigma^2 = 1
+  #Variance of window mean when sigma^2 = 1
+  k <- 1:(window - 1)
+  sigma2_window_mean_unit <- (1 / window^2) * (
+    window * gamma_unit[1] + 2 * sum((window - k) * gamma_unit[k + 1]))
+  #Choose sigma2 so that window-mean SNR matches lambda_target
+  sigma2 <- s2_y_obs / (lambda_target * sigma2_window_mean_unit)
+  sigma  <- sqrt(sigma2)
+  #Simulate ARMA noise
+  noise <- arima.sim(
+    model = list(order = c(length(ar.coefs), 0, length(ma.coefs)),
+                 ar = ar.coefs, ma = ma.coefs),
+    n = n,
+    rand.gen = function(t) rnorm(t, mean = 0, sd = sigma),
+    n.start = n_start)
+  
+  #Observed series
+  y <- x.state + noise
+  
+  # checks
+  loc_var_signal <- roll_var(x.state, width = window, center = TRUE, min_obs = 2)
+  loc_var_noise  <- roll_var(noise,   width = window, center = TRUE, min_obs = 2)
+  # Checking to make sure not na and denominator is not non-zero
+  valid <- !is.na(loc_var_signal) & !is.na(loc_var_noise) & loc_var_noise > 1e-5
+  snr_local_vec <- loc_var_signal[valid] / loc_var_noise[valid]
+  #plots
+    plot(0:(window - 1), rho, type = "h",
+         main = paste0(name, " ACF"),
+         xlab = "Lag", ylab = "ACF")
+    abline(h = 0)
+    # Signal + noisy signal
+    plot(x.state, type = "l",
+         main = paste0(name, " | lambda=", lambda_target),
+         xlab = "t", ylab = "value")
+    lines(y)
+
+  list(
+    name = name,
+    lambda_target = lambda_target,
+    ar = ar.coefs,
+    ma = ma.coefs,
+    sigma = sigma,
+    sigma2 = sigma2,
+    rho = rho,
+    noise = noise,
+    y = y,
+    # theory helpers
+    gamma0_unit = gamma0_unit,
+    sigma2_window_mean_unit = sigma2_window_mean_unit, 
+    #checks
+    snr_local_vec = snr_local_vec, 
+    loc_var_noise = loc_var_noise, 
+    loc_var_signal = loc_var_signal
+  )
+}
+```
+
+# MA 1 
+
+```{r}
+ar.coefs <- numeric(0)
+ma.coefs <- c(0.3)
+
+ma1_low <- simulate_arma_noise(
+  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  ar.coefs = ar.coefs, ma.coefs = ma.coefs,
+  lambda_target = lambda_low,
+  name = "MA1 | low"
+)
+ma1_high <- simulate_arma_noise(
+  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  ar.coefs = ar.coefs, ma.coefs = ma.coefs,
+  lambda_target = lambda_high,
+  name = "MA1 | high"
+)
+```
+
+# ARMA 21 
+
+```{r}
+ar.coefs <- c(0.8, 0.1)
+ma.coefs <- c(0.3)
+
+arma21_low <- simulate_arma_noise(
+  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  ar.coefs = ar.coefs, ma.coefs = ma.coefs,
+  lambda_target = lambda_low,
+  name = "arma21 | low"
+)
+
+arma21_high <- simulate_arma_noise(
+  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  ar.coefs = ar.coefs, ma.coefs = ma.coefs,
+  lambda_target = lambda_high,
+  name = "arma21 | high"
+)
+```
+
+# AR 1
+
+```{r}
+ar.coefs <- c(0.5)
+ma.coefs <- numeric(0)
+
+ar1_low <- simulate_arma_noise(
+  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  ar.coefs = ar.coefs, ma.coefs = ma.coefs,
+  lambda_target = lambda_low,
+  name = "AR1 | low"
+)
+
+ar1_high <- simulate_arma_noise(
+  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  ar.coefs = ar.coefs, ma.coefs = ma.coefs,
+  lambda_target = lambda_high,
+  name = "AR1 | high"
+)
+```
+
+# Checks
+
+```{r}
+# ma1_low$snr_local_vec
+summary(ma1_low$snr_local_vec)
+# ma1_high$snr_local_vec
+summary(ma1_high$snr_local_vec)
+# arma21_low$snr_local_vec
+summary(arma21_low$snr_local_vec)
+# arma21_high$snr_local_vec
+summary(arma21_high$snr_local_vec)
+# ar1_low$snr_local_vec
+summary(ar1_low$snr_local_vec)
+# ar1_high$snr_local_vec
+summary(ar1_high$snr_local_vec)
+```
