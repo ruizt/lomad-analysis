@@ -25,29 +25,18 @@ library(roll)
 ### Simulate data function
 
 # coefficient parameters
+# n = 500
 # nb = 25
 # sd0 = 2
 # d = 1
 # p = 2.5
-# seed = NULL
 
-# noise parameters
-# n = 500
 
-  # ARMA noise parameters
-  # Low SNR
-  # lambda_target <- lambda_target
-
-  # Slow decay Coefs with ARMA 21
-  # ar.coefs <- ar.coefs
-  # ma.coefs <- ma.coefs
-  # window <- window
-
+# ARMA noise parameters (Low SNR)
 # lambda_target = 0.5
 # ar.coefs = c(0.8, 0.1)
 # ma.coefs = c(0.3)
 # window = 30
-
 # plotit = TRUE
 
 # Function to create noise
@@ -221,28 +210,19 @@ d_sim <- function(N = 5, d = 1) {
 
 ```{r}
 #| message: false
-d_vals <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-d_data <- map_dfr(d_vals, ~ d_sim(N = 75, d = .x))
+d_vals <- c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+d_data <- map_dfr(d_vals, ~ d_sim(N = 100, d = .x))
 
-# write_csv(d_data, "sim1-10_N75.csv")
-
-
-d_vals <- c(2, 4, 6, 8, 10, 12, 14, 16, 18, 20)
-d_data2 <- map_dfr(d_vals, ~ d_sim(N = 75, d = .x))
-# 
-# write_csv(d_data2, "sim2-20_N75.csv")
-
-d_vals <- c(5, 10, 15, 20, 25, 30, 35, 40, 45, 50)
-d_data3 <- map_dfr(d_vals, ~ d_sim(N = 75, d = .x))
-
-# write_csv(d_data3, "sim5-50_N75.csv")
-
+write_csv(d_data, "sim0-12_N100.csv")
 
 ```
 
 
 # Plots
 ```{r}
+# d_data <- read_csv(here::here("sim1-10_N75.csv"))
+
+
 new <- d_data |>
   mutate(reject_entry = case_when(
     p.entry >= 0.05 ~ "no",
@@ -300,128 +280,16 @@ ggplot(aes(x = d, y = prop_reject_length)) +
   )
 
 p2
-```
-
-
-```{r}
-new <- d_data2 |>
-  mutate(reject_entry = case_when(
-    p.entry >= 0.05 ~ "no",
-    p.entry < 0.05 ~ "yes"
-  ),
-  reject_length = case_when(
-    p.length >= 0.05 ~ "no",
-    p.length < 0.05 ~ "yes")
-  ) |>
-  group_by(d) |>
-  summarise(
-    n_sim = n(),                           
-    n_reject1 = sum(reject_entry == "yes", na.rm = TRUE),
-    n_reject2 = sum(reject_length == "yes", na.rm = TRUE),
-    prop_reject_entry = n_reject1 / n_sim,
-    prop_reject_length = n_reject2 / n_sim        
-  ) |>
-  ungroup()
-
-
-p1 <- new |>
-  ggplot(aes(x = d, y = prop_reject_entry)) +
-  geom_point(size = 5) +
-  geom_smooth(se = FALSE) +
-  theme_minimal(base_size = 18) +
-  labs(title = "Entry Rate",
-       x = "d value",
-       y = "",
-       subtitle = "P(reject)") +
-  scale_x_continuous(breaks = scales::breaks_width(1)) +  
-  theme(
-    plot.title = element_text(size = 22),
-    axis.title.x = element_text(size = 18),
-    axis.text = element_text(size = 18),
-    panel.grid.minor = element_blank()
-  )
-
-p1
-
-p2 <- new |>
-ggplot(aes(x = d, y = prop_reject_length)) +
-  geom_point(size = 5) +
-  geom_smooth(se = FALSE) +
-  theme_minimal(base_size = 18) +
-  labs(title = "Length",
-       x = "d value",
-       y = "",
-       subtitle = "P(reject)") +
-  scale_x_continuous(breaks = scales::breaks_width(1)) +  
-  theme(
-    plot.title = element_text(size = 22),
-    axis.title.x = element_text(size = 18),
-    axis.text = element_text(size = 18),
-    panel.grid.minor = element_blank()
-  )
-
-p2
 
 ```
 
 
 ```{r}
-new <- d_data3 |>
-  mutate(reject_entry = case_when(
-    p.entry >= 0.05 ~ "no",
-    p.entry < 0.05 ~ "yes"
-  ),
-  reject_length = case_when(
-    p.length >= 0.05 ~ "no",
-    p.length < 0.05 ~ "yes")
-  ) |>
-  group_by(d) |>
-  summarise(
-    n_sim = n(),                           
-    n_reject1 = sum(reject_entry == "yes", na.rm = TRUE),
-    n_reject2 = sum(reject_length == "yes", na.rm = TRUE),
-    prop_reject_entry = n_reject1 / n_sim,
-    prop_reject_length = n_reject2 / n_sim        
-  ) |>
-  ungroup()
+long_new <- d_data |>
+  mutate(d = as.factor(d))
 
-
-p1 <- new |>
-  ggplot(aes(x = d, y = prop_reject_entry)) +
-  geom_point(size = 5) +
-  geom_smooth(se = FALSE) +
-  theme_minimal(base_size = 18) +
-  labs(title = "Entry Rate",
-       x = "d value",
-       y = "",
-       subtitle = "P(reject)") +
-  scale_x_continuous(breaks = scales::breaks_width(5)) +  
-  theme(
-    plot.title = element_text(size = 22),
-    axis.title.x = element_text(size = 18),
-    axis.text = element_text(size = 18),
-    panel.grid.minor = element_blank()
-  )
-
-p1
-
-p2 <- new |>
-ggplot(aes(x = d, y = prop_reject_length)) +
-  geom_point(size = 5) +
-  geom_smooth(se = FALSE) +
-  theme_minimal(base_size = 18) +
-  labs(title = "Length",
-       x = "d value",
-       y = "",
-       subtitle = "P(reject)") +
-  scale_x_continuous(breaks = scales::breaks_width(5)) +  
-  theme(
-    plot.title = element_text(size = 22),
-    axis.title.x = element_text(size = 18),
-    axis.text = element_text(size = 18),
-    panel.grid.minor = element_blank()
-  )
-
-p2
+ggplot(long_new, aes(x = d, y = p.entry)) +
+  geom_boxplot() +
+  labs(y = "p-Value")
 ```
 
