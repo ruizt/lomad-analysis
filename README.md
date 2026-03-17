@@ -16,17 +16,10 @@ Inference is built around a two-step workflow:
 | Function | Role |
 |---|---|
 | `lomad_fit()` | Fit the null model: smooth trends, fit ARMA residuals, compute rolling correlations, classify decoupling periods |
-| `lomad_test()` | Test for decoupling: parametric bootstrap p-values for entry rate, mean run length, fraction of time decoupled, and number of episodes |
-| `lomad()` | Convenience wrapper: runs both steps in one call |
-
-Additional inference methods are in development and will eventually be
-selectable via a `method` argument to `lomad()`:
-
-| Method | Description |
-|---|---|
-| `"bootstrap"` | Full parametric bootstrap (current default) |
-| `"mc_bootstrap"` | Bootstrap on the Markov state process only (faster) |
-| `"analytic"` | Closed-form CLT via Markov chain theory |
+| `lomad_test_boot()` | Test via full parametric bootstrap (p-values for all statistics) |
+| `lomad_test_mc()` | Test via Markov-chain bootstrap on state process only (faster) |
+| `lomad_test_analytic()` | Test via closed-form CLT (`frac_state` only) |
+| `lomad()` | Convenience wrapper: runs both steps via `method = "boot"`, `"mc"`, or `"analytic"` |
 
 ## Installation
 
@@ -45,11 +38,11 @@ trends <- make_trends_dist(n = 500, d = 5, seed = 1)
 sim    <- add_noise(trends, h = 30, lambda_target = 4, scale = 5,
                     order = c(2, 1), seed = 2)
 
-# Fit null model and run parametric bootstrap
-out <- lomad(sim$y1, sim$y2, q = 30, h = 50, B = 500, seed = 3)
+# Fit null model and test (method = "boot", "mc", or "analytic")
+out <- lomad(sim$y1, sim$y2, q = 30, h = 50, B = 500, seed = 3, method = "boot")
 
 out$observed   # observed decoupling statistics
-out$p_values   # bootstrap p-values
+out$p_values   # p-values
 
 # Visualise
 plot_lomad_fit(sim$y1, sim$y2, out)
