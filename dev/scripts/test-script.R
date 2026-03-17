@@ -26,8 +26,8 @@ lines(sim$y2, col = "blue")
 lines(sim$x1, col = "darkgrey", lwd = 2)
 lines(sim$x2, col = "darkgrey", lwd = 2)
 
-# local moving average decoupling
-out <- lomad(sim$y1, sim$y2, q = 30, h = 50, B = 1000, seed = 31726)
+# local moving average decoupling (method = "boot", "mc", or "analytic")
+out <- lomad(sim$y1, sim$y2, q = 30, h = 50, B = 1000, seed = 31726, method = "boot")
 out$p_values
 out$observed
 out$expected

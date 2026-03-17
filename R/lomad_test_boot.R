@@ -1,4 +1,4 @@
-#' Parametric bootstrap for local correlation statistics
+#' Parametric bootstrap test for local correlation decoupling
 #'
 #' Runs a parametric bootstrap under the fitted null model from
 #' [lomad_fit()] to obtain null distributions and p-values for the
@@ -23,7 +23,7 @@
 #'   }
 #'
 #' @export
-lomad_test <- function(fit,
+lomad_test_boot <- function(fit,
                                  B    = 500,
                                  seed = NULL) {
 

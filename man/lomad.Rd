@@ -12,7 +12,10 @@ lomad(
   alpha = 0.05,
   rho0 = 0,
   max_pq = 2,
+  method = c("boot", "mc", "analytic"),
   B = 500,
+  T_sim = NULL,
+  T_eff = NULL,
   seed = NULL
 )
 }
@@ -21,8 +24,7 @@ lomad(
 
 \item{x2}{Numeric vector. Second time series, same length as \code{x1}.}
 
-\item{q}{Integer or NULL. MA window for trend smoothing (see
-\code{\link[=lomad_fit]{lomad_fit()}}).}
+\item{q}{Integer or NULL. MA window for trend smoothing (see \code{\link[=lomad_fit]{lomad_fit()}}).}
 
 \item{h}{Integer or NULL. Rolling correlation window length (see
 \code{\link[=lomad_fit]{lomad_fit()}}).}
@@ -33,21 +35,33 @@ lomad(
 
 \item{max_pq}{Integer. Maximum ARMA order (default 2).}
 
-\item{B}{Integer. Number of bootstrap replicates (default 500).}
+\item{method}{Character. Inference method: \code{"boot"} (full parametric
+bootstrap, default), \code{"mc"} (Markov-chain bootstrap on state process),
+or \code{"analytic"} (closed-form CLT for \code{frac_state}).}
 
-\item{seed}{Integer or NULL. RNG seed passed to \code{\link[=lomad_test]{lomad_test()}}.}
+\item{B}{Integer. Number of bootstrap replicates for \code{"boot"} and \code{"mc"}
+(default 500).}
+
+\item{T_sim}{Integer or NULL. Simulated chain length for \code{"mc"}. Defaults
+to \code{length(fit$valid_idx)}.}
+
+\item{T_eff}{Integer or NULL. Effective chain length for \code{"analytic"}.
+Defaults to \code{length(fit$valid_idx)}.}
+
+\item{seed}{Integer or NULL. RNG seed for \code{"boot"} and \code{"mc"}.}
 }
 \value{
-The list returned by \code{\link[=lomad_test]{lomad_test()}}, which contains
-observed statistics, bootstrap p-values, expected values under the null,
-and the full fitted null model.
+The list returned by the selected test function
+(\code{\link[=lomad_test_boot]{lomad_test_boot()}}, \code{\link[=lomad_test_mc]{lomad_test_mc()}}, or \code{\link[=lomad_test_analytic]{lomad_test_analytic()}}),
+which contains observed statistics, p-values, expected values under the
+null, and the full fitted null model.
 }
 \description{
-Convenience wrapper around \code{\link[=lomad_fit]{lomad_fit()}} followed by
-\code{\link[=lomad_test]{lomad_test()}}. Fits the null model, then runs a parametric
-bootstrap to test whether the observed decoupling statistics exceed what
-is expected under the null.
+Convenience wrapper around \code{\link[=lomad_fit]{lomad_fit()}} followed by one of the test
+functions. Fits the null model, then tests whether the observed decoupling
+statistics exceed what is expected under the null.
 }
 \seealso{
-\code{\link[=lomad_fit]{lomad_fit()}}, \code{\link[=lomad_test]{lomad_test()}}, \code{\link[=plot_lomad_fit]{plot_lomad_fit()}}
+\code{\link[=lomad_fit]{lomad_fit()}}, \code{\link[=lomad_test_boot]{lomad_test_boot()}}, \code{\link[=lomad_test_mc]{lomad_test_mc()}},
+\code{\link[=lomad_test_analytic]{lomad_test_analytic()}}, \code{\link[=plot_lomad_fit]{plot_lomad_fit()}}
 }
