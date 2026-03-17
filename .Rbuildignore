@@ -1,0 +1,7 @@
+^dev$
+^\.git$
+^\.Rproj\.user$
+^.*\.Rproj$
+^README\.md$
+^\.positai$
+^\.claude$
