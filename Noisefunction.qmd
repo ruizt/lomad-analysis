@@ -1,4 +1,3 @@
-
 ---
 title: "Noise"
 format: html
@@ -18,6 +17,7 @@ library(forecast)
 ```
 
 # Coefficients
+
 ```{r}
 #| code-fold: true
 # create first set of fourier coefficients
@@ -68,133 +68,172 @@ x2 <- as.numeric(Phi %*% coef2)
 # x.state <- (eval.basis(1:n, basisobj = fb)[, -1] %*% fb.coef) |> scale()
 x.state <- x1
 n <- length(x.state)
+
+# plot
+plot(x1, type = 'l', ylim = c(min(x1, x2), max(x1, x2)))
+lines(x2, type = 'l', col = 'blue')
 ```
 
 # Setting window length and High/Low SNR values
 
 ```{r}
-# fix S2_y to make it mean of sd of x.state over a rolling time window
-window_frac <- 0.1   # proportion of length
+# smoothing window
+window_frac <- 0.05 # proportion of length
 window_min  <- 10 
 window <- max(window_min, round(window_frac * n))
+
+# target SNR values
 lambda_low  <- 0.5  
 lambda_high <- 2 
+
+# for function testing
+h <- window
+s <- 2*window
 ```
 
 # Function
 
 ```{r}
-# first getting the local rolling variance of x.state for checks and s2_y_obs
-loc_var <- roll_var(x.state, width = window, center = TRUE, min_obs = 2)
-s2_y_obs <- mean(loc_var, na.rm = TRUE)
-
-# function for generating noise
-simulate_arma_noise <- function(x.state, window, s2_y_obs,
+simulate_arma_noise <- function(x.state, h,
                                 ar.coefs, ma.coefs,
-                                lambda_target,
+                                lambda_target = 1,
+                                s = NULL,
                                 n_start = 100,
-                                ma_lag_max = 200,
                                 name = NULL) {
   n <- length(x.state)
-  # Theoretical autocorrelation up to window-1
-  rho <- ARMAacf(ar = ar.coefs, ma = ma.coefs, lag.max = (window - 1))
-  # Convert to infinite MA to compute stationary variance (unit innovation variance)
-  psi <- ARMAtoMA(ar = ar.coefs, ma = ma.coefs, lag.max = ma_lag_max)
-  psi_full <- c(1, psi)
-  #Var(noise) when innovation variance sigma^2 = 1
-  gamma0_unit <- sum(psi_full^2)  
-  gamma_unit  <- gamma0_unit * rho # gamma(k) when sigma^2 = 1
-  #Variance of window mean when sigma^2 = 1
-  k <- 1:(window - 1)
-  sigma2_window_mean_unit <- (1 / window^2) * (
-    window * gamma_unit[1] + 2 * sum((window - k) * gamma_unit[k + 1]))
-  #Choose sigma2 so that window-mean SNR matches lambda_target
-  sigma2 <- s2_y_obs / (lambda_target * sigma2_window_mean_unit)
+  if (is.null(s)) s <- 2 * h
+
+  # --- Calibration ---
+
+  # Theoretical ACF of the unit-variance ARMA process up to lag h-1
+  acf_arma <- ARMAacf(ar = ar.coefs, ma = ma.coefs, lag.max = h - 1)
+
+  # Var(h-point moving average) when innovation variance = 1
+  lags <- 1:(h - 1)
+  var_smooth_unit <- (1 / h^2) * (h + 2 * sum((h - lags) * acf_arma[lags + 1]))
+
+  # Empirical variance of the h-smoothed signal (SNR numerator)
+  x_smooth <- roll_mean(x.state, width = h, min_obs = h)
+  var_x_smooth <- mean(roll_var(x_smooth, width = s, center = TRUE, min_obs = s),
+                       na.rm = TRUE)
+
+  # Scale innovation SD so that Var(smooth noise) / Var(smooth signal) = 1/lambda_target
+  sigma2 <- var_x_smooth / (lambda_target * var_smooth_unit)
   sigma  <- sqrt(sigma2)
-  #Simulate ARMA noise
+
+  # --- Simulation ---
+
   noise <- arima.sim(
     model = list(order = c(length(ar.coefs), 0, length(ma.coefs)),
                  ar = ar.coefs, ma = ma.coefs),
     n = n,
     rand.gen = function(t) rnorm(t, mean = 0, sd = sigma),
     n.start = n_start)
-  
-  #Observed series
+
   y <- x.state + noise
+
+  # --- SNR check ---
+
+  # Smooth both signal and noise with the same h-point moving average
+  x_smooth_chk <- roll_mean(x.state, width = h, min_obs = h)
+  e_smooth     <- roll_mean(noise,   width = h, min_obs = h)
+
+  # Local variance of each over window s; require full windows to avoid edge artifacts
+  lv_signal <- roll_var(x_smooth_chk, width = s, center = TRUE, min_obs = s)
+  lv_noise  <- roll_var(e_smooth,     width = s, center = TRUE, min_obs = s)
+
+  # Clip to interior where both rolling ops have full windows
+  interior <- (h + floor(s / 2)):(n - floor(s / 2))
+  ok <- !is.na(lv_signal[interior]) & !is.na(lv_noise[interior]) & lv_noise[interior] > 1e-5
+  snr_local <- lv_signal[interior][ok] / lv_noise[interior][ok]
   
-  # checks
-  loc_var_signal <- roll_var(x.state, width = window, center = TRUE, min_obs = 2)
-  loc_var_noise  <- roll_var(noise,   width = window, center = TRUE, min_obs = 2)
-  # Checking to make sure not na and denominator is not non-zero
-  valid <- !is.na(loc_var_signal) & !is.na(loc_var_noise) & loc_var_noise > 1e-5
-  snr_local_vec <- loc_var_signal[valid] / loc_var_noise[valid]
-  #plots
-    plot(0:(window - 1), rho, type = "h",
-         main = paste0(name, " ACF"),
-         xlab = "Lag", ylab = "ACF")
-    abline(h = 0)
-    # Signal + noisy signal
-    plot(x.state, type = "l",
-         main = paste0(name, " | lambda=", lambda_target),
-         xlab = "t", ylab = "value")
-    lines(y)
+  # Check whether simulated noise achieved its theoretical smooth variance
+  var_smooth_noise_theo <- sigma2 * var_smooth_unit
+  var_smooth_noise_emp  <- var(e_smooth[interior], na.rm = TRUE)
+  noise_var_ratio       <- var_smooth_noise_emp / var_smooth_noise_theo
+  
+  # Print diagnostic check
+  cat(sprintf(
+    "[%s] SNR target: %.2f | local median: %.2f (%+.1f%%) | noise var ratio (emp/theo): %.3f | n: %d\n",
+    name, lambda_target,
+    median(snr_local), 100 * (median(snr_local) - lambda_target) / lambda_target,
+    noise_var_ratio,
+    length(snr_local)
+  ))
+  
+  # --- Plots ---
+
+  plot(0:(h - 1), acf_arma, type = "h",
+       main = paste0(name, " ACF"), xlab = "Lag", ylab = "ACF")
+  abline(h = 0)
+
+  plot(y, type = "l",
+       main = paste0(name, " | lambda = ", lambda_target),
+       xlab = "t", ylab = "value")
+  lines(x.state, col = 'blue')
+
+  # --- Outputs ---
 
   list(
-    name = name,
+    name          = name,
     lambda_target = lambda_target,
-    ar = ar.coefs,
-    ma = ma.coefs,
-    sigma = sigma,
-    sigma2 = sigma2,
-    rho = rho,
-    noise = noise,
-    y = y,
-    # theory helpers
-    gamma0_unit = gamma0_unit,
-    sigma2_window_mean_unit = sigma2_window_mean_unit, 
-    #checks
-    snr_local_vec = snr_local_vec, 
-    loc_var_noise = loc_var_noise, 
-    loc_var_signal = loc_var_signal
+    ar            = ar.coefs,
+    ma            = ma.coefs,
+    sigma         = sigma,
+    sigma2        = sigma2,
+    acf_arma      = acf_arma,
+    var_smooth_unit = var_smooth_unit,
+    noise         = noise,
+    x             = x.state,
+    y             = y,
+    noise_var_ratio = noise_var_ratio,
+    snr_local       = snr_local,
+    lv_signal     = lv_signal,
+    lv_noise      = lv_noise
   )
 }
 ```
 
-# MA 1 
+# MA 1
 
 ```{r}
 ar.coefs <- numeric(0)
 ma.coefs <- c(0.3)
 
 ma1_low <- simulate_arma_noise(
-  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  x.state = x.state,
+  h = window,
   ar.coefs = ar.coefs, ma.coefs = ma.coefs,
   lambda_target = lambda_low,
   name = "MA1 | low"
 )
 ma1_high <- simulate_arma_noise(
-  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  x.state = x.state,
+  h = window,
   ar.coefs = ar.coefs, ma.coefs = ma.coefs,
   lambda_target = lambda_high,
   name = "MA1 | high"
 )
 ```
 
-# ARMA 21 
+# ARMA 21
 
 ```{r}
 ar.coefs <- c(0.8, 0.1)
 ma.coefs <- c(0.3)
 
 arma21_low <- simulate_arma_noise(
-  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
-  ar.coefs = ar.coefs, ma.coefs = ma.coefs,
+  x.state = x.state,
+  h = window,
+  ar.coefs = ar.coefs, 
+  ma.coefs = ma.coefs,
   lambda_target = lambda_low,
   name = "arma21 | low"
 )
 
 arma21_high <- simulate_arma_noise(
-  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  x.state = x.state,
+  h = window,
   ar.coefs = ar.coefs, ma.coefs = ma.coefs,
   lambda_target = lambda_high,
   name = "arma21 | high"
@@ -208,14 +247,16 @@ ar.coefs <- c(0.5)
 ma.coefs <- numeric(0)
 
 ar1_low <- simulate_arma_noise(
-  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  x.state = x.state,
+  h = window,
   ar.coefs = ar.coefs, ma.coefs = ma.coefs,
   lambda_target = lambda_low,
   name = "AR1 | low"
 )
 
 ar1_high <- simulate_arma_noise(
-  x.state = x.state, window = window, s2_y_obs = s2_y_obs,
+  x.state = x.state,
+  h = window,
   ar.coefs = ar.coefs, ma.coefs = ma.coefs,
   lambda_target = lambda_high,
   name = "AR1 | high"
@@ -225,16 +266,10 @@ ar1_high <- simulate_arma_noise(
 # Checks
 
 ```{r}
-# ma1_low$snr_local_vec
-summary(ma1_low$snr_local_vec)
-# ma1_high$snr_local_vec
-summary(ma1_high$snr_local_vec)
-# arma21_low$snr_local_vec
-summary(arma21_low$snr_local_vec)
-# arma21_high$snr_local_vec
-summary(arma21_high$snr_local_vec)
-# ar1_low$snr_local_vec
-summary(ar1_low$snr_local_vec)
-# ar1_high$snr_local_vec
-summary(ar1_high$snr_local_vec)
+summary(ma1_low$snr_local)
+summary(ma1_high$snr_local)
+summary(arma21_low$snr_local)
+summary(arma21_high$snr_local)
+summary(ar1_low$snr_local)
+summary(ar1_high$snr_local)
 ```
