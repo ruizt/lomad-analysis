@@ -15,7 +15,8 @@ Inference is built around a two-step workflow:
 
 | Function | Role |
 |---|---|
-| `lomad_fit()` | Fit the null model: smooth trends, fit ARMA residuals, compute rolling correlations, classify decoupling periods |
+| `lomad_fit()` | Fit the null model to a single contiguous series pair |
+| `lomad_fit_blocks()` | Fit the null model jointly across multiple independent data blocks |
 | `lomad_test_boot()` | Test via full parametric bootstrap (p-values for all statistics) |
 | `lomad_test_mc()` | Test via Markov-chain bootstrap on state process only (faster) |
 | `lomad_test_analytic()` | Test via closed-form CLT (`frac_state` only) |
@@ -29,6 +30,8 @@ devtools::install()
 ```
 
 ## Quickstart
+
+### Single series
 
 ```r
 library(lomad)
@@ -48,6 +51,31 @@ out$p_values   # p-values
 plot_lomad_fit(sim$y1, sim$y2, out)
 ```
 
+### Multiple blocks
+
+When data arrive as independent contiguous chunks (e.g. instrument deployments,
+field seasons), use `lomad_fit_blocks()` to pool all blocks into a single null
+model estimate. Block boundaries are fully respected: no smoothing, filter
+state, or transition counting crosses a boundary.
+
+```r
+# blocks is a named list of list(x1, x2) pairs — one per block.
+# Use blocks_from_df() to build it from a tidy data frame:
+blocks <- blocks_from_df(df, x1_col = "o2", x2_col = "ph", block_col = "block_id")
+
+fit <- lomad_fit_blocks(blocks, q = 56, h = 112, max_pq = 2)
+
+fit$observed            # decoupling statistics aggregated across blocks
+fit$expected_asymptotic
+
+# All three test functions accept the output of lomad_fit_blocks() directly.
+# lomad_test_boot() simulates one replicate per block at each block's observed
+# length, rather than one long aggregate series.
+test <- lomad_test_boot(fit, B = 1000, seed = 42,
+                        ncores = parallel::detectCores() - 1)
+test$p_values
+```
+
 ## For contributors
 
 Clone the repo and open `lomad.Rproj` in RStudio. Development notebooks and
@@ -63,12 +91,13 @@ See `dev/README.md` for the full contributor workflow.
 
 ```
 lomad/
-├── R/                  # Package functions
+├── R/                     # Package functions
 ├── dev/
-│   ├── notebooks/      # Quarto simulation studies
-│   └── scripts/        # Exploratory R scripts
-├── tests/testthat/     # Unit tests
-├── man/                # Auto-generated documentation
+│   ├── mb-analysis/       # MB field data analysis scripts
+│   ├── notebooks/         # Quarto simulation studies
+│   └── scripts/           # Exploratory R scripts
+├── tests/testthat/        # Unit tests
+├── man/                   # Auto-generated documentation
 ├── DESCRIPTION
 └── NAMESPACE
 ```
