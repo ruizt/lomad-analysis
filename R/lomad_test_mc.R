@@ -5,10 +5,13 @@
 #' efficient than [lomad_test_boot()] because it does not re-simulate the full
 #' correlation process.
 #'
-#' @param fit List returned by [lomad_fit()].
+#' @param fit List returned by [lomad_fit()] or [lomad_fit_blocks()].
 #' @param B Integer. Number of bootstrap replicates (default 1000).
 #' @param T_sim Integer or NULL. Length of simulated chains. If `NULL`,
-#'   defaults to `length(fit$valid_idx)`.
+#'   defaults to `length(fit$valid_idx)` for single-series fits, or
+#'   `median(fit$inputs$block_lengths)` for multi-block fits (reflecting a
+#'   realistic within-block chain length rather than the total across all
+#'   blocks).
 #' @param seed Integer or NULL. RNG seed for reproducibility.
 #'
 #' @return A named list with the same structure as [lomad_test_boot()]:
@@ -53,7 +56,13 @@ lomad_test_mc <- function(fit,
       pi01_th < 0 || pi01_th > 1)
     stop("Markov transition parameters fall outside [0, 1].")
 
-  if (is.null(T_sim)) T_sim <- length(fit$valid_idx)
+  if (is.null(T_sim)) {
+    T_sim <- if (!is.null(fit$inputs$block_lengths)) {
+      as.integer(stats::median(fit$inputs$block_lengths))
+    } else {
+      length(fit$valid_idx)
+    }
+  }
 
   # --- Helper: simulate one 2-state Markov chain ---
 

@@ -5,9 +5,10 @@
 #' analytic p-value only for `frac_state`; p-values for the other statistics
 #' are `NA`.
 #'
-#' @param fit List returned by [lomad_fit()].
+#' @param fit List returned by [lomad_fit()] or [lomad_fit_blocks()].
 #' @param T_eff Integer or NULL. Effective chain length for the CLT. If `NULL`,
-#'   defaults to `length(fit$valid_idx)`.
+#'   defaults to `length(fit$valid_idx)` for single-series fits, or
+#'   `median(fit$inputs$block_lengths)` for multi-block fits.
 #'
 #' @return A named list with the same structure as [lomad_test_boot()]:
 #'   \describe{
@@ -43,7 +44,13 @@ lomad_test_analytic <- function(fit,
     pi1_th * (1 - pi11_th) / (1 - pi1_th) else NA_real_
   pi00_th <- if (!is.na(pi01_th)) 1 - pi01_th else NA_real_
 
-  if (is.null(T_eff)) T_eff <- length(fit$valid_idx)
+  if (is.null(T_eff)) {
+    T_eff <- if (!is.null(fit$inputs$block_lengths)) {
+      as.integer(stats::median(fit$inputs$block_lengths))
+    } else {
+      length(fit$valid_idx)
+    }
+  }
 
   # --- CLT for frac_state under 2-state Markov chain ---
   # Var(pi1_hat) ~ Var(I_t) * (1 + theta) / (1 - theta) / T_eff
