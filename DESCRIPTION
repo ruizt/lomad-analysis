@@ -1,11 +1,11 @@
 Package: lomad
 Title: Local Moving Average Decoupling
 Version: 0.0.1
-Authors@R:
-    person("Trevor", "Ruiz", email = "truiz01@calpoly.edu", role = c("aut", "cre"))
-    person("Alea", "Seifert", role = c("aut"))
-    person("Catherine", "Mispagel", role = c("aut"))
-    person("Emma", "Hamilton", role = c("aut"))
+Authors@R: c(
+    person("Trevor", "Ruiz", email = "truiz01@calpoly.edu", role = c("aut", "cre")),
+    person("Alea", "Seifert", role = c("aut")),
+    person("Catherine", "Mispagel", role = c("aut")),
+    person("Emma", "Hamilton", role = c("aut")))
 Description: Detects and characterizes periods of decoupling between two
     time series using correlations between local moving averages. Provides 
     parametric bootstrap inference for decoupling rate, mean run length, and 
