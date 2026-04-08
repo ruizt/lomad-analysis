@@ -22,6 +22,9 @@
 #' @param T_eff Integer or NULL. Effective chain length for `"analytic"`.
 #'   Defaults to `length(fit$valid_idx)`.
 #' @param seed Integer or NULL. RNG seed for `"boot"` and `"mc"`.
+#' @param ncores Integer. Number of cores for parallel bootstrap when
+#'   `method = "boot"` (default 1). Passed to [lomad_test_boot()]; ignored for
+#'   other methods and on Windows.
 #'
 #' @return The list returned by the selected test function
 #'   ([lomad_test_boot()], [lomad_test_mc()], or [lomad_test_analytic()]),
@@ -43,7 +46,8 @@ lomad <- function(x1,
                   B      = 500,
                   T_sim  = NULL,
                   T_eff  = NULL,
-                  seed   = NULL) {
+                  seed   = NULL,
+                  ncores = 1L) {
 
   method <- match.arg(method)
 
@@ -55,7 +59,7 @@ lomad <- function(x1,
                    max_pq = max_pq)
 
   switch(method,
-    boot     = lomad_test_boot(fit,     B = B, seed = seed),
+    boot     = lomad_test_boot(fit,     B = B, seed = seed, ncores = ncores),
     mc       = lomad_test_mc(fit,       B = B, T_sim = T_sim, seed = seed),
     analytic = lomad_test_analytic(fit, T_eff = T_eff)
   )
