@@ -76,12 +76,14 @@ test_analytic <- lomad_test_analytic(fit)
 test_analytic$p_values
 
 # Markov-chain bootstrap (fast)
-test_mc <- lomad_test_mc(fit, B = 1000, seed = 4721)
+test_mc <- lomad_test_mc(fit, B = 1000, seed = 4721, 
+                         verbose = TRUE)
 test_mc$p_values
 
 # Full parametric bootstrap (use parallel cores to speed up)
-test_boot <- lomad_test_boot(fit, B = 1000, seed = 4721,
-                             ncores = parallel::detectCores() - 1)
+test_boot <- lomad_test_boot(fit, B = 500, seed = 4721,
+                             ncores = parallel::detectCores() - 1,
+                             verbose = TRUE)
 test_boot$p_values
 test_boot$expected
 test_boot$observed

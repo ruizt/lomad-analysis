@@ -23,7 +23,7 @@ block_data |>
 
 # select one
 example_block <- block_data |>
-  filter(block_id == 18)
+  filter(block_id == 2)
 
 # plot
 example_block |>
@@ -38,7 +38,7 @@ example_block |>
   labs(x = NULL, y = 'z score', title = 'Bay South') +
   guides(color = guide_none())
 
-paste(img_out, 'bs-example.png', sep = '/') |>
+paste(img_out, 'bs1-20.png', sep = '/') |>
   ggsave(dpi = 400, width = 6, height = 4)
 
 # (pre)smooth to remove tidal fluctuations
@@ -67,7 +67,7 @@ example_block_presm |>
   labs(x = NULL, y = 'z score', title = 'Bay South') +
   guides(color = guide_none())
 
-paste(img_out, 'bs-example-presm.png', sep = '/') |>
+paste(img_out, 'bs1-20-presm.png', sep = '/') |>
   ggsave(dpi = 400, width = 6, height = 4)
 
 # fit null model
@@ -84,7 +84,7 @@ fit <- lomad_fit(x1, x2,
 fit$null_model
 
 # plot fit and detected decoupling periods
-paste(img_out, 'bs-example-fit.png', sep = '/') |>
+paste(img_out, 'bs1-20-fit.png', sep = '/') |>
   png(width = 5, height = 4, units = 'in', res = 400)
 plot_lomad_fit(x1, x2, fit, dates = dt, alpha = 0.4)
 dev.off()
