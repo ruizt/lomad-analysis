@@ -22,6 +22,8 @@ blocks_from_df <- function(df, x1_col, x2_col, block_col) {
 
 # Internal: AIC-based ARMA order selection (mirrors lomad_fit's local helper).
 # Accepts a residual vector that may contain NAs (handled by arima via Kalman).
+# Fits are attempted with increased optim iterations; non-converged fits are
+# discarded so they cannot win AIC selection.
 .select_arma <- function(resid, max_pq) {
   best_aic   <- Inf
   best_fit   <- NULL
@@ -30,8 +32,18 @@ blocks_from_df <- function(df, x1_col, x2_col, block_col) {
   for (p in 0:max_pq) {
     for (qi in 0:max_pq) {
       if (p == 0L && qi == 0L) next
-      fit <- try(stats::arima(resid, order = c(p, 0L, qi)), silent = TRUE)
-      if (inherits(fit, "try-error") || is.na(fit$aic)) next
+      converged <- TRUE
+      fit <- withCallingHandlers(
+        try(stats::arima(resid, order = c(p, 0L, qi),
+                         optim.control = list(maxit = 500L)), silent = TRUE),
+        warning = function(w) {
+          if (grepl("convergence problem", conditionMessage(w))) {
+            converged <<- FALSE
+            invokeRestart("muffleWarning")
+          }
+        }
+      )
+      if (inherits(fit, "try-error") || is.na(fit$aic) || !converged) next
       if (fit$aic < best_aic) {
         best_aic   <- fit$aic
         best_fit   <- fit
