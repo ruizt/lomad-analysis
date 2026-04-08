@@ -25,6 +25,9 @@
 #' @param ncores Integer. Number of cores for parallel bootstrap when
 #'   `method = "boot"` (default 1). Passed to [lomad_test_boot()]; ignored for
 #'   other methods and on Windows.
+#' @param verbose Logical. If `TRUE`, prints a live progress bar during
+#'   bootstrap replicates (passed to [lomad_test_boot()] or [lomad_test_mc()];
+#'   has no effect for `method = "analytic"`). Default `FALSE`.
 #'
 #' @return The list returned by the selected test function
 #'   ([lomad_test_boot()], [lomad_test_mc()], or [lomad_test_analytic()]),
@@ -37,17 +40,18 @@
 #' @export
 lomad <- function(x1,
                   x2,
-                  q      = NULL,
-                  h      = NULL,
-                  alpha  = 0.05,
-                  rho0   = 0,
-                  max_pq = 2,
-                  method = c("boot", "mc", "analytic"),
-                  B      = 500,
-                  T_sim  = NULL,
-                  T_eff  = NULL,
-                  seed   = NULL,
-                  ncores = 1L) {
+                  q       = NULL,
+                  h       = NULL,
+                  alpha   = 0.05,
+                  rho0    = 0,
+                  max_pq  = 2,
+                  method  = c("boot", "mc", "analytic"),
+                  B       = 500,
+                  T_sim   = NULL,
+                  T_eff   = NULL,
+                  seed    = NULL,
+                  ncores  = 1L,
+                  verbose = FALSE) {
 
   method <- match.arg(method)
 
@@ -59,8 +63,10 @@ lomad <- function(x1,
                    max_pq = max_pq)
 
   switch(method,
-    boot     = lomad_test_boot(fit,     B = B, seed = seed, ncores = ncores),
-    mc       = lomad_test_mc(fit,       B = B, T_sim = T_sim, seed = seed),
+    boot     = lomad_test_boot(fit,     B = B, seed = seed, ncores = ncores,
+                               verbose = verbose),
+    mc       = lomad_test_mc(fit,       B = B, T_sim = T_sim, seed = seed,
+                             verbose = verbose),
     analytic = lomad_test_analytic(fit, T_eff = T_eff)
   )
 }

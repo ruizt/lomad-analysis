@@ -13,6 +13,8 @@
 #'   realistic within-block chain length rather than the total across all
 #'   blocks).
 #' @param seed Integer or NULL. RNG seed for reproducibility.
+#' @param verbose Logical. If `TRUE`, prints a live progress bar of the form
+#'   `[===...] XX%  (b/B)` during the bootstrap. Default `FALSE`.
 #'
 #' @return A named list with the same structure as [lomad_test_boot()]:
 #'   \describe{
@@ -29,9 +31,10 @@
 #'
 #' @export
 lomad_test_mc <- function(fit,
-                           B     = 1000,
-                           T_sim = NULL,
-                           seed  = NULL) {
+                           B       = 1000,
+                           T_sim   = NULL,
+                           seed    = NULL,
+                           verbose = FALSE) {
 
   if (!is.null(seed)) set.seed(seed)
 
@@ -97,7 +100,16 @@ lomad_test_mc <- function(fit,
 
   # --- Bootstrap loop ---
 
-  boot <- lapply(seq_len(B), function(b) chain_stats(sim_chain()))
+  if (verbose) {
+    .boot_progress(0L, B)
+    boot <- lapply(seq_len(B), function(b) {
+      res <- chain_stats(sim_chain())
+      .boot_progress(b, B)
+      res
+    })
+  } else {
+    boot <- lapply(seq_len(B), function(b) chain_stats(sim_chain()))
+  }
 
   entry_v <- Filter(is.finite, vapply(boot, `[[`, numeric(1), "entry_rate"))
   run_v   <- Filter(is.finite, vapply(boot, `[[`, numeric(1), "mean_run_length"))

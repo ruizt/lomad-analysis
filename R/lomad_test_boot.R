@@ -13,6 +13,10 @@
 #'   where [lapply()] is used regardless. When `ncores > 1`, the
 #'   `"L'Ecuyer-CMRG"` RNG is used so that results are reproducible given
 #'   `seed`.
+#' @param verbose Logical. If `TRUE`, prints a live progress bar of the form
+#'   `[===...] XX%  (b/B)` during the bootstrap. In parallel mode the bar
+#'   advances in batches of `ncores` replicates rather than one at a time.
+#'   Default `FALSE`.
 #'
 #' @return A named list:
 #'   \describe{
@@ -29,9 +33,10 @@
 #'
 #' @export
 lomad_test_boot <- function(fit,
-                                 B      = 500,
-                                 seed   = NULL,
-                                 ncores = 1L) {
+                                 B       = 500,
+                                 seed    = NULL,
+                                 ncores  = 1L,
+                                 verbose = FALSE) {
 
   use_parallel <- ncores > 1L && .Platform$OS.type != "windows"
 
@@ -112,14 +117,9 @@ lomad_test_boot <- function(fit,
 
   # --- Bootstrap loop ---
 
-  map_fn <- if (use_parallel) {
-    function(X, FUN) parallel::mclapply(X, FUN, mc.cores = ncores)
-  } else {
-    lapply
-  }
-
+  # One replicate function (b argument is the index, used only for mclapply dispatch)
   if (!is.null(fit$inputs$block_lengths)) {
-    # --- Block-aware bootstrap ---
+    # --- Block-aware path ---
     block_lengths <- fit$inputs$block_lengths
     Kb            <- length(block_lengths)
     block_trends  <- lapply(fit$blocks, `[[`, "trend_hat")
@@ -157,8 +157,7 @@ lomad_test_boot <- function(fit,
       list(I_v = as.integer(R_k[v] < x_eff), var_R = stats::var(R_k[v], na.rm = TRUE))
     }
 
-    sim_stats_blocks <- function() {
-      # Simulate all blocks once, then aggregate statistics
+    iter_fn <- function(b) {
       block_results <- lapply(seq_len(Kb), function(k) {
         pair <- sim_pair_block(k)
         sim_stats_block(pair$x1, pair$x2)
@@ -192,14 +191,31 @@ lomad_test_boot <- function(fit,
            var_R           = mean(var_R_v, na.rm = TRUE))
     }
 
-    boot <- map_fn(seq_len(B), function(b) sim_stats_blocks())
-
   } else {
-    # --- Single-series bootstrap (original path) ---
-    boot <- map_fn(seq_len(B), function(b) {
+    # --- Single-series path ---
+    iter_fn <- function(b) {
       pair <- sim_pair()
       sim_stats(pair$x1, pair$x2)
-    })
+    }
+  }
+
+  # Run replicates, with progress if requested.
+  # Parallel: chunked in batches of ncores so progress updates between batches.
+  boot <- if (use_parallel) {
+    chunk_size <- max(1L, ncores)
+    chunks     <- split(seq_len(B), ceiling(seq_len(B) / chunk_size))
+    results    <- vector("list", B)
+    if (verbose) .boot_progress(0L, B)
+    for (ch in chunks) {
+      results[ch] <- parallel::mclapply(ch, iter_fn, mc.cores = ncores)
+      if (verbose) .boot_progress(max(ch), B)
+    }
+    results
+  } else if (verbose) {
+    .boot_progress(0L, B)
+    lapply(seq_len(B), function(b) { res <- iter_fn(b); .boot_progress(b, B); res })
+  } else {
+    lapply(seq_len(B), iter_fn)
   }
 
   entry_v  <- Filter(is.finite, vapply(boot, `[[`, numeric(1), "entry_rate"))
