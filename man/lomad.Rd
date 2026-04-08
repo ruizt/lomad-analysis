@@ -16,7 +16,9 @@ lomad(
   B = 500,
   T_sim = NULL,
   T_eff = NULL,
-  seed = NULL
+  seed = NULL,
+  ncores = 1L,
+  verbose = FALSE
 )
 }
 \arguments{
@@ -49,6 +51,14 @@ to \code{length(fit$valid_idx)}.}
 Defaults to \code{length(fit$valid_idx)}.}
 
 \item{seed}{Integer or NULL. RNG seed for \code{"boot"} and \code{"mc"}.}
+
+\item{ncores}{Integer. Number of cores for parallel bootstrap when
+\code{method = "boot"} (default 1). Passed to \code{\link[=lomad_test_boot]{lomad_test_boot()}}; ignored for
+other methods and on Windows.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints a live progress bar during
+bootstrap replicates (passed to \code{\link[=lomad_test_boot]{lomad_test_boot()}} or \code{\link[=lomad_test_mc]{lomad_test_mc()}};
+has no effect for \code{method = "analytic"}). Default \code{FALSE}.}
 }
 \value{
 The list returned by the selected test function

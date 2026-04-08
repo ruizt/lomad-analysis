@@ -24,9 +24,32 @@ Inference is built around a two-step workflow:
 
 ## Installation
 
+### Development version (from source)
+
+Clone the repository and install with `devtools`:
+
+```bash
+git clone <repo-url>
+cd lomad
+```
+
 ```r
-# Install from source (development)
+# Install dependencies, then install the package
+devtools::install_deps()
 devtools::install()
+```
+
+Or build a source tarball and install it manually:
+
+```bash
+R CMD build .
+R CMD INSTALL lomad_*.tar.gz
+```
+
+To load the package in-place without installing (useful during development):
+
+```r
+devtools::load_all()
 ```
 
 ## Quickstart

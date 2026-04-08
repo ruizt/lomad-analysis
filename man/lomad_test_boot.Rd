@@ -4,7 +4,7 @@
 \alias{lomad_test_boot}
 \title{Parametric bootstrap test for local correlation decoupling}
 \usage{
-lomad_test_boot(fit, B = 500, seed = NULL)
+lomad_test_boot(fit, B = 500, seed = NULL, ncores = 1L, verbose = FALSE)
 }
 \arguments{
 \item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}}.}
@@ -12,6 +12,17 @@ lomad_test_boot(fit, B = 500, seed = NULL)
 \item{B}{Integer. Number of bootstrap replicates (default 500).}
 
 \item{seed}{Integer or NULL. RNG seed for reproducibility.}
+
+\item{ncores}{Integer. Number of cores for parallel bootstrap via
+\code{\link[parallel:mclapply]{parallel::mclapply()}} (default 1, i.e. sequential). Ignored on Windows,
+where \code{\link[=lapply]{lapply()}} is used regardless. When \code{ncores > 1}, the
+\code{"L'Ecuyer-CMRG"} RNG is used so that results are reproducible given
+\code{seed}.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints a live progress bar of the form
+\verb{[===...] XX\%  (b/B)} during the bootstrap. In parallel mode the bar
+advances in batches of \code{ncores} replicates rather than one at a time.
+Default \code{FALSE}.}
 }
 \value{
 A named list:

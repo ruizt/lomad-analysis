@@ -7,10 +7,11 @@
 lomad_test_analytic(fit, T_eff = NULL)
 }
 \arguments{
-\item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}}.}
+\item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}} or \code{\link[=lomad_fit_blocks]{lomad_fit_blocks()}}.}
 
 \item{T_eff}{Integer or NULL. Effective chain length for the CLT. If \code{NULL},
-defaults to \code{length(fit$valid_idx)}.}
+defaults to \code{length(fit$valid_idx)} for single-series fits, or
+\code{median(fit$inputs$block_lengths)} for multi-block fits.}
 }
 \value{
 A named list with the same structure as \code{\link[=lomad_test_boot]{lomad_test_boot()}}:

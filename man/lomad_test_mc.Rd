@@ -4,17 +4,23 @@
 \alias{lomad_test_mc}
 \title{Markov-chain bootstrap test for local correlation decoupling}
 \usage{
-lomad_test_mc(fit, B = 1000, T_sim = NULL, seed = NULL)
+lomad_test_mc(fit, B = 1000, T_sim = NULL, seed = NULL, verbose = FALSE)
 }
 \arguments{
-\item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}}.}
+\item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}} or \code{\link[=lomad_fit_blocks]{lomad_fit_blocks()}}.}
 
 \item{B}{Integer. Number of bootstrap replicates (default 1000).}
 
 \item{T_sim}{Integer or NULL. Length of simulated chains. If \code{NULL},
-defaults to \code{length(fit$valid_idx)}.}
+defaults to \code{length(fit$valid_idx)} for single-series fits, or
+\code{median(fit$inputs$block_lengths)} for multi-block fits (reflecting a
+realistic within-block chain length rather than the total across all
+blocks).}
 
 \item{seed}{Integer or NULL. RNG seed for reproducibility.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints a live progress bar of the form
+\verb{[===...] XX\%  (b/B)} during the bootstrap. Default \code{FALSE}.}
 }
 \value{
 A named list with the same structure as \code{\link[=lomad_test_boot]{lomad_test_boot()}}:
