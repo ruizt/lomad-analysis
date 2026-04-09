@@ -1,32 +1,3 @@
-# Internal helper: draw Fourier coefficients with spectral decay
-generate_fourier_coef <- function(nb, sd0 = 2, p = 2.5) {
-  K   <- (nb - 1) / 2
-  k   <- rep(1:K, each = 2)
-  sd_k <- sd0 / (k^p)
-  stats::rnorm(2 * K, mean = 0, sd = sd_k)
-}
-
-# Internal helper: generate a pair of coefficient vectors separated by
-# distance d using the sphere-to-ellipse transform method
-generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
-  if (!is.null(seed)) set.seed(seed)
-
-  coef1 <- generate_fourier_coef(nb, sd0, p)
-
-  z <- stats::rnorm(length(coef1))
-  u <- z / sqrt(sum(z^2))
-
-  # Ellipsoid axes: decay relaxes as d increases
-  axes <- 1 / (seq_along(coef1))^(p - 0.1 * d)
-  dir  <- u * axes
-  dir  <- dir / sqrt(sum(dir^2))
-
-  coef2 <- coef1 + d * dir
-
-  list(coef1 = coef1, coef2 = coef2)
-}
-
-
 #' Generate a pair of Fourier-basis trend series at a controlled distance
 #'
 #' Generates two time series from a shared Fourier basis with a controlled
@@ -81,4 +52,33 @@ make_trends_dist <- function(n   = 500,
        x2    = x2,
        coef1 = coefs$coef1,
        coef2 = coefs$coef2)
+}
+
+
+# Internal helper: draw Fourier coefficients with spectral decay
+generate_fourier_coef <- function(nb, sd0 = 2, p = 2.5) {
+  K   <- (nb - 1) / 2
+  k   <- rep(1:K, each = 2)
+  sd_k <- sd0 / (k^p)
+  stats::rnorm(2 * K, mean = 0, sd = sd_k)
+}
+
+# Internal helper: generate a pair of coefficient vectors separated by
+# distance d using the sphere-to-ellipse transform method
+generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
+  if (!is.null(seed)) set.seed(seed)
+
+  coef1 <- generate_fourier_coef(nb, sd0, p)
+
+  z <- stats::rnorm(length(coef1))
+  u <- z / sqrt(sum(z^2))
+
+  # Ellipsoid axes: decay relaxes as d increases
+  axes <- 1 / (seq_along(coef1))^(p - 0.1 * d)
+  dir  <- u * axes
+  dir  <- dir / sqrt(sum(dir^2))
+
+  coef2 <- coef1 + d * dir
+
+  list(coef1 = coef1, coef2 = coef2)
 }
