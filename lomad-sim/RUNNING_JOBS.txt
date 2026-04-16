@@ -1,0 +1,112 @@
+RUNNING LOMAD BATCH JOBS ON CSU TIDE
+=====================================
+Namespace: cal-poly-lomad
+Image:     ghcr.io/otishunt/lomad-sim:latest
+PVC:       lomad-sim-results (1Gi, rook-ceph-block)
+
+
+FIRST-TIME SETUP
+----------------
+You need:
+  - Docker Desktop installed and running
+  - kubectl pointed at the TIDE cluster
+  - A GitHub Personal Access Token with the write:packages scope
+
+Create the image pull secret on the cluster (only needs to be done once):
+
+  kubectl create secret docker-registry ghcr-secret \
+    --docker-server=ghcr.io \
+    --docker-username=<github-username> \
+    --docker-password=<github-token> \
+    --namespace=cal-poly-lomad
+
+Create the PVC for storing results (only needs to be done once):
+
+  kubectl apply -f lomad-sim/pvc.yaml
+
+
+BUILDING AND PUSHING THE IMAGE
+-------------------------------
+Must be run from the repo root (not from inside lomad-sim/) so Docker
+can copy the package source to install it. Run this any time sim.R or
+the package source changes:
+
+  cd /path/to/lomad
+
+  docker buildx build \
+    --platform linux/amd64 \
+    -f lomad-sim/Dockerfile \
+    -t ghcr.io/otishunt/lomad-sim:latest \
+    --push .
+
+The --platform linux/amd64 flag is required because TIDE nodes run x86-64
+but Apple Silicon Macs build arm64 images by default.
+
+
+SUBMITTING A SINGLE JOB
+------------------------
+Edit the env: section of lomad-sim/job.yaml to set parameters, then:
+
+  kubectl apply -f lomad-sim/job.yaml
+
+To resubmit after a run:
+
+  kubectl delete job lomad-sim
+  kubectl apply -f lomad-sim/job.yaml
+
+
+AVAILABLE PARAMETERS (set via env vars in job.yaml)
+----------------------------------------------------
+  SIM_N        Series length                          (default: 500)
+  SIM_D        Trend separation distance              (default: 5)
+  SIM_SEED     RNG seed                               (default: 32026)
+  SIM_H        MA window / rolling correlation window (default: 30)
+  SIM_Q        MA smoothing window for lomad()        (default: 30)
+  SIM_B        Bootstrap replicates                   (default: 1000)
+  SIM_METHOD   boot | mc | analytic                   (default: boot)
+  SIM_NCORES   Parallel cores for bootstrap           (default: 1)
+  SIM_OUT_DIR  Output path (mounted from PVC)         (default: /jobs/output)
+
+Resource limits are pre-set to 1.2x requests to satisfy the cluster policy:
+  requests: cpu=1, memory=1Gi
+  limits:   cpu=1200m, memory=1228Mi
+
+If you increase SIM_NCORES, raise the CPU request to match.
+
+
+SUBMITTING A PARAMETER SWEEP
+-----------------------------
+submit_sweep.sh submits one job per value of d, all running in parallel:
+
+  bash lomad-sim/submit_sweep.sh
+
+To sweep a different parameter, edit the D_VALUES array and the
+corresponding env var in the script.
+
+
+MONITORING
+----------
+  kubectl get jobs -w          # watch job statuses
+  kubectl get pods -w          # watch pod statuses
+  kubectl logs <pod-name>      # view output from a completed pod
+  kubectl describe pod <pod>   # diagnose errors (ImagePullBackOff, OOMKilled, etc.)
+
+Note: pod logs disappear once the pod is cleaned up. To preserve them,
+add ttlSecondsAfterFinished: 3600 to the job spec.
+
+
+RETRIEVING RESULTS FROM THE PVC
+---------------------------------
+Spin up a temporary pod that mounts the PVC:
+
+  kubectl run inspect --image=busybox --restart=Never --rm -it \
+    --overrides='{"spec":{"volumes":[{"name":"output","persistentVolumeClaim":{"claimName":"lomad-sim-results"}}],"containers":[{"name":"inspect","image":"busybox","stdin":true,"tty":true,"volumeMounts":[{"name":"output","mountPath":"/output"}]}]}}' \
+    -- sh
+
+Inside the shell:
+  ls /output                         # list all result files
+  cat /output/lomad_results_log.csv  # view the summary log
+
+Each completed job writes:
+  out_n{N}_d{D}_seed{S}.rds    full lomad() output, load with readRDS() in R
+  lomad_results_log.csv        one row per job: parameters + p-values + observed stats

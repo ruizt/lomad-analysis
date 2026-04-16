@@ -1,0 +1,66 @@
+# job.yaml — Kubernetes Job for lomad simulation
+#
+# Build from repo root:
+#   docker buildx build --platform linux/amd64 -f lomad-sim/Dockerfile -t ghcr.io/otishunt/lomad-sim:latest --push .
+#
+# Submit:
+#   kubectl apply -f lomad-sim/job.yaml
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lomad-sim
+  labels:
+    app: lomad-sim
+
+spec:
+  backoffLimit: 1
+
+  template:
+    spec:
+      restartPolicy: Never
+
+      imagePullSecrets:
+        - name: ghcr-secret
+
+      containers:
+        - name: lomad-sim
+          image: ghcr.io/otishunt/lomad-sim:latest
+          imagePullPolicy: Always
+
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "1200m"
+              memory: "1228Mi"
+
+          env:
+            - name: SIM_N
+              value: "500"
+            - name: SIM_D
+              value: "5"
+            - name: SIM_SEED
+              value: "32026"
+            - name: SIM_H
+              value: "30"
+            - name: SIM_Q
+              value: "30"
+            - name: SIM_B
+              value: "1000"
+            - name: SIM_METHOD
+              value: "boot"
+            - name: SIM_NCORES
+              value: "1"
+            - name: SIM_OUT_DIR
+              value: "/jobs/output"
+
+          volumeMounts:
+            - name: output
+              mountPath: /jobs/output
+
+      volumes:
+        - name: output
+          persistentVolumeClaim:
+            claimName: lomad-sim-results

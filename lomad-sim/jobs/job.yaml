@@ -1,0 +1,94 @@
+# job.yaml — Kubernetes Job for a single lomad simulation replicate
+#
+# Usage:
+#   # Build the image first
+#   docker build -t lomad-sim:latest .
+#
+#   # For local testing with Docker (no Kubernetes needed):
+#   docker run --rm \
+#     -e SIM_N=500 -e SIM_D=1 -e SIM_LAMBDA=4 \
+#     -e SIM_ARMA_P=2 -e SIM_ARMA_Q=1 \
+#     -e SIM_B=200 -e SIM_SEED=42 \
+#     -v $(pwd)/output:/jobs/output \
+#     lomad-sim:latest
+#
+#   # Submit to Kubernetes:
+#   kubectl apply -f jobs/job.yaml
+#
+# For a parameter sweep, duplicate or template this file with different
+# SIM_SEED / SIM_D / SIM_LAMBDA values (or use a Job array via Argo Workflows).
+# -----------------------------------------------------------------------------
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lomad-sim-test
+  labels:
+    app: lomad-sim
+    scenario: test
+
+spec:
+  # Retry once on failure
+  backoffLimit: 1
+
+  template:
+    metadata:
+      labels:
+        app: lomad-sim
+
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: lomad-sim
+          image: lomad-sim:latest
+          imagePullPolicy: IfNotPresent
+
+          # Resource requests/limits — adjust for your cluster
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+
+          # Simulation parameters — edit these to configure the job
+          env:
+            - name: SIM_N
+              value: "500"
+            - name: SIM_D
+              value: "1"
+            - name: SIM_LAMBDA
+              value: "4"
+            - name: SIM_ARMA_P
+              value: "2"
+            - name: SIM_ARMA_Q
+              value: "1"
+            - name: SIM_SCALE
+              value: "5"
+            - name: SIM_B
+              value: "500"
+            - name: SIM_METHOD
+              value: "boot"
+            - name: SIM_NCORES
+              value: "1"
+            - name: SIM_SEED
+              value: "42"
+            - name: SIM_JOB_ID
+              value: "test"
+            - name: SIM_OUT_DIR
+              value: "/jobs/output"
+
+          # Mount a PVC (or emptyDir for quick tests) to retrieve results
+          volumeMounts:
+            - name: output
+              mountPath: /jobs/output
+
+      volumes:
+        - name: output
+          # Swap emptyDir for a PersistentVolumeClaim when running on a cluster:
+          #
+          # persistentVolumeClaim:
+          #   claimName: lomad-sim-results
+          emptyDir: {}
