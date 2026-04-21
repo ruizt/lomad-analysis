@@ -104,8 +104,9 @@ test2 <- lomad_test_mc(fit, B = 1000, seed = 123)
 test2$p_values
 
 # full parametric bootstrap (takes a bit)
-test3 <- lomad_test_boot(fit, B = 1000, seed = 123, 
-                         ncores = parallel::detectCores() - 1)
+test3 <- lomad_test_boot(fit, B = 500, seed = 123, 
+                         ncores = parallel::detectCores() - 1,
+                         verbose = T)
 test3$p_values
 test3$expected
 test3$observed

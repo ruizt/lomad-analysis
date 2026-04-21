@@ -1,7 +1,7 @@
 devtools::load_all()
 
 # generate trends
-trends <- make_trends_dist(n = 500, d = 5, seed = 32026)
+trends <- make_trends_dist(n = 500, d = 2, seed = 32026)
 plot(trends$x1, type = "l", col = 'red',
      xlab = "t", ylab = expression(mu[t]))
 lines(trends$x2, col = "blue")
@@ -10,7 +10,7 @@ lines(trends$x2, col = "blue")
 sim <- add_noise(trends,
                  h             = 30,
                  lambda_target = 4,
-                 scale         = 5,
+                 scale         = 1,
                  order         = c(2, 1),
                  s             = 100,
                  n_start       = 30,
@@ -27,8 +27,9 @@ lines(sim$x1, col = "darkgrey", lwd = 2)
 lines(sim$x2, col = "darkgrey", lwd = 2)
 
 # local moving average decoupling (method = "boot", "mc", or "analytic")
-out <- lomad(sim$y1, sim$y2, q = 30, h = 50, B = 1000, 
-             seed = 31726, method = "boot", ncores = parallel::detectCores() - 1)
+out <- lomad(sim$y1, sim$y2, q = 10, h = 50, B = 100, 
+             seed = 31726, method = "boot", ncores = parallel::detectCores() - 1,
+             verbose = TRUE)
 out$p_values
 out$observed
 out$expected
