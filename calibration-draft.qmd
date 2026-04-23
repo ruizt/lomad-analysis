@@ -1,0 +1,116 @@
+---
+title: "Calibration Draft"
+format: html
+editor: visual
+---
+
+# tes-scripts.R
+```{r}
+devtools::load_all()
+
+# generate trends
+trends <- make_trends_dist(n = 500, d = 2, seed = 32026)
+plot(trends$x1, type = "l", col = 'red',
+     xlab = "t", ylab = expression(mu[t]))
+lines(trends$x2, col = "blue")
+
+# add ARMA noise
+sim <- add_noise(trends,
+                 h             = 30,
+                 lambda_target = 4,
+                 scale         = 1,
+                 order         = c(2, 1),
+                 s             = 100,
+                 n_start       = 30,
+                 seed          = 31726)
+
+# summary of added noise processes
+sim$noise
+
+# plot observed series with true trends overlaid
+plot(sim$y1, type = "l", col = 'red',
+     xlab = 't', ylab = expression(X[t]))
+lines(sim$y2, col = "blue")
+lines(sim$x1, col = "darkgrey", lwd = 2)
+lines(sim$x2, col = "darkgrey", lwd = 2)
+
+# local moving average decoupling (method = "boot", "mc", or "analytic")
+out <- lomad(sim$y1, sim$y2, q = 10, h = 50, B = 100, 
+             seed = 31726, method = "boot", ncores = parallel::detectCores() - 1,
+             verbose = TRUE)
+out$p_values
+out$observed
+out$expected
+
+# plot
+plot_lomad_fit(sim$y1, sim$y2, out)
+
+# plot smoothed trends only
+plot(out$ma1, type = "l", col = "red")
+lines(out$ma2, type = "l", col = "blue")
+lines(out$trend_hat, type = 'l', col = 'grey')
+
+```
+
+
+
+```{r}
+
+library(zoo)
+library(roll)
+
+# moving average window length
+q <- 10
+# window width - 
+h <- 50
+
+# correlation threshhold
+x_thresh <- 0.8
+
+# smoothed series
+ma1 <- out$ma1
+ma2 <- out$ma2
+
+# estimated trend
+# if you had to only estimate one - trend_hat
+trend <- out$trend_hat
+
+# smoothed noise
+noise1_sm <- ma1 - trend
+noise2_sm <- ma2 - trend
+
+# true tau^2
+# computing ma of true trend sim$x1
+trend_sm_true <- stats::filter(sim$x1, rep(1/q, q), sides = 1)
+# rolling variance of smoothed trend
+tau2_t <- zoo::rollapply(trend_sm_true, width = h, var,
+                         align = "right", fill = NA)
+# estimate sigma^2
+sigma1_sq <- var(noise1_sm, na.rm = TRUE)
+sigma2_sq <- var(noise2_sm, na.rm = TRUE)
+
+# lambda = 
+lambda1 <- tau2_t / sigma1_sq
+lambda2 <- tau2_t / sigma2_sq
+
+#rho 
+rho_t <- sqrt((lambda1 * lambda2) /
+              ((1 + lambda1) * (1 + lambda2)))
+
+# starting with neff = h = 50 - will change later
+n_eff <- h
+z_t <- sqrt(n_eff) * (x_thresh - rho_t)
+p_t <- pnorm(z_t)
+
+plot(rho_t, type = "l")
+plot(tau2_t, type = "l")
+
+#histogram of lambdas 
+hist(lambda1, 
+     main = "Lambda 1",
+     breaks = 50) 
+
+hist(lambda2, main = "lambda 2", 
+     breaks = 50)
+```
+
