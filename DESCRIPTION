@@ -26,5 +26,9 @@ Suggests:
     forecast,
     ggplot2,
     tidyverse,
+    knitr,
+    rmarkdown,
+    patchwork,
     testthat (>= 3.0.0)
+VignetteBuilder: knitr
 Config/testthat/edition: 3

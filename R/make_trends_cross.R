@@ -1,0 +1,94 @@
+#' Generate a pair of Fourier-basis trend series with stochastic coupling and crossing
+#'
+#' Generates two time series governed by a smooth latent coupling process
+#' `lambda` that can swing both below 0 (decoupling: series repel) and above 1
+#' (crossing: series pass through the mean to opposite sides). Between events,
+#' both series track their shared mean.
+#'
+#' `lambda` is generated as a linear function of kernel-smoothed Gaussian noise,
+#' centered at 1 (fully coupled). The `coupling` parameter controls the fraction
+#' of time lambda stays within 0.5 of 1; the remaining time is split equally
+#' between decoupling (lambda < 0.5) and crossing (lambda > 1.5) tails.
+#'
+#' The output distance `d` is the Euclidean distance between the two resulting
+#' series. `lambda` is returned as ground truth for the coupling state at each
+#' time point. See \code{\link{make_trends_smooth}} for a repel-only variant.
+#'
+#' @param n Integer. Length of the output series.
+#' @param nb Integer. Number of Fourier basis functions (must be odd).
+#' @param d Numeric. Target Euclidean distance between the two output series
+#'   (default 1).
+#' @param bw Numeric. Bandwidth of the Gaussian kernel used to smooth the
+#'   latent coupling process, in units of time (default 50). Larger values
+#'   produce longer, more sustained coupling and decoupling/crossing stretches.
+#' @param coupling Numeric in (0, 1). Proportion of time the series spend near
+#'   a coupled state (lambda within 0.5 of 1), approximately (default 0.8).
+#'   The remaining fraction is split equally between decoupling and crossing.
+#' @param sd0 Numeric. Standard deviation of the lowest-frequency Fourier
+#'   coefficient (default 2). Higher-frequency coefficients decay as
+#'   \code{sd0 / k^p}.
+#' @param p Numeric. Spectral decay exponent (default 2.5).
+#' @param seed Integer or NULL. RNG seed for reproducibility.
+#'
+#' @return A list with:
+#'   \describe{
+#'     \item{y1}{Numeric vector of length \code{n}. First output series.}
+#'     \item{y2}{Numeric vector of length \code{n}. Second output series.}
+#'     \item{x_mean}{Numeric vector of length \code{n}. Shared mean trend.}
+#'     \item{lambda}{Numeric vector of length \code{n}. Latent coupling
+#'       weights; near 1 = coupled, near 0 = decoupled, above 1 = crossed.
+#'       This is the ground truth coupling state.}
+#'   }
+#'
+#' @examples
+#' sim <- make_trends_cross(n = 500, d = 2, bw = 50, coupling = 0.8)
+#' plot(sim$y1, type = "l")
+#' lines(sim$y2, col = "blue")
+#'
+#' @export
+make_trends_cross <- function(n        = 500,
+                              nb       = 25,
+                              d        = 1,
+                              bw       = 50,
+                              coupling = 0.8,
+                              sd0      = 2,
+                              p        = 2.5,
+                              seed     = NULL) {
+  if ((nb %% 2) == 0) stop("`nb` must be odd.")
+  if (coupling <= 0 || coupling >= 1) stop("`coupling` must be in (0, 1).")
+
+  if (!is.null(seed)) set.seed(seed)
+
+  # smooth latent process: kernel-smoothed Gaussian noise
+  # lambda centered at 1 (coupled), swings below 0 (decoupling) or above 1 (crossing)
+  # sigma chosen so P(|lambda - 1| < 0.5) == coupling
+  z_raw        <- stats::rnorm(n)
+  z_smooth     <- stats::ksmooth(seq_len(n), z_raw, kernel = "normal",
+                                 bandwidth = bw, x.points = seq_len(n))$y
+  z            <- (z_smooth - mean(z_smooth)) / stats::sd(z_smooth)
+  sigma_lambda <- 0.5 / stats::qnorm((1 + coupling) / 2)
+  lambda       <- 1 - sigma_lambda * z
+
+  # underlying Fourier series at unit coefficient distance
+  coefs  <- generate_coef_pair(nb = nb, sd0 = sd0, d = 1, p = p, seed = NULL)
+  fb     <- fda::create.fourier.basis(rangeval = c(0, n), nbasis = nb, period = n)
+  Phi    <- fda::eval.basis(seq_len(n), fb)[, -1]
+  x1     <- as.numeric(Phi %*% coefs$coef1)
+  x2     <- as.numeric(Phi %*% coefs$coef2)
+  x_mean <- (x1 + x2) / 2
+
+  # symmetric repulsion/crossing at unit scale
+  y1_unit <- x_mean + (1 - lambda) * (x1 - x_mean)
+  y2_unit <- x_mean + (1 - lambda) * (x2 - x_mean)
+
+  # rescale so that ||y1 - y2|| == d
+  r_unit <- sqrt(sum((y1_unit - y2_unit)^2))
+  s      <- d / r_unit
+
+  list(
+    y1     = x_mean + s * (y1_unit - x_mean),
+    y2     = x_mean + s * (y2_unit - x_mean),
+    x_mean = x_mean,
+    lambda = lambda
+  )
+}
