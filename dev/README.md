@@ -19,9 +19,12 @@ pick them up.
 
 ```
 dev/
-├── notebooks/   # Quarto notebooks for simulation studies and analysis
-└── scripts/     # Standalone R scripts for prototyping and exploration
+├── notebooks/    # Quarto notebooks for simulation studies and analysis
+├── scripts/      # Standalone R scripts for prototyping and exploration
+└── simulation/   # Power study infrastructure (see simulation-study.md)
 ```
+
+See `simulation-study.md` for a full description of the simulation study design and the expected contents of `dev/simulation/`.
 
 ## Keeping files out of version control
 

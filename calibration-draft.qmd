@@ -5,6 +5,7 @@ editor: visual
 ---
 
 # tes-scripts.R
+
 ```{r}
 devtools::load_all()
 
@@ -52,8 +53,6 @@ lines(out$trend_hat, type = 'l', col = 'grey')
 
 ```
 
-
-
 ```{r}
 
 library(zoo)
@@ -79,19 +78,28 @@ trend <- out$trend_hat
 noise1_sm <- ma1 - trend
 noise2_sm <- ma2 - trend
 
-# true tau^2
-# computing ma of true trend sim$x1
-trend_sm_true <- stats::filter(sim$x1, rep(1/q, q), sides = 1)
-# rolling variance of smoothed trend
-tau2_t <- zoo::rollapply(trend_sm_true, width = h, var,
-                         align = "right", fill = NA)
-# estimate sigma^2
-sigma1_sq <- var(noise1_sm, na.rm = TRUE)
-sigma2_sq <- var(noise2_sm, na.rm = TRUE)
+# oracle SNR: use the same h and s as the add_noise call so that the
+# local variances here match what make_noise targeted during calibration.
+# previous code used q=10 (MA window) and h=50 (variance window) which
+# both differ from the add_noise parameters h=30 and s=100, causing
+# lambda to appear far below lambda_target.
+h_noise <- 30   # matches h in add_noise call above
+s_noise <- 100  # matches s in add_noise call above
 
-# lambda = 
-lambda1 <- tau2_t / sigma1_sq
-lambda2 <- tau2_t / sigma2_sq
+# MA-smooth true trend and true noise with add_noise's window
+trend_sm_true <- roll::roll_mean(sim$x1, width = h_noise, min_obs = h_noise)
+noise1_true   <- sim$y1 - sim$x1
+noise2_true   <- sim$y2 - sim$x2
+e1_sm         <- roll::roll_mean(noise1_true, width = h_noise, min_obs = h_noise)
+e2_sm         <- roll::roll_mean(noise2_true, width = h_noise, min_obs = h_noise)
+
+# local variances using add_noise's variance window
+lv_signal <- roll::roll_var(trend_sm_true, width = s_noise, center = TRUE, min_obs = s_noise)
+lv_noise1 <- roll::roll_var(e1_sm,         width = s_noise, center = TRUE, min_obs = s_noise)
+lv_noise2 <- roll::roll_var(e2_sm,         width = s_noise, center = TRUE, min_obs = s_noise)
+
+lambda1 <- lv_signal / lv_noise1
+lambda2 <- lv_signal / lv_noise2
 
 #rho 
 rho_t <- sqrt((lambda1 * lambda2) /
@@ -103,7 +111,7 @@ z_t <- sqrt(n_eff) * (x_thresh - rho_t)
 p_t <- pnorm(z_t)
 
 plot(rho_t, type = "l")
-plot(tau2_t, type = "l")
+plot(lv_signal, type = "l")
 
 #histogram of lambdas 
 hist(lambda1, 
@@ -113,4 +121,3 @@ hist(lambda1,
 hist(lambda2, main = "lambda 2", 
      breaks = 50)
 ```
-
