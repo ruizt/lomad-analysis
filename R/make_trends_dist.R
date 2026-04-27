@@ -16,6 +16,11 @@
 #' @param sd0 Numeric. Standard deviation of the lowest-frequency coefficient
 #'   (default 2). Higher-frequency coefficients decay as `sd0 / k^p`.
 #' @param p Numeric. Spectral decay exponent (default 2.5).
+#' @param k_min Integer. Minimum harmonic index to include (default 1). Setting
+#'   `k_min > 1` excludes low-frequency components, concentrating signal power
+#'   at shorter periods. Useful when the local window `h` is small relative to
+#'   the series length and slowly-varying trends would contribute negligible
+#'   within-window variance.
 #' @param seed Integer or NULL. RNG seed for reproducibility.
 #'
 #' @return A list with:
@@ -32,15 +37,17 @@
 #' lines(sim$x2, col = "blue")
 #'
 #' @export
-make_trends_dist <- function(n   = 500,
-                                 nb  = 25,
-                                 d   = 1,
-                                 sd0 = 2,
-                                 p   = 2.5,
-                                 seed = NULL) {
+make_trends_dist <- function(n     = 500,
+                                 nb    = 25,
+                                 d     = 1,
+                                 sd0   = 2,
+                                 p     = 2.5,
+                                 k_min = 1L,
+                                 seed  = NULL) {
   if ((nb %% 2) == 0) stop("`nb` must be odd.")
 
-  coefs <- generate_coef_pair(nb = nb, sd0 = sd0, d = d, p = p, seed = seed)
+  coefs <- generate_coef_pair(nb = nb, sd0 = sd0, d = d, p = p,
+                              k_min = k_min, seed = seed)
 
   fb  <- fda::create.fourier.basis(rangeval = c(0, n), nbasis = nb, period = n)
   Phi <- fda::eval.basis(seq_len(n), fb)[, -1]
@@ -56,27 +63,28 @@ make_trends_dist <- function(n   = 500,
 
 
 # Internal helper: draw Fourier coefficients with spectral decay
-generate_fourier_coef <- function(nb, sd0 = 2, p = 2.5) {
-  K   <- (nb - 1) / 2
-  k   <- rep(1:K, each = 2)
-  sd_k <- sd0 / (k^p)
-  stats::rnorm(2 * K, mean = 0, sd = sd_k)
+generate_fourier_coef <- function(nb, sd0 = 2, p = 2.5, k_min = 1L) {
+  K    <- (nb - 1L) / 2L
+  k    <- rep(seq_len(K), each = 2L)
+  sd_k <- ifelse(k >= k_min, sd0 / (k^p), 0)
+  stats::rnorm(2L * K, mean = 0, sd = sd_k)
 }
 
 # Internal helper: generate a pair of coefficient vectors separated by
 # distance d using the sphere-to-ellipse transform method
-generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, seed = NULL) {
+generate_coef_pair <- function(nb, sd0 = 2, d = 1, p = 2.5, k_min = 1L, seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
 
-  coef1 <- generate_fourier_coef(nb, sd0, p)
+  coef1 <- generate_fourier_coef(nb, sd0, p, k_min)
 
   z <- stats::rnorm(length(coef1))
   u <- z / sqrt(sum(z^2))
 
-  # Ellipsoid axes: decay relaxes as d increases
-  axes <- 1 / (seq_along(coef1))^(p - 0.1 * d)
-  dir  <- u * axes
-  dir  <- dir / sqrt(sum(dir^2))
+  # Ellipsoid axes: active only for k >= k_min; decay relaxes as d increases
+  k_idx <- rep(seq_len((nb - 1L) / 2L), each = 2L)
+  axes  <- ifelse(k_idx >= k_min, 1 / (k_idx^max(0, p - 0.1 * d)), 0)
+  dir   <- u * axes
+  dir   <- dir / sqrt(sum(dir^2))
 
   coef2 <- coef1 + d * dir
 

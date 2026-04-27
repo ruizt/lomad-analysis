@@ -28,6 +28,9 @@
 #'   coefficient (default 2). Higher-frequency coefficients decay as
 #'   \code{sd0 / k^p}.
 #' @param p Numeric. Spectral decay exponent (default 2.5).
+#' @param k_min Integer. Minimum harmonic index to include (default 1). Setting
+#'   `k_min > 1` excludes low-frequency components; see [make_trends_dist()] for
+#'   details.
 #' @param seed Integer or NULL. RNG seed for reproducibility.
 #'
 #' @return A list with:
@@ -53,6 +56,7 @@ make_trends_cross <- function(n        = 500,
                               coupling = 0.8,
                               sd0      = 2,
                               p        = 2.5,
+                              k_min    = 1L,
                               seed     = NULL) {
   if ((nb %% 2) == 0) stop("`nb` must be odd.")
   if (coupling <= 0 || coupling >= 1) stop("`coupling` must be in (0, 1).")
@@ -70,7 +74,8 @@ make_trends_cross <- function(n        = 500,
   lambda       <- 1 - sigma_lambda * z
 
   # underlying Fourier series at unit coefficient distance
-  coefs  <- generate_coef_pair(nb = nb, sd0 = sd0, d = 1, p = p, seed = NULL)
+  coefs  <- generate_coef_pair(nb = nb, sd0 = sd0, d = 1, p = p,
+                               k_min = k_min, seed = NULL)
   fb     <- fda::create.fourier.basis(rangeval = c(0, n), nbasis = nb, period = n)
   Phi    <- fda::eval.basis(seq_len(n), fb)[, -1]
   x1     <- as.numeric(Phi %*% coefs$coef1)

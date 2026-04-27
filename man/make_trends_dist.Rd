@@ -4,7 +4,15 @@
 \alias{make_trends_dist}
 \title{Generate a pair of Fourier-basis trend series at a controlled distance}
 \usage{
-make_trends_dist(n = 500, nb = 25, d = 1, sd0 = 2, p = 2.5, seed = NULL)
+make_trends_dist(
+  n = 500,
+  nb = 25,
+  d = 1,
+  sd0 = 2,
+  p = 2.5,
+  k_min = 1L,
+  seed = NULL
+)
 }
 \arguments{
 \item{n}{Integer. Length of the output series.}
@@ -18,6 +26,12 @@ make_trends_dist(n = 500, nb = 25, d = 1, sd0 = 2, p = 2.5, seed = NULL)
 (default 2). Higher-frequency coefficients decay as \code{sd0 / k^p}.}
 
 \item{p}{Numeric. Spectral decay exponent (default 2.5).}
+
+\item{k_min}{Integer. Minimum harmonic index to include (default 1). Setting
+\code{k_min > 1} excludes low-frequency components, concentrating signal power
+at shorter periods. Useful when the local window \code{h} is small relative to
+the series length and slowly-varying trends would contribute negligible
+within-window variance.}
 
 \item{seed}{Integer or NULL. RNG seed for reproducibility.}
 }
