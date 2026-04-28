@@ -25,7 +25,7 @@ make_trends_*()  -->  add_noise()  -->  observed series (y1, y2)
 Four functions generate paired trend series. All are built on a shared Fourier basis and return the true coupling state `lambda` as ground truth (except `make_trends_dist`).
 
 | Function | Structure | lambda range | Primary parameters |
-|------------------|------------------|------------------|------------------|
+|----|----|----|----|
 | `make_trends_dist` | Static — constant separation | none | `d` |
 | `make_trends_rate` | Periodic gamma-shaped decoupling events | [0, 1] | `d`, `rate` |
 | `make_trends_smooth` | Stochastic, repel only | (0, 1) | `d`, `bw`, `coupling` |
@@ -62,7 +62,7 @@ where $\tau^2$ is the smoothed signal variance (rolling variance of the MA-smoot
 ### Factorial conditions
 
 | Factor | Levels | Notes |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | `d` | 0, …, max | Includes 0 = null |
 | SNR (`lambda_target`) | high (\~4), low (\~0.5) | Shared across both series |
 | Autocorrelation (AR1 `phi`) | weak (\~0.3), strong (\~0.8) |  |
@@ -88,7 +88,7 @@ A time point is "truly decoupled" if `lambda < 0.5` (lambda below the midpoint o
 
 All simulation work lives under `dev/simulation/`. This folder is not part of the package build.
 
-```
+```         
 dev/simulation/
 ├── grid.R          # Task 1: factorial grid definition
 ├── run_one.R       # Task 2: single-replicate pipeline function
@@ -102,7 +102,7 @@ dev/simulation/
 
 The key structural principle for cluster execution is **one job per grid row**: `run_sim.R` runs all `S` replicates for a single row and saves one result file. The row is identified by a command-line argument, which makes the script easy to test locally and straightforward for the batch job layer to parameterize:
 
-```r
+``` r
 args   <- commandArgs(trailingOnly = TRUE)
 row_id <- as.integer(args[1])
 S      <- as.integer(args[2])
@@ -160,7 +160,7 @@ Returning a one-row data frame makes it easy to collect results with `bind_rows(
 
 Write `run_sim.R` as the HPC entrypoint — it runs all `S` replicates for **one grid row** and saves one result file. It should not loop over the full grid; the cluster job sweep handles that by submitting one job per row.
 
-```r
+``` r
 library(lomad)
 source("grid.R")     # loads `grid` data frame
 source("run_one.R")  # loads `run_one()` function
@@ -187,7 +187,7 @@ saveRDS(list(params = row, results = results), out_file)
 
 For local aggregation after all jobs complete, load all result files and bind:
 
-```r
+``` r
 files <- list.files("results", pattern = "row_.*\\.rds", full.names = TRUE)
 all_results <- lapply(files, \(f) {
   x <- readRDS(f)
