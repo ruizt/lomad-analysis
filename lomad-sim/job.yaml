@@ -1,10 +1,17 @@
-# job.yaml — Kubernetes Job for lomad simulation
+# job.yaml — Kubernetes Job for lomad simulation (single run)
 #
-# Build from repo root:
-#   docker buildx build --platform linux/amd64 -f lomad-sim/Dockerfile -t ghcr.io/otishunt/lomad-sim:latest --push .
+# ── SETUP: replace <github-username> with your GitHub username ───────────────
+#
+# Build and push (run from repo root):
+#   docker buildx build --platform linux/amd64 \
+#     -f lomad-sim/Dockerfile \
+#     -t ghcr.io/<github-username>/lomad-sim:latest --push .
 #
 # Submit:
 #   kubectl apply -f lomad-sim/job.yaml
+#
+# For a parameter sweep across multiple d values, use submit_sweep.sh instead.
+# ─────────────────────────────────────────────────────────────────────────────
 
 apiVersion: batch/v1
 kind: Job
@@ -25,6 +32,7 @@ spec:
 
       containers:
         - name: lomad-sim
+          # ← CHANGE: replace otishunt with your GitHub username
           image: ghcr.io/otishunt/lomad-sim:latest
           imagePullPolicy: Always
 
@@ -44,15 +52,11 @@ spec:
             - name: SIM_SEED
               value: "32026"
             - name: SIM_H
-              value: "30"
-            - name: SIM_Q
-              value: "30"
-            - name: SIM_B
-              value: "1000"
-            - name: SIM_METHOD
-              value: "boot"
-            - name: SIM_NCORES
-              value: "1"
+              value: "0"        # 0 = auto-select (recommended)
+            - name: SIM_S
+              value: "0"        # 0 = auto-select (recommended)
+            - name: SIM_MAX_PQ
+              value: "3"
             - name: SIM_OUT_DIR
               value: "/jobs/output"
 

@@ -1,0 +1,20 @@
+# pvc.yaml — shared file storage for lomad simulation results
+#
+# Uses rook-cephfs (ReadWriteMany) so multiple parallel jobs can write
+# to the same volume simultaneously.
+#
+# Apply once:
+#   kubectl apply -f lomad-sim/pvc.yaml
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lomad-sim-results
+  namespace: cal-poly-lomad
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: rook-cephfs
+  resources:
+    requests:
+      storage: 1Gi
