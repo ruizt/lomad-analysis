@@ -35,7 +35,7 @@ out <- lomad(sim$y1, sim$y2, method = "state",
 out$test$p_values
 
 # plot
-lomad_plot(sim$y1, sim$y2, out$fit)
+lomad_plot(out$fit, x1 = sim$y1, x2 = sim$y2)
 
 # plot smoothed trends only
 plot(out$fit$ma1, type = "l", col = "red")
