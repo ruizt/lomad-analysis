@@ -60,11 +60,11 @@ for (loc in names(loc_results)) {
   blocks_presm <- loc_results[[loc]]$blocks_presm
   blocks       <- lapply(blocks_presm, \(b) list(x1 = b$o2, x2 = b$ph))
 
-  fit <- lomad_fit(blocks = blocks,
-                   rho0   = 0,
-                   q      = 5 * 4,
-                   h      = 10 * 4,
-                   max_pq = 2)
+  fit <- fit_blocks_state(blocks,
+                          rho0   = 0,
+                          q      = 5 * 4,
+                          h      = 10 * 4,
+                          max_pq = 2)
 
   cat('\n===', loc, '===\n')
   print(fit$null_model)
@@ -75,8 +75,8 @@ for (loc in names(loc_results)) {
 
   pdf(paste0(img_out, '/', loc, '-blocks-fit.pdf'), width = 5, height = 4)
   for (nm in names(fit$blocks)) {
-    lomad_plot(blocks[[nm]]$x1, blocks[[nm]]$x2,
-               fit   = block_fit_view(fit, nm),
+    lomad_plot(block_fit_view(fit, nm),
+               x1 = blocks[[nm]]$x1, x2 = blocks[[nm]]$x2,
                alpha = 0.4)
     title(main = paste(loc, 'block', nm), line = 0.5)
   }

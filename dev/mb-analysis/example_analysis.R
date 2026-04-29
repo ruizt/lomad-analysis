@@ -87,7 +87,7 @@ fit$null_model
 # plot fit and detected decoupling periods
 paste(img_out, 'bs1-20-fit.png', sep = '/') |>
   png(width = 5, height = 4, units = 'in', res = 400)
-lomad_plot(x1, x2, fit, dates = dt, alpha = 0.4)
+lomad_plot(fit, x1 = x1, x2 = x2, dates = dt, alpha = 0.4)
 dev.off()
 
 ## END ------------
