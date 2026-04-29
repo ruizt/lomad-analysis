@@ -18,16 +18,16 @@ Trends from `sim_trends(method = "dist")` (Fourier basis, target L² separation 
 
 ## Parameters
 
-| Parameter              | Value                         |
-|------------------------|-------------------------------|
-| Series length *T*      | 1000                          |
-| AR(1) coefficient *φ*  | 0.5                           |
-| Target SNR *λ*         | 1                             |
-| Smoothing window *h*   | 10                            |
-| Correlation window *s* | 50                            |
-| *d* grid               | 0, 0.2, 0.5, 1               |
-| Replicates *S*         | 50 (local) → 100–500 (Tide)   |
-| Significance level *α* | 0.05                          |
+| Parameter              | Value                   |
+|------------------------|-------------------------|
+| Series length *T*      | 1000                    |
+| AR(1) coefficient *φ*  | 0.5                     |
+| Target SNR *λ*         | 1                       |
+| Smoothing window *h*   | 10                      |
+| Correlation window *s* | 50                      |
+| *d* grid               | 0, 0.2, 0.5, 1          |
+| Replicates *S*         | 50 (local) → 500 (Tide) |
+| Significance level *α* | 0.05                    |
 
 The *d* grid spans the null (*d* = 0) through moderate separation (*d* = 1). The identity test serves as a contrast: it saturates quickly as *d* grows, while the CLT test remains well-calibrated.
 
@@ -60,23 +60,21 @@ To inspect a single replicate interactively, source the file and then call:
 run_rep(d = 0, seed = 12345)
 ```
 
-------------------------------------------------------------------------
-
-## Student assignment: scaling up on Tide
+### Scaling up on Tide
 
 Tide runs Kubernetes. The goal is to parallelise the *d* sweep: one container per *d* value, each running *S* = 100–500 replicates, all jobs submitted simultaneously. The files in `tide/` provide the scaffolding.
 
-### Files provided
+#### Files provided
 
 | File | Status | Purpose |
-|----|----|----|
+|------------------------|------------------------|------------------------|
 | `tide/Dockerfile` | complete | Builds the container image from the lomad source |
 | `tide/job.yaml` | complete | Single-job template (reference only) |
 | `tide/submit_sweep.sh` | complete | Submits one job per *d* value |
 | `tide/collect.R` | complete | Assembles per-job `.rds` files after completion |
-| `tide/sim.R` | **your task** | Container entrypoint — one *d* per run |
+| `tide/sim.R` | **not complete** | Container entrypoint — one *d* per run |
 
-### Your task: write `tide/sim.R`
+#### Writing `tide/sim.R`
 
 The entrypoint must do four things:
 
@@ -88,7 +86,7 @@ The entrypoint must do four things:
 
 4.  **Save results.** Write a list `(d, S, seed0, results)` to `file.path(out_dir, <filename>.rds)`. See the hint in `tide/sim.R` for how to derive the filename from *d*.
 
-### Testing locally before building the image
+#### Testing locally before building the image
 
 Once `tide/sim.R` is complete, test it with a small *S* before building the container:
 
@@ -98,21 +96,19 @@ SIM_D=0 SIM_S=5 SIM_SEED=4853 Rscript dev/sims/calibration/tide/sim.R
 
 This runs five replicates at *d* = 0 and writes output to `/jobs/output/` (or `SIM_OUT_DIR` if you override it). Check that the `.rds` file appears and the rejection rates printed to the log look sensible.
 
-### Building and pushing the container image
+#### Building and pushing the container image
 
 From the repo root (substitute your GitHub org):
 
 ``` bash
 docker buildx build --platform linux/amd64 \
   -f dev/sims/calibration/tide/Dockerfile \
-  -t ghcr.io/<org>/lomad-calib:latest --push .
+  -t ghcr.io/otishunt/lomad-calib:latest --push .
 ```
 
-Update the `IMAGE` variable in `submit_sweep.sh` to match.
+#### Submitting the sweep
 
-### Submitting the sweep
-
-Edit `SIM_S` in `submit_sweep.sh` before submitting. Start with 20 to confirm everything works end-to-end, then delete the jobs and resubmit at 200–500.
+Edit `SIM_S` in `submit_sweep.sh` before submitting. Start with 20 to confirm everything works end-to-end, then delete the jobs and resubmit at 200–500. All jobs run in the `cal-poly-lomad` namespace.
 
 ``` bash
 bash dev/sims/calibration/tide/submit_sweep.sh
@@ -121,13 +117,13 @@ bash dev/sims/calibration/tide/submit_sweep.sh
 This submits one job per *d* value. Monitor progress:
 
 ``` bash
-kubectl get jobs -l app=lomad-calib          # completion status
-kubectl logs job/lomad-calib-d0-3            # stdout for d = 0.3
+kubectl get jobs -n cal-poly-lomad -l app=lomad-calib          # completion status
+kubectl logs -n cal-poly-lomad job/lomad-calib-d0-5            # stdout for d = 0.5
 ```
 
 Wait until all jobs show `Complete` before fetching results.
 
-### Fetching results
+#### Fetching results
 
 Run `fetch.sh` from the repo root. It spins up a temporary accessor pod, copies all `.rds` files from the PVC to `results/raw/` locally, then tears the pod down automatically:
 
@@ -137,7 +133,7 @@ bash dev/sims/calibration/tide/fetch.sh
 
 You should see one `.rds` file per *d* value in `dev/sims/calibration/results/raw/`.
 
-### Assembling the summary
+#### Assembling the summary
 
 ``` bash
 Rscript dev/sims/calibration/tide/collect.R
@@ -145,19 +141,19 @@ Rscript dev/sims/calibration/tide/collect.R
 
 This reads `results/raw/*.rds`, prints rejection rates, and writes `results/summary.rds` and `results/power_curve.png`.
 
-### Full sequence at a glance
+#### Full sequence at a glance
 
 ``` bash
 # 1. Build and push the image (once per code change)
 docker buildx build --platform linux/amd64 \
   -f dev/sims/calibration/tide/Dockerfile \
-  -t ghcr.io/<org>/lomad-calib:latest --push .
+  -t ghcr.io/otishunt/lomad-calib:latest --push .
 
 # 2. Submit all d values in parallel
 bash dev/sims/calibration/tide/submit_sweep.sh
 
 # 3. Monitor until all jobs show Complete
-kubectl get jobs -l app=lomad-calib
+kubectl get jobs -n cal-poly-lomad -l app=lomad-calib
 
 # 4. Copy results from PVC to local
 bash dev/sims/calibration/tide/fetch.sh

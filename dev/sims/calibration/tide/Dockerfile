@@ -3,7 +3,7 @@
 ## Build from the repo root (so the full package source is in context):
 ##   docker buildx build --platform linux/amd64 \
 ##     -f dev/sims/calibration/tide/Dockerfile \
-##     -t ghcr.io/<org>/lomad-calib:latest --push .
+##     -t ghcr.io/otishunt/lomad-calib:latest --push .
 ##
 ## The container runs dev/sims/calibration/tide/sim.R and reads parameters
 ## from environment variables (SIM_D, SIM_S, SIM_SEED, SIM_OUT_DIR).

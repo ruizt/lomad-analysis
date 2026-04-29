@@ -21,6 +21,7 @@ set -euo pipefail
 LOCAL_DIR="${1:-dev/sims/calibration/results/raw}"
 ACCESSOR_YAML="dev/sims/calibration/tide/accessor.yaml"
 POD_NAME="lomad-fetch"
+NAMESPACE="cal-poly-lomad"
 
 echo "=== lomad calibration: fetch results from PVC ==="
 echo "Destination: ${LOCAL_DIR}"
@@ -31,20 +32,20 @@ mkdir -p "${LOCAL_DIR}"
 
 # Start accessor pod
 echo "[1/4] Starting accessor pod ..."
-kubectl apply -f "${ACCESSOR_YAML}"
+kubectl apply -n "${NAMESPACE}" -f "${ACCESSOR_YAML}"
 
 # Wait until the pod is Running
 echo "[2/4] Waiting for pod to be ready ..."
-kubectl wait --for=condition=Ready "pod/${POD_NAME}" --timeout=120s
+kubectl wait -n "${NAMESPACE}" --for=condition=Ready "pod/${POD_NAME}" --timeout=120s
 
 # Copy all .rds files
 echo "[3/4] Copying .rds files ..."
-kubectl cp "${POD_NAME}:/jobs/output/." "${LOCAL_DIR}/"
+kubectl cp -n "${NAMESPACE}" "${POD_NAME}:/jobs/output/." "${LOCAL_DIR}/"
 echo "      Done."
 
 # Tear down accessor pod
 echo "[4/4] Cleaning up accessor pod ..."
-kubectl delete pod "${POD_NAME}" --ignore-not-found
+kubectl delete -n "${NAMESPACE}" pod "${POD_NAME}" --ignore-not-found
 
 echo ""
 echo "Results are in: ${LOCAL_DIR}"

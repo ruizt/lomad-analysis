@@ -5,24 +5,26 @@
 #
 # Each job runs SIM_S replicates for one value of d.
 # Results land in the lomad-calib-results PVC as one .rds file per job
-# (e.g. d0-0.rds, d0-1.rds, ..., d0-5.rds).
+# (e.g. d0-0.rds, d0-2.rds, d0-5.rds, d1-0.rds).
 # Collect after all jobs complete with tide/collect.R.
 
-D_VALUES=(0 0.1 0.2 0.3 0.4 0.5)
+NAMESPACE="cal-poly-lomad"
+D_VALUES=(0 0.2 0.5 1)
 SIM_S=200
 SIM_SEED=4853
-IMAGE="ghcr.io/<org>/lomad-calib:latest"
+IMAGE="ghcr.io/otishunt/lomad-calib:latest"
 
 for d in "${D_VALUES[@]}"; do
   job_name="lomad-calib-d$(echo $d | tr '.' '-')"
 
   echo "Submitting ${job_name} (d=${d}) ..."
 
-  kubectl apply -f - <<EOF
+  kubectl apply -n ${NAMESPACE} -f - <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: ${job_name}
+  namespace: ${NAMESPACE}
   labels:
     app: lomad-calib
     d: "${d}"
@@ -66,5 +68,5 @@ done
 
 echo ""
 echo "All jobs submitted. Monitor with:"
-echo "  kubectl get jobs -l app=lomad-calib"
-echo "  kubectl logs job/<job-name>"
+echo "  kubectl get jobs -n ${NAMESPACE} -l app=lomad-calib"
+echo "  kubectl logs -n ${NAMESPACE} job/<job-name>"

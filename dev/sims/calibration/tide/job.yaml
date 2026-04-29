@@ -5,7 +5,7 @@
 # Build and push the container image from the repo root:
 #   docker buildx build --platform linux/amd64 \
 #     -f dev/sims/calibration/tide/Dockerfile \
-#     -t ghcr.io/<org>/lomad-calib:latest --push .
+#     -t ghcr.io/otishunt/lomad-calib:latest --push .
 #
 # Submit the full d sweep:
 #   bash dev/sims/calibration/tide/submit_sweep.sh
@@ -14,6 +14,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: lomad-calib-JOBNAME
+  namespace: cal-poly-lomad
   labels:
     app: lomad-calib
 spec:
@@ -25,7 +26,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: lomad-calib
-          image: ghcr.io/<org>/lomad-calib:latest
+          image: ghcr.io/otishunt/lomad-calib:latest
           imagePullPolicy: Always
           resources:
             requests:

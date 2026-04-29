@@ -7,14 +7,15 @@
 #   bash dev/sims/calibration/tide/fetch.sh
 #
 # If you need to inspect the PVC interactively:
-#   kubectl apply -f dev/sims/calibration/tide/accessor.yaml
-#   kubectl exec -it lomad-fetch -- sh
-#   kubectl delete pod lomad-fetch
+#   kubectl apply -n cal-poly-lomad -f dev/sims/calibration/tide/accessor.yaml
+#   kubectl exec -n cal-poly-lomad -it lomad-fetch -- sh
+#   kubectl delete -n cal-poly-lomad pod lomad-fetch
 
 apiVersion: v1
 kind: Pod
 metadata:
   name: lomad-fetch
+  namespace: cal-poly-lomad
   labels:
     app: lomad-fetch
 spec:

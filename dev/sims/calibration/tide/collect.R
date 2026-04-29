@@ -41,6 +41,7 @@ summary_tbl <- results |>
   summarise(
     S             = n(),
     clt_rate      = mean(clt_rejected,      na.rm = TRUE),
+    oracle_rate   = mean(oracle_rejected,   na.rm = TRUE),
     identity_rate = mean(identity_rejected, na.rm = TRUE),
     .groups = "drop"
   )
@@ -57,19 +58,21 @@ cat("\nSaved ->", file.path(OUT_DIR, "summary.rds"), "\n")
 # ---- Plot -------------------------------------------------------------------
 
 fig <- summary_tbl |>
-  tidyr::pivot_longer(c(clt_rate, identity_rate),
+  tidyr::pivot_longer(c(clt_rate, oracle_rate, identity_rate),
                       names_to = "method", values_to = "rate") |>
   mutate(method = factor(method,
-                         levels = c("clt_rate", "identity_rate"),
-                         labels = c("CLT test (estimated)", "Identity test (oracle)"))) |>
+                         levels = c("clt_rate", "oracle_rate", "identity_rate"),
+                         labels = c("CLT (estimated)", "CLT (oracle)",
+                                    "Identity (oracle)"))) |>
   ggplot(aes(d, rate, colour = method, group = method)) +
   geom_hline(yintercept = alpha, linetype = "dashed", colour = "grey60") +
   geom_line(linewidth = 0.8) +
   geom_point(size = 2.5) +
   scale_y_continuous(limits = c(0, 1),
                      labels = scales::percent_format(accuracy = 1)) +
-  scale_colour_manual(values = c("CLT test (estimated)"   = "#0072B2",
-                                 "Identity test (oracle)" = "#D55E00")) +
+  scale_colour_manual(values = c("CLT (estimated)"  = "#0072B2",
+                                 "CLT (oracle)"      = "#009E73",
+                                 "Identity (oracle)" = "#D55E00")) +
   labs(x      = expression(paste(italic(d), "  (L"^2, " separation)")),
        y      = "Rejection rate",
        colour = NULL,

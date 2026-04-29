@@ -11,7 +11,7 @@
 ##      bind the results into a data frame.
 ##   3. Print a short summary (rejection rates) so the container log is useful.
 ##   4. Save the results to SIM_OUT_DIR as a .rds file named after d
-##      (e.g. d0-0.rds for d=0, d0-3.rds for d=0.3).
+##      (e.g. d0-0.rds for d=0, d0-5.rds for d=0.5).
 ##
 ## To test locally before building the image:
 ##   SIM_D=0 SIM_S=5 SIM_SEED=4853 Rscript dev/sims/calibration/tide/sim.R
@@ -33,16 +33,18 @@ cat(sprintf("d=%.1f  S=%d  seed=%d  out=%s\n", d, S, seed0, out_dir))
 
 n     <- 1000
 phi   <- 0.5
-snr   <- 1.5
+snr   <- 1
 alpha <- 0.05
 
-h_win <- max(5L, floor(n / 200L))
-s_win <- min(60L * h_win, floor(n / 4L))
+h_win <- 10
+s_win <- 50
 
-# ---- TODO: copy helper functions from run-small.R --------------------------
+# ---- TODO: copy run_rep() from run-small.R ----------------------------------
 #
 # Paste run_rep() here. It depends only on the parameters above and on
-# the lomad package, so it can be copied verbatim.
+# the lomad package, so it can be copied verbatim. run_rep() returns a
+# data frame with columns: d, seed, clt_rejected, oracle_rejected,
+# identity_rejected.
 
 # ---- TODO: simulation loop -------------------------------------------------
 #
@@ -54,12 +56,13 @@ s_win <- min(60L * h_win, floor(n / 4L))
 
 # ---- TODO: print summary ---------------------------------------------------
 #
-# Print the CLT and identity rejection rates so the container log is readable.
+# Print the CLT, oracle CLT, and identity rejection rates so the container
+# log is readable.
 
 # ---- TODO: save results ----------------------------------------------------
 #
 # Create out_dir if it does not exist.
 # Save a list(d = d, S = S, seed0 = seed0, results = results) as an .rds
-# file in out_dir. Name the file after d, e.g. "d0-3.rds" for d = 0.3.
+# file in out_dir. Name the file after d, e.g. "d0-5.rds" for d = 0.5.
 # Hint: gsub("\\.", "-", format(d, nsmall = 1)) produces the d part of
 # the filename.
