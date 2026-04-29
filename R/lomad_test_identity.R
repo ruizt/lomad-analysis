@@ -82,9 +82,30 @@ lomad_test_identity <- function(x1, x2, q, max_pq = 3L, alpha = 0.05,
   p_adj[valid_t] <- pmin(p_raw[valid_t] * sum(1 / seq_len(m_eff)), 1)
   I[valid_t]     <- as.integer(p_raw[valid_t] <= alpha_eff)
 
+  # Global test: is E[D^2] > Var(D)?
+  # Under H0, D is mean-zero Gaussian with Var = se_D^2.
+  # Under H1, E[D^2] = Var(D) + E[D]^2 > Var(D).
+  # se_T accounts for autocorrelation in D^2 via the smoothed ACVF.
+  D_valid  <- D[valid_t]
+  nv       <- length(D_valid)
+  var_D    <- se_D^2
+
+  # ACF of the MA(q)-smoothed difference (not the raw process)
+  max_lag_g  <- min(nv - 1L, 10L * q)
+  raw_acov   <- arma_acov(ar = fit_diff$ar, ma = fit_diff$ma,
+                          sigma2 = fit_diff$sigma2,
+                          lag_max = max_lag_g + q - 1L)
+  smooth_acov <- .ma_filter_acov(raw_acov, q, max_lag_g)
+  rho_smooth  <- smooth_acov[-1L] / smooth_acov[1L]
+  rho_sq_sum  <- sum(rho_smooth^2)
+
+  se_T     <- sqrt(2 * var_D^2 / nv * (1 + 2 * rho_sq_sum))
+  T_stat   <- (mean(D_valid^2) - var_D) / se_T
+  global_p <- stats::pnorm(T_stat, lower.tail = FALSE)
+
   n_rejected <- sum(I, na.rm = TRUE)
-  message(sprintf("Identity test: %d / %d rejections at BY-FDR = %.2f",
-                  n_rejected, n_valid, alpha))
+  message(sprintf("Identity test: %d / %d rejections at BY-FDR = %.2f (global p = %.4f)",
+                  n_rejected, n_valid, alpha, global_p))
 
   list(
     I        = I,
@@ -93,6 +114,8 @@ lomad_test_identity <- function(x1, x2, q, max_pq = 3L, alpha = 0.05,
     D        = D,
     se_D     = se_D,
     m_eff    = m_eff,
+    global_p = global_p,
+    T_stat   = T_stat,
     fit_diff = if (is.null(noise_override)) fit_diff else NULL
   )
 }

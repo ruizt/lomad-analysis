@@ -18,7 +18,7 @@ n      <- 1000
 phi    <- 0.5
 snr    <- 1
 S      <- 50          # replicates per d value
-d_vals <- c(0, 0.2, 0.5, 1, 1.5)
+d_vals <- c(0, 0.5, 1, 2, 4)
 alpha  <- 0.05
 seed0  <- 4853
 
@@ -40,9 +40,9 @@ run_rep <- function(d, seed) {
     lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win)
   )
   tst <- suppressMessages(lomad_test(fit, alpha = alpha))
-  clt_frac <- if (length(fit$valid_idx) > 0) {
-    mean(tst$rejected[fit$valid_idx], na.rm = TRUE)
-  } else NA_real_
+  clt_rejected <- if (length(fit$valid_idx) > 0) {
+    any(tst$rejected[fit$valid_idx], na.rm = TRUE)
+  } else NA
 
   # 2. CLT test: oracle (true noise parameters)
   fit_orc <- suppressMessages(
@@ -50,23 +50,23 @@ run_rep <- function(d, seed) {
               noise_override = list(ar = phi, sigma2 = true_sigma2))
   )
   tst_orc <- lomad_test(fit_orc, alpha = alpha)
-  oracle_frac <- if (length(fit_orc$valid_idx) > 0) {
-    mean(tst_orc$rejected[fit_orc$valid_idx], na.rm = TRUE)
-  } else NA_real_
+  oracle_rejected <- if (length(fit_orc$valid_idx) > 0) {
+    any(tst_orc$rejected[fit_orc$valid_idx], na.rm = TRUE)
+  } else NA
 
-  # 3. Identity test (oracle contrast)
+  # 3. Identity test (oracle, global Bonferroni p-value)
   sigma2_innov <- mean(c(sim$noise$series1$sigma,
                          sim$noise$series2$sigma)^2)
   ident <- suppressMessages(
     lomad_test_identity(sim$y1, sim$y2, q = h_win, alpha = alpha,
                         noise_override = list(ar = phi, sigma2 = sigma2_innov))
   )
-  identity_frac <- mean(ident$I, na.rm = TRUE)
+  identity_rejected <- ident$global_p < alpha
 
   data.frame(d = d, seed = seed,
-             clt_frac      = clt_frac,
-             oracle_frac   = oracle_frac,
-             identity_frac = identity_frac)
+             clt_rejected      = clt_rejected,
+             oracle_rejected   = oracle_rejected,
+             identity_rejected = identity_rejected)
 }
 
 # ---- Simulation ------------------------------------------------------------
@@ -81,10 +81,10 @@ for (i in seq_along(d_vals)) {
   cat(sprintf("d = %.1f  ", dv))
   reps         <- lapply(seeds, function(seed) run_rep(dv, seed))
   results[[i]] <- bind_rows(reps)
-  cat(sprintf("clt: %.3f  oracle: %.3f  identity: %.3f\n",
-              mean(results[[i]]$clt_frac,      na.rm = TRUE),
-              mean(results[[i]]$oracle_frac,   na.rm = TRUE),
-              mean(results[[i]]$identity_frac, na.rm = TRUE)))
+  cat(sprintf("clt: %.2f  oracle: %.2f  identity: %.2f\n",
+              mean(results[[i]]$clt_rejected,      na.rm = TRUE),
+              mean(results[[i]]$oracle_rejected,    na.rm = TRUE),
+              mean(results[[i]]$identity_rejected, na.rm = TRUE)))
 }
 
 results <- bind_rows(results)
@@ -93,9 +93,9 @@ results <- bind_rows(results)
 
 summary_tbl <- results |>
   group_by(d) |>
-  summarise(clt_rate      = mean(clt_frac,      na.rm = TRUE),
-            oracle_rate   = mean(oracle_frac,   na.rm = TRUE),
-            identity_rate = mean(identity_frac, na.rm = TRUE),
+  summarise(clt_rate      = mean(clt_rejected,      na.rm = TRUE),
+            oracle_rate   = mean(oracle_rejected,    na.rm = TRUE),
+            identity_rate = mean(identity_rejected, na.rm = TRUE),
             .groups = "drop")
 
 print(summary_tbl)
@@ -117,8 +117,8 @@ summary_tbl |>
                                  "CLT (oracle)"      = "#009E73",
                                  "Identity (oracle)" = "#D55E00")) +
   labs(x = expression(paste(italic(d), "  (L"^2, " separation)")),
-       y = "Fraction rejected", colour = NULL,
-       title  = "Calibration — fraction of time points rejected",
+       y = "Rejection rate", colour = NULL,
+       title  = "Calibration — CLT test vs identity test",
        subtitle = sprintf("n = %d, phi = %.1f, SNR = %.1f, S = %d per d",
                           n, phi, snr, S)) +
   theme_minimal(base_size = 12) +

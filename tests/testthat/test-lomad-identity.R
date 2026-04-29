@@ -9,11 +9,13 @@ test_that("lomad_test_identity: returns expected structure", {
 
   res <- suppressMessages(lomad_test_identity(x1, x2, q = 11))
 
-  expect_named(res, c("I", "p_raw", "p_adj", "D", "se_D", "m_eff", "fit_diff"))
+  expect_named(res, c("I", "p_raw", "p_adj", "D", "se_D", "m_eff",
+                      "global_p", "T_stat", "fit_diff"))
   expect_length(res$I, n)
   expect_true(res$se_D > 0)
   expect_true(res$m_eff > 0)
   expect_true(res$m_eff <= n)
+  expect_true(res$global_p >= 0 && res$global_p <= 1)
 })
 
 test_that("lomad_test_identity: noise_override bypasses estimation", {
@@ -28,8 +30,10 @@ test_that("lomad_test_identity: noise_override bypasses estimation", {
                         noise_override = list(ar = 0.0, sigma2 = 0.25))
   )
 
-  expect_named(res, c("I", "p_raw", "p_adj", "D", "se_D", "m_eff", "fit_diff"))
+  expect_named(res, c("I", "p_raw", "p_adj", "D", "se_D", "m_eff",
+                      "global_p", "T_stat", "fit_diff"))
   expect_true(res$se_D > 0)
+  expect_true(res$global_p >= 0 && res$global_p <= 1)
   expect_null(res$fit_diff)
 })
 
