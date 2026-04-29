@@ -1,11 +1,26 @@
 #!/bin/bash
-# submit_sweep.sh — submit one job per value of d
-# Usage: bash lomad-sim/submit_sweep.sh
+# submit_sweep.sh — submit one Kubernetes job per value of d
+#
+# Usage:
+#   bash lomad-sim/submit_sweep.sh
+#
+# To use a different GitHub username (e.g. a collaborator's fork):
+#   GHCR_USER=their-username bash lomad-sim/submit_sweep.sh
 
+# ── CONFIGURE ────────────────────────────────────────────────────────────────
+# Your GitHub username — controls which container registry image is pulled.
+# Override at runtime: GHCR_USER=yourname bash submit_sweep.sh
+GHCR_USER="${GHCR_USER:-otishunt}"
+
+# Separation values to sweep over
 D_VALUES=(0.5 1 2 3 5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+IMAGE="ghcr.io/${GHCR_USER}/lomad-sim:latest"
+echo "Using image: ${IMAGE}"
 
 for d in "${D_VALUES[@]}"; do
-  # Create a job name safe for Kubernetes (replace . with -)
+  # Kubernetes job names must be DNS-safe (no dots)
   job_name="lomad-sim-d$(echo $d | tr '.' '-')"
 
   echo "Submitting $job_name (d=$d)..."
@@ -20,6 +35,9 @@ metadata:
     d: "$d"
 spec:
   backoffLimit: 1
+  # ttlSecondsAfterFinished keeps the pod (and its logs) alive for 2 hours
+  # after completion so you can inspect them before they are cleaned up.
+  ttlSecondsAfterFinished: 7200
   template:
     spec:
       restartPolicy: Never
@@ -27,7 +45,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: lomad-sim
-          image: ghcr.io/otishunt/lomad-sim:latest
+          image: ${IMAGE}
           imagePullPolicy: Always
           resources:
             requests:
@@ -44,15 +62,11 @@ spec:
             - name: SIM_SEED
               value: "32026"
             - name: SIM_H
-              value: "30"
-            - name: SIM_Q
-              value: "30"
-            - name: SIM_B
-              value: "1000"
-            - name: SIM_METHOD
-              value: "boot"
-            - name: SIM_NCORES
-              value: "1"
+              value: "0"
+            - name: SIM_S
+              value: "0"
+            - name: SIM_MAX_PQ
+              value: "3"
             - name: SIM_OUT_DIR
               value: "/jobs/output"
           volumeMounts:
@@ -66,4 +80,7 @@ EOF
 
 done
 
-echo "All jobs submitted. Monitor with: kubectl get jobs"
+echo ""
+echo "All jobs submitted. Monitor with:"
+echo "  kubectl get jobs -w"
+echo "  kubectl get pods -w"
