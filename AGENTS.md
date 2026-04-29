@@ -44,10 +44,13 @@ Internal helpers live in `utils-{theme}.R`:
 Takes `method = c("clt", "state")`:
 - `"clt"` (default): dispatches to `.lomad_fit_clt()` — the paper method.
 - `"state"`: dispatches to `.lomad_fit_state()` — legacy state-process pipeline.
-- If `blocks` argument is supplied, forces `"state"` and calls `.lomad_fit_blocks()`.
 - Optional `noise_override` (CLT only): a list with `ar`, `ma` (optional), `sigma2`
   to bypass noise estimation. Accepts a single spec (shared for both series) or a
   list of two specs (one per series). Used for oracle experiments.
+
+**Multi-block fitting** (`.lomad_fit_blocks()`) is no longer dispatched from
+`lomad_fit()`. The block infrastructure is specific to the Morro Bay field
+analysis and lives in `dev/mb-analysis/utils.R` as `fit_blocks_state()`.
 
 All fit objects include `$method` (`"clt"` or `"state"`) for automatic dispatch
 by `lomad_test()`.
@@ -68,6 +71,16 @@ internally as twice the single-series variance.
 ### `lomad()`
 
 Convenience wrapper: `lomad_fit()` → `lomad_test()`. Returns `list(fit, test)`.
+
+### `lomad_plot()`
+
+`lomad_plot(fit, tst, ...)` — dispatches on `fit$method`:
+- CLT fits: plots smoothed series (ma1, ma2, trend) in upper panel with
+  `tst$rejected` shading; rolling correlation R_t vs rho_t in lower panel.
+  Requires `tst` argument.
+- State fits: plots raw series (x1, x2) with MA overlays in upper panel;
+  rolling correlation with Fisher-z threshold in lower panel. Requires
+  `x1` and `x2` arguments.
 
 ## Testing conventions
 

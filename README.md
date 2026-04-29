@@ -6,21 +6,38 @@ and characterizing periods of decoupling between two correlated time series.
 ## Overview
 
 `lomad` provides a statistical framework for detecting time windows in which
-two previously correlated series exhibit locally low correlation. The approach
-uses rolling window correlations on moving-average smoothed series, applies
-Fisher z-tests with Benjamini-Yekutieli multiple testing correction, and
-models the resulting binary state process as a 2-state Markov chain.
+two previously correlated series exhibit locally low correlation. Given paired
+series following a signal-plus-noise model, the method:
 
-Inference is built around a two-step workflow:
+1. Smooths each series with a moving average filter to isolate trends.
+2. Computes rolling window correlations on the smoothed series.
+3. Tests pointwise whether observed correlations fall below their expected
+   values under a shared-trend null, using a CLT-based test statistic with
+   Benjamini–Yekutieli FDR correction.
+
+Noise parameters (AR/ARMA) are estimated via a variogram-based approach that
+is robust to trend contamination. The asymptotic variance of the local
+correlation accounts for autocorrelation in the smoothed noise.
+
+### Core workflow
 
 | Function | Role |
 |---|---|
-| `lomad_fit()` | Fit the null model to a single contiguous series pair |
-| `lomad_fit_blocks()` | Fit the null model jointly across multiple independent data blocks |
-| `lomad_test_boot()` | Test via full parametric bootstrap (p-values for all statistics) |
-| `lomad_test_mc()` | Test via Markov-chain bootstrap on state process only (faster) |
-| `lomad_test_analytic()` | Test via closed-form CLT (`frac_state` only) |
-| `lomad()` | Convenience wrapper: runs both steps via `method = "boot"`, `"mc"`, or `"analytic"` |
+| `lomad_fit()` | Fit the null model (estimate noise, compute expected correlations and asymptotic variance) |
+| `lomad_test()` | Pointwise test for local decoupling with FDR correction |
+| `lomad()` | Convenience wrapper: `lomad_fit()` → `lomad_test()` |
+
+### Supporting functions
+
+| Function | Role |
+|---|---|
+| `lomad_test_identity()` | Global test of exact trend identity (H₀: d = 0) |
+| `lomad_plot()` | Visualise fit and test results |
+| `estimate_trends()` | Extract trends via moving average |
+| `estimate_ar1_noise()` | Estimate AR(1) noise parameters via variogram |
+| `estimate_arma_noise()` | Estimate ARMA noise parameters via long-AR approximation |
+| `sim_trends()` | Generate synthetic trend pairs at controlled L² separation |
+| `sim_noise_pair()` | Add calibrated ARMA noise to trend pairs |
 
 ## Installation
 
@@ -34,19 +51,18 @@ cd lomad
 ```
 
 ```r
-# Install dependencies, then install the package
 devtools::install_deps()
 devtools::install()
 ```
 
-Or build a source tarball and install it manually:
+Or build and install from the command line:
 
 ```bash
 R CMD build .
 R CMD INSTALL lomad_*.tar.gz
 ```
 
-To load the package in-place without installing (useful during development):
+To load the package in-place during development:
 
 ```r
 devtools::load_all()
@@ -54,73 +70,66 @@ devtools::load_all()
 
 ## Quickstart
 
-### Single series
-
 ```r
 library(lomad)
 
-# Simulate paired trend series and add calibrated ARMA noise
-trends <- make_trends_dist(n = 500, d = 5, seed = 1)
-sim    <- add_noise(trends, h = 30, lambda_target = 4, scale = 5,
-                    order = c(2, 1), seed = 2)
+# Simulate paired trends with controlled L² separation
+trends <- sim_trends(n = 500, d = 2, method = "smooth", bw = 50, seed = 1)
 
-# Fit null model and test (method = "boot", "mc", or "analytic")
-out <- lomad(sim$y1, sim$y2, q = 30, h = 50, B = 500, seed = 3, method = "boot")
+# Add calibrated AR(1) noise at target SNR
+sim <- sim_noise_pair(trends, h = 10, lambda_target = 1.5,
+                      ar.coefs = 0.5, seed = 2)
 
-out$observed   # observed decoupling statistics
-out$p_values   # p-values
+# Fit null model and test for decoupling
+fit <- lomad_fit(sim$y1, sim$y2, h = 10, s = 50)
+tst <- lomad_test(fit, alpha = 0.05)
+
+# Which time points show significant decoupling?
+which(tst$rejected)
 
 # Visualise
-plot_lomad_fit(sim$y1, sim$y2, out)
+lomad_plot(fit, tst)
 ```
 
-### Multiple blocks
-
-When data arrive as independent contiguous chunks (e.g. instrument deployments,
-field seasons), use `lomad_fit_blocks()` to pool all blocks into a single null
-model estimate. Block boundaries are fully respected: no smoothing, filter
-state, or transition counting crosses a boundary.
+### Convenience wrapper
 
 ```r
-# blocks is a named list of list(x1, x2) pairs — one per block.
-# Use blocks_from_df() to build it from a tidy data frame:
-blocks <- blocks_from_df(df, x1_col = "o2", x2_col = "ph", block_col = "block_id")
-
-fit <- lomad_fit_blocks(blocks, q = 56, h = 112, max_pq = 2)
-
-fit$observed            # decoupling statistics aggregated across blocks
-fit$expected_asymptotic
-
-# All three test functions accept the output of lomad_fit_blocks() directly.
-# lomad_test_boot() simulates one replicate per block at each block's observed
-# length, rather than one long aggregate series.
-test <- lomad_test_boot(fit, B = 1000, seed = 42,
-                        ncores = parallel::detectCores() - 1)
-test$p_values
+out <- lomad(sim$y1, sim$y2, h = 10, s = 50, alpha = 0.05)
+out$fit   # lomad_fit output
+out$test  # lomad_test output
 ```
 
 ## For contributors
 
-Clone the repo and open `lomad.Rproj` in RStudio. Development notebooks and
-scripts live in `dev/`. Load all package functions with:
+Clone the repo and open `lomad.Rproj` in RStudio. Load all package functions
+with `devtools::load_all()`.
 
-```r
-devtools::load_all()
-```
+Development files live in `dev/`:
 
-See `dev/README.md` for the full contributor workflow.
+| Directory | Contents |
+|-----------|----------|
+| `dev/sims/` | Simulation studies (calibration, power, Tide HPC example) |
+| `dev/mb-analysis/` | Morro Bay field data analysis |
+| `dev/scripts/` | Exploratory R scripts |
+
+See `AGENTS.md` for source conventions and `dev/sims/README.md` for the
+simulation infrastructure.
 
 ## Project structure
 
 ```
 lomad/
-├── R/                     # Package functions
-├── dev/
-│   ├── mb-analysis/       # MB field data analysis scripts
-│   ├── notebooks/         # Quarto simulation studies
-│   └── scripts/           # Exploratory R scripts
-├── tests/testthat/        # Unit tests
+├── R/                     # Package source (themed: sim_*, estimate_*, lomad_*, utils-*)
+├── tests/testthat/        # Unit tests (150 tests, themed by module)
 ├── man/                   # Auto-generated documentation
+├── dev/
+│   ├── sims/              # Simulation studies + Tide HPC scaffolding
+│   │   ├── calibration/   # CLT test calibration study
+│   │   ├── power/         # Power curves across trend structures
+│   │   └── tide-example/  # Minimal MVN example to learn the Tide workflow
+│   ├── mb-analysis/       # Morro Bay field data analysis
+│   └── scripts/           # Exploratory scripts
 ├── DESCRIPTION
-└── NAMESPACE
+├── NAMESPACE
+└── AGENTS.md              # Source conventions for developers and AI agents
 ```
