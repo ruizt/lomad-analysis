@@ -70,6 +70,9 @@ run_rep <- function(d, seed) {
              identity_rejected = identity_rejected)
 }
 
+# testing
+run_rep(0, 1)
+
 # ---- Simulation ------------------------------------------------------------
 
 set.seed(seed0)
@@ -88,7 +91,11 @@ for (i in seq_along(d_vals)) {
               mean(results[[i]]$identity_rejected, na.rm = TRUE)))
 }
 
+# collate
 results <- bind_rows(results)
+
+# export
+write_rds(results, file = 'dev/sims/calibration/results/run-small-result.rds')
 
 # ---- Summary and plot ------------------------------------------------------
 

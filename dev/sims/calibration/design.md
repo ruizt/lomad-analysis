@@ -8,7 +8,9 @@ Verify that the CLT-based test controls type I error across the null region — 
 
 -   **CLT test (estimated)**: the full estimation pipeline — `lomad_fit()` estimates the noise ARMA process and smoothed-noise ACVF, then `lomad_test()` applies Benjamini–Yekutieli FDR correction pointwise. The per-dataset rejection indicator is `any(rejected[valid_idx])`.
 
--   **Identity test (oracle)**: tests H₀: *d* = 0 via the L² norm of the MA(*h*)-smoothed difference, using the *true* AR(1) coefficient and innovation variance. Well-calibrated at *d* = 0 and monotone in *d*, but detects any global separation regardless of local co-movement. Included as a contrast to show the CLT test is selective.
+-   **CLT test (oracle)**: same as above but with true per-series AR(1) coefficient and innovation variance supplied via `noise_override`, bypassing noise estimation. Isolates whether the CLT framework itself is correctly calibrated from any estimation error.
+
+-   **Identity test (oracle)**: tests H₀: *d* = 0 via a global excess-variance statistic on the MA(*h*)-smoothed difference, using the *true* AR(1) coefficient and innovation variance. The test statistic is *T* = (mean(*D*²) − Var(*D*)) / se(*T*), where se(*T*) accounts for autocorrelation in *D*² via the smoothed ACVF. Well-calibrated at *d* = 0 and saturates quickly as *d* grows. Included as a contrast to show the CLT test is selective.
 
 ## Data-generating process
 
@@ -20,30 +22,29 @@ Trends from `sim_trends(method = "dist")` (Fourier basis, target L² separation 
 |------------------------|-------------------------------|
 | Series length *T*      | 1000                          |
 | AR(1) coefficient *φ*  | 0.5                           |
-| Target SNR *λ*         | 1.5                           |
-| Smoothing window *h*   | auto (`max(5, floor(T/200))`) |
-| Correlation window *s* | auto (`min(60h, floor(T/4))`) |
-| ARMA order bound       | `max_pq = 3`                  |
-| *d* grid               | 0, 0.1, 0.2, 0.3, 0.4, 0.5    |
-| Replicates *S*         | 10 (local) → 100–500 (Tide)   |
+| Target SNR *λ*         | 1                             |
+| Smoothing window *h*   | 10                            |
+| Correlation window *s* | 50                            |
+| *d* grid               | 0, 0.2, 0.5, 1               |
+| Replicates *S*         | 50 (local) → 100–500 (Tide)   |
 | Significance level *α* | 0.05                          |
 
-The *d* grid focuses on the null region (d ≤ 0.5) where the CLT approximation is expected to hold. The identity test serves as a reference showing that non-zero *d* is detectable in principle.
+The *d* grid spans the null (*d* = 0) through moderate separation (*d* = 1). The identity test serves as a contrast: it saturates quickly as *d* grows, while the CLT test remains well-calibrated.
 
 ## Estimand
 
 For each (d, replicate) pair: does the test produce at least one rejection?
 
--   **CLT test**: `any(tst$rejected[fit$valid_idx], na.rm = TRUE)`
--   **Identity test**: single p-value \< α
+-   **CLT tests (estimated and oracle)**: `any(tst$rejected[fit$valid_idx], na.rm = TRUE)`
+-   **Identity test**: `global_p < α`
 
-The primary output is **rejection rate** (mean of 0/1 across *S* replicates) as a function of *d* for both methods.
+The primary output is **rejection rate** (mean of 0/1 across *S* replicates) as a function of *d* for all three methods.
 
 ## Acceptance criterion
 
 -   CLT rejection rate ≤ 0.10 at *d* = 0 (type I error controlled near nominal).
--   CLT rejection rate ≤ 0.15 for all *d* ≤ 0.5 (null region).
--   Identity test rejection rate ≥ 0.50 at *d* = 0.5 (confirms the contrast is informative even in the null region).
+-   CLT rejection rate ≤ 0.15 for all *d* in the grid (null region for similarity).
+-   Identity test rejection rate ≥ 0.50 at *d* = 0.5 (confirms the contrast is informative).
 
 ------------------------------------------------------------------------
 
@@ -51,7 +52,7 @@ The primary output is **rejection rate** (mean of 0/1 across *S* replicates) as 
 
 ### Local development
 
-Source `run-small.R` directly in RStudio. It loops over all *d* values, prints a summary table, and produces a rejection-rate plot. The parameter `S` at the top of the script controls the number of replicates; the default (10) is for fast iteration. Increase to 30–50 before concluding anything.
+Source `run-small.R` directly in RStudio. It loops over all *d* values, prints a summary table, exports results to `results/run-small-result.rds`, and produces a rejection-rate plot. The parameter `S` at the top of the script controls the number of replicates (default 50). See `templates.R` for a visual walkthrough of a single replicate at each *d* value.
 
 To inspect a single replicate interactively, source the file and then call:
 
@@ -111,16 +112,15 @@ Update the `IMAGE` variable in `submit_sweep.sh` to match.
 
 ### Submitting the sweep
 
-Edit `SIM_S` in `submit_sweep.sh` before submitting. Start with 20 to confirm
-everything works end-to-end, then delete the jobs and resubmit at 200–500.
+Edit `SIM_S` in `submit_sweep.sh` before submitting. Start with 20 to confirm everything works end-to-end, then delete the jobs and resubmit at 200–500.
 
-```bash
+``` bash
 bash dev/sims/calibration/tide/submit_sweep.sh
 ```
 
-This submits six jobs in parallel (one per *d* value). Monitor progress:
+This submits one job per *d* value. Monitor progress:
 
-```bash
+``` bash
 kubectl get jobs -l app=lomad-calib          # completion status
 kubectl logs job/lomad-calib-d0-3            # stdout for d = 0.3
 ```
@@ -129,11 +129,9 @@ Wait until all jobs show `Complete` before fetching results.
 
 ### Fetching results
 
-Run `fetch.sh` from the repo root. It spins up a temporary accessor pod,
-copies all `.rds` files from the PVC to `results/raw/` locally, then tears
-the pod down automatically:
+Run `fetch.sh` from the repo root. It spins up a temporary accessor pod, copies all `.rds` files from the PVC to `results/raw/` locally, then tears the pod down automatically:
 
-```bash
+``` bash
 bash dev/sims/calibration/tide/fetch.sh
 ```
 
@@ -141,16 +139,15 @@ You should see one `.rds` file per *d* value in `dev/sims/calibration/results/ra
 
 ### Assembling the summary
 
-```bash
+``` bash
 Rscript dev/sims/calibration/tide/collect.R
 ```
 
-This reads `results/raw/*.rds`, prints rejection rates, and writes
-`results/summary.rds` and `results/power_curve.png`.
+This reads `results/raw/*.rds`, prints rejection rates, and writes `results/summary.rds` and `results/power_curve.png`.
 
 ### Full sequence at a glance
 
-```bash
+``` bash
 # 1. Build and push the image (once per code change)
 docker buildx build --platform linux/amd64 \
   -f dev/sims/calibration/tide/Dockerfile \

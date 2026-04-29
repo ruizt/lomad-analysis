@@ -43,7 +43,7 @@ make_panel <- function(d, seed) {
                        ))
   tst_orc <- lomad_test(fit_orc, alpha = alpha)
 
-  # Oracle identity test (true noise parameters)
+  # Oracle identity test (global p-value)
   sigma2_innov <- mean(c(sim$noise$series1$sigma, sim$noise$series2$sigma)^2)
   ident <- lomad_test_identity(sim$y1, sim$y2, q = h_win, alpha = alpha,
                                noise_override = list(ar = phi, sigma2 = sigma2_innov))
@@ -64,8 +64,8 @@ make_panel <- function(d, seed) {
     geom_line(aes(y = y2), colour = "tomato",    linewidth = 0.2, alpha = 0.35) +
     geom_line(aes(y = x1), colour = "steelblue", linewidth = 0.9) +
     geom_line(aes(y = x2), colour = "tomato",    linewidth = 0.9) +
-    labs(title = sprintf("d = %.1f  |  est: %d  orc: %d  ident: %d",
-                         d, n_rej, n_rej_orc, n_rej_idt),
+    labs(title = sprintf("d = %.1f  |  est: %d  orc: %d  ident: %d (p = %.3f)",
+                         d, n_rej, n_rej_orc, n_rej_idt, ident$global_p),
          y = "Value") +
     theme_strip + theme(plot.title = element_text(size = 8))
 
@@ -98,24 +98,24 @@ make_panel <- function(d, seed) {
 
 make_panel(d = 0, seed = seed)
 
+# ---- d = 0.2 ---------------------------------------------------------------
+
+make_panel(d = 0.2, seed = seed + 100L)
+
 # ---- d = 0.5 ---------------------------------------------------------------
 
-make_panel(d = 0.5, seed = seed + 100L)
+make_panel(d = 0.5, seed = seed + 200L)
 
 # ---- d = 1 -----------------------------------------------------------------
 
-make_panel(d = 1, seed = seed + 200L)
-
-# ---- d = 1.5 ---------------------------------------------------------------
-
-make_panel(d = 2, seed = seed + 300L)
+make_panel(d = 1, seed = seed + 300L)
 
 # ---- All together -----------------------------------------------------------
 
 patchwork::wrap_plots(
   make_panel(0,   seed),
-  make_panel(0.5, seed + 100L),
-  make_panel(1,   seed + 200L),
-  make_panel(1.5, seed + 300L),
+  make_panel(0.2, seed + 100L),
+  make_panel(0.5, seed + 200L),
+  make_panel(1,   seed + 300L),
   ncol = 4
 )
