@@ -1,19 +1,119 @@
 #' Plot detected decoupling periods from a lomad fit
 #'
-#' Two-panel base R plot. The upper panel overlays the raw and smoothed series
-#' with shaded regions marking detected decoupling periods. The lower panel
-#' shows the rolling correlation series with the BY-corrected threshold.
+#' Two-panel base R plot. The upper panel shows the smoothed series with shaded
+#' regions marking detected decoupling periods. The lower panel shows the
+#' rolling correlation series.
 #'
-#' @param x1 Numeric vector. First raw time series.
-#' @param x2 Numeric vector. Second raw time series, same length as `x1`.
-#' @param fit List returned by [lomad_fit()] (state method) or [lomad()].
-#' @param dates Optional vector of dates or axis labels, same length as `x1`.
+#' For CLT fits, the upper panel plots the MA-smoothed series (`ma1`, `ma2`)
+#' and shared trend, with shading where `tst$rejected` is `TRUE`. The lower
+#' panel plots `R_t` with theoretical `rho_t` as a dashed reference.
+#'
+#' For legacy state fits, the upper panel plots raw series `x1`, `x2` with
+#' the MA lines overlaid, and the lower panel shows `R_t` with the
+#' BY-corrected Fisher-z threshold.
+#'
+#' @param fit List returned by [lomad_fit()].
+#' @param tst List returned by [lomad_test()] (required for CLT fits, ignored
+#'   for state fits).
+#' @param x1 Numeric vector. First raw series (state fits only).
+#' @param x2 Numeric vector. Second raw series (state fits only).
+#' @param dates Optional vector of dates or axis labels.
 #' @param alpha Numeric. Fill transparency for shaded regions (default 0.25).
 #'
 #' @return Invisibly returns `NULL`. Called for its side effect (base R plot).
 #'
 #' @export
-lomad_plot <- function(x1, x2, fit, dates = NULL, alpha = 0.25) {
+lomad_plot <- function(fit, tst = NULL, x1 = NULL, x2 = NULL,
+                       dates = NULL, alpha = 0.25) {
+
+  method <- fit$method %||% "state"
+
+  if (method == "clt") {
+    .lomad_plot_clt(fit, tst, dates, alpha)
+  } else {
+    .lomad_plot_state(x1, x2, fit, dates, alpha)
+  }
+}
+
+
+# CLT plot implementation
+.lomad_plot_clt <- function(fit, tst, dates, alpha) {
+
+  if (is.null(tst))
+    stop("lomad_plot() requires a `tst` argument (lomad_test result) for CLT fits.")
+
+  n     <- fit$inputs$n
+  h     <- fit$inputs$h
+  R     <- fit$R
+  rho   <- fit$rho
+  ma1   <- fit$ma1
+  ma2   <- fit$ma2
+  trend <- fit$trend
+
+  rejected <- tst$rejected
+  rejected[is.na(rejected)] <- FALSE
+
+  t_idx <- if (is.null(dates)) seq_len(n) else dates
+
+  # Back-shift rejected regions for upper panel
+  rej_shifted <- rep(FALSE, n)
+  for (t in which(rejected)) {
+    s <- max(1L, t - (h - 1L))
+    rej_shifted[s:t] <- TRUE
+  }
+  r_bs   <- rle(rej_shifted)
+  ends   <- cumsum(r_bs$lengths)
+  starts <- ends - r_bs$lengths + 1L
+  shade_starts <- starts[r_bs$values]
+  shade_ends   <- ends[r_bs$values]
+
+  # Lower panel shading: no back-shift
+  r_lo   <- rle(rejected)
+  ends_lo   <- cumsum(r_lo$lengths)
+  starts_lo <- ends_lo - r_lo$lengths + 1L
+  shade_lo_starts <- starts_lo[r_lo$values]
+  shade_lo_ends   <- ends_lo[r_lo$values]
+
+  shade_col <- grDevices::rgb(0.7, 0.85, 1, alpha)
+  col_trend <- grDevices::rgb(0.4, 0.4, 0.4, 0.8)
+
+  old_par <- graphics::par(no.readonly = TRUE)
+  on.exit(graphics::par(old_par))
+
+  graphics::par(mfrow = c(2, 1), oma = c(3, 0, 0, 0))
+
+  # Upper panel: smoothed series + trend
+  graphics::par(mar = c(0, 4, 2, 1))
+  ylim_top <- range(c(ma1, ma2), na.rm = TRUE)
+  ylim_top <- ylim_top + c(-1, 1) * diff(ylim_top) * 0.05
+  graphics::plot(t_idx, ma1, type = "n", ylim = ylim_top,
+                 xlab = "", ylab = "smoothed series", xaxt = "n")
+  .shade_intervals(t_idx, shade_starts, shade_ends, shade_col)
+  graphics::lines(t_idx, ma1, col = "blue", lwd = 1.5)
+  graphics::lines(t_idx, ma2, col = "red", lwd = 1.5)
+  graphics::lines(t_idx, trend, col = col_trend, lwd = 1.2)
+
+  # Lower panel: R_t with rho_t reference
+  graphics::par(mar = c(0, 4, 0, 1))
+  R_range  <- range(c(R, rho), na.rm = TRUE)
+  ylim_bot <- c(min(R_range[1], -0.1) - 0.05, max(R_range[2], 0.1) + 0.05)
+  graphics::plot(t_idx, R, type = "n", ylim = ylim_bot,
+                 xlab = "", ylab = "correlation", xaxt = "n")
+  .shade_intervals(t_idx, shade_lo_starts, shade_lo_ends, shade_col)
+  graphics::lines(t_idx, R, col = "grey40")
+  graphics::lines(t_idx, rho, col = "grey30", lty = 2, lwd = 1)
+  graphics::abline(h = 0, col = "grey80", lty = 1, lwd = 0.5)
+  graphics::axis(1)
+
+  invisible(NULL)
+}
+
+
+# [LEGACY] State-process plot implementation
+.lomad_plot_state <- function(x1, x2, fit, dates, alpha) {
+
+  if (is.null(x1) || is.null(x2))
+    stop("lomad_plot() requires `x1` and `x2` arguments for state fits.")
 
   n     <- length(x1)
   h     <- fit$null_model$h
@@ -82,6 +182,7 @@ lomad_plot <- function(x1, x2, fit, dates = NULL, alpha = 0.25) {
 
   invisible(NULL)
 }
+
 
 # Shade rectangular regions between start/end index pairs.
 .shade_intervals <- function(t_idx, starts, ends, col) {

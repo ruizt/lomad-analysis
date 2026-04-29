@@ -11,9 +11,6 @@
 #' @param x2 Numeric vector. Second time series, same length as `x1`.
 #' @param method Character. `"clt"` (default, paper method) or `"state"`
 #'   (legacy state-process pipeline).
-#' @param blocks List of block data for multi-block fitting (legacy only).
-#'   If supplied, `x1` and `x2` are ignored and `method` is forced to
-#'   `"state"`. Use [blocks_from_df()] to construct.
 #' @param h Integer or NULL. Smoothing window width. Auto-selected if `NULL`.
 #' @param s Integer or NULL. Rolling correlation window length (CLT only).
 #'   Auto-selected if `NULL`.
@@ -34,13 +31,12 @@
 #'   include a `$method` field (`"clt"` or `"state"`) used by [lomad_test()]
 #'   for automatic dispatch. See the internal implementations for full details.
 #'
-#' @seealso [lomad_test()], [lomad()], [blocks_from_df()]
+#' @seealso [lomad_test()], [lomad()], [lomad_plot()]
 #'
 #' @export
 lomad_fit <- function(x1             = NULL,
                       x2             = NULL,
                       method         = c("clt", "state"),
-                      blocks         = NULL,
                       noise_override = NULL,
                       h              = NULL,
                       s              = NULL,
@@ -49,12 +45,6 @@ lomad_fit <- function(x1             = NULL,
                       alpha          = 0.05,
                       rho0           = 0,
                       max_pq         = 2) {
-
-  # Block fitting forces state method
-  if (!is.null(blocks)) {
-    return(.lomad_fit_blocks(blocks = blocks, q = q, h = h,
-                             alpha = alpha, rho0 = rho0, max_pq = max_pq))
-  }
 
   method <- match.arg(method)
 
@@ -69,26 +59,4 @@ lomad_fit <- function(x1             = NULL,
     state = .lomad_fit_state(x1 = x1, x2 = x2, q = q, h = h,
                              alpha = alpha, rho0 = rho0, max_pq = max_pq)
   )
-}
-
-
-#' Convert a data frame with a block-ID column into a list of series pairs
-#'
-#' @param df Data frame.
-#' @param x1_col Character. Column name for the first series.
-#' @param x2_col Character. Column name for the second series.
-#' @param block_col Character. Column name for the block identifier.
-#'
-#' @return A named list of length K, each element a list with `x1` and `x2`
-#'   numeric vectors.
-#'
-#' @export
-blocks_from_df <- function(df, x1_col, x2_col, block_col) {
-  ids <- unique(df[[block_col]])
-  out <- lapply(ids, function(id) {
-    sub <- df[df[[block_col]] == id, ]
-    list(x1 = as.numeric(sub[[x1_col]]),
-         x2 = as.numeric(sub[[x2_col]]))
-  })
-  stats::setNames(out, as.character(ids))
 }

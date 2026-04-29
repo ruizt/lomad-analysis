@@ -2,7 +2,6 @@
 
 export(acov_sums)
 export(arma_acov)
-export(blocks_from_df)
 export(compute_V)
 export(compute_rho)
 export(compute_tau_sq)
