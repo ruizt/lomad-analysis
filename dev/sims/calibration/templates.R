@@ -35,10 +35,12 @@ make_panel <- function(d, seed) {
   tst <- lomad_test(fit, alpha = alpha)
   vi  <- fit$valid_idx
 
-  # Oracle CLT (true noise parameters)
-  true_sigma2 <- sim$noise$series1$sigma^2
+  # Oracle CLT (true per-series noise parameters)
   fit_orc <- lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win,
-                       noise_override = list(ar = phi, sigma2 = true_sigma2))
+                       noise_override = list(
+                         list(ar = phi, sigma2 = sim$noise$series1$sigma^2),
+                         list(ar = phi, sigma2 = sim$noise$series2$sigma^2)
+                       ))
   tst_orc <- lomad_test(fit_orc, alpha = alpha)
 
   # Oracle identity test (true noise parameters)

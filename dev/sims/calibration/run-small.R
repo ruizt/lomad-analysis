@@ -18,7 +18,7 @@ n      <- 1000
 phi    <- 0.5
 snr    <- 1
 S      <- 50          # replicates per d value
-d_vals <- c(0, 0.5, 1, 2, 4)
+d_vals <- c(0, 0.2, 0.5, 1)
 alpha  <- 0.05
 seed0  <- 4853
 
@@ -33,8 +33,6 @@ run_rep <- function(d, seed) {
     sim_noise_pair(trends, h = h_win, s = s_win, lambda_target = snr,
                    ar.coefs = phi, seed = seed + 1L)
   )
-  true_sigma2 <- sim$noise$series1$sigma^2
-
   # 1. CLT test: estimated pipeline
   fit <- suppressMessages(
     lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win)
@@ -44,10 +42,13 @@ run_rep <- function(d, seed) {
     any(tst$rejected[fit$valid_idx], na.rm = TRUE)
   } else NA
 
-  # 2. CLT test: oracle (true noise parameters)
+  # 2. CLT test: oracle (true per-series noise parameters)
   fit_orc <- suppressMessages(
     lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win,
-              noise_override = list(ar = phi, sigma2 = true_sigma2))
+              noise_override = list(
+                list(ar = phi, sigma2 = sim$noise$series1$sigma^2),
+                list(ar = phi, sigma2 = sim$noise$series2$sigma^2)
+              ))
   )
   tst_orc <- lomad_test(fit_orc, alpha = alpha)
   oracle_rejected <- if (length(fit_orc$valid_idx) > 0) {
