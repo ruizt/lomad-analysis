@@ -5,3 +5,7 @@
 ^README\.md$
 ^\.positai$
 ^\.claude$
+^AGENTS\.md$
+^_img$
+^_mb-data$
+^lomad-sim$

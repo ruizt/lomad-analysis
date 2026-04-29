@@ -6,7 +6,7 @@ library(tidyr)
 
 # ---- Design notes -------------------------------------------------------
 #
-# SIGNAL STRUCTURE: make_trends_dist with default Fourier parameters (p=2.5,
+# SIGNAL STRUCTURE: sim_trends(method="dist") with default Fourier parameters (p=2.5,
 # nb=25) concentrates power at k=1 (period = n = 1000).  Within any h=50
 # window the trends are nearly flat, so the local (rolling) correlation
 # between the two MA_q-smoothed series is noise-dominated at ~0.13-0.15
@@ -83,13 +83,14 @@ test_identity_oracle2 <- function(y1, y2, q, phi, sigma2_innov = NULL) {
 # ---- Helper: run both methods on one replicate -------------------------
 
 run_one <- function(dv, seed) {
-  trends <- make_trends_dist(n = n, d = dv, seed = seed)
+  trends <- sim_trends(n = n, d = dv, method = "dist", seed = seed)
   sim    <- suppressMessages(
-    add_noise(trends, h = h, lambda_target = snr,
-              ar.coefs = c(phi), s = 2 * h, seed = seed + 1)
+    sim_noise_pair(trends, h = h, lambda_target = snr,
+                   ar.coefs = c(phi), s = 2 * h, seed = seed + 1)
   )
   out_l  <- suppressMessages(
-    lomad(sim$y1, sim$y2, q = q, h = h, rho0 = rho0, method = "analytic")
+    lomad(sim$y1, sim$y2, method = "state", test_method = "analytic",
+          q = q, h = h, rho0 = rho0)
   )
   true_sigma2 <- mean(c(sim$noise$series1$sigma, sim$noise$series2$sigma)^2)
   out_fo <- test_identity_oracle2(sim$y1, sim$y2, q = q, phi = phi,
@@ -107,11 +108,11 @@ make_example_plot <- function(dv, seed) {
     t  = seq_len(n),
     y1 = sim$y1, y2 = sim$y2,
     x1 = r$trends$x1, x2 = r$trends$x2,
-    R  = r$out_l$R,
+    R  = r$out_l$fit$R,
     D  = r$out_fo$D
   )
 
-  lomad_p <- r$out_l$p_values$frac_state
+  lomad_p <- r$out_l$test$p_values$frac_state
   fo_p    <- r$out_fo$p_val
 
   p_ser <- ggplot(df_ex, aes(t)) +
@@ -164,7 +165,7 @@ seeds_cal <- sample.int(1e5, S_cal)
 cat("\n--- Calibration check (d =", d_cal, ", S =", S_cal, "reps) ---\n")
 cal_results <- vapply(seeds_cal, function(seed) {
   r <- run_one(d_cal, seed)
-  c(lomad       = as.integer(r$out_l$p_values$frac_state < 0.05),
+  c(lomad       = as.integer(r$out_l$test$p_values$frac_state < 0.05),
     full_oracle = as.integer(r$out_fo$p_val              < 0.05))
 }, numeric(2))
 
@@ -186,7 +187,7 @@ sim_results <- mapply(
     r <- run_one(dv, seed)
     data.frame(
       d           = dv,
-      lomad       = as.integer(r$out_l$p_values$frac_state < 0.05),
+      lomad       = as.integer(r$out_l$test$p_values$frac_state < 0.05),
       full_oracle = as.integer(r$out_fo$p_val              < 0.05)
     )
   },

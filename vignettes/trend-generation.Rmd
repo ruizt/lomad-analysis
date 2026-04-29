@@ -18,16 +18,16 @@ knitr::opts_chunk$set(
 )
 ```
 
-The `lomad` package provides four functions for simulating pairs of smooth
+The `lomad` package provides `sim_trends()` for simulating pairs of smooth
 trend series with controlled coupling behavior. These are useful for
 benchmarking and evaluating decoupling detection methods under known
 ground-truth conditions.
 
-The primary parameter across all four methods is `d`, the Euclidean distance
-between the two output series. The remaining parameters control the
-*structure* of the coupling process (e.g. how often and how long the series
-diverge) but are held fixed in the examples below so that the effect of `d`
-can be seen in isolation.
+The primary parameter across all methods is `d`, the Euclidean distance
+between the two output series. The `method` argument (or a custom `w` vector)
+controls the *structure* of the coupling process (e.g. how often and how long
+the series diverge). In the examples below, method-specific parameters are
+held fixed so that the effect of `d` can be seen in isolation.
 
 ```{r libs}
 library(lomad)
@@ -39,22 +39,21 @@ library(patchwork)
 
 ## Shared helpers
 
-`plot_dist()` is used for `make_trends_dist()`, which has no coupling
-process. `plot_trends()` is used for the three methods that return a latent
-`lambda` series as ground truth — the shaded band marks the coupled region
-(λ ∈ [0.5, 1.5]).
+`plot_dist()` is used for `method = "dist"`, which produces a constant
+coupling weight (`w = 0`). `plot_trends()` is used for methods that return a
+time-varying `w` — the shaded band marks the coupled region (w ∈ [0.5, 1.5]).
 
 ```{r helpers}
 plot_trends <- function(sim, title = NULL) {
-  n  <- length(sim$y1)
-  df <- data.frame(t = seq_len(n), y1 = sim$y1, y2 = sim$y2,
-                   x_mean = sim$x_mean, lambda = sim$lambda)
+  n  <- length(sim$x1)
+  df <- data.frame(t = seq_len(n), x1 = sim$x1, x2 = sim$x2,
+                   x_mean = sim$x_mean, w = sim$w)
 
   p_series <- df |>
-    pivot_longer(c(y1, y2, x_mean), names_to = "series", values_to = "value") |>
+    pivot_longer(c(x1, x2, x_mean), names_to = "series", values_to = "value") |>
     ggplot(aes(x = t, y = value, color = series)) +
     geom_line(linewidth = 0.45) +
-    scale_color_manual(values = c(y1 = "steelblue", y2 = "tomato",
+    scale_color_manual(values = c(x1 = "steelblue", x2 = "tomato",
                                   x_mean = "gray60")) +
     labs(title = title, y = NULL, color = NULL) +
     theme_minimal(base_size = 10) +
@@ -62,25 +61,25 @@ plot_trends <- function(sim, title = NULL) {
           axis.text.x = element_blank(),
           plot.title = element_text(size = 9))
 
-  p_lambda <- ggplot(df, aes(x = t, y = lambda)) +
+  p_w <- ggplot(df, aes(x = t, y = w)) +
     annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.5, ymax = 1.5,
              fill = "gray90", alpha = 0.6) +
     geom_hline(yintercept = c(0, 1), linetype = "dashed",
                color = "gray70", linewidth = 0.3) +
     geom_line(linewidth = 0.4) +
-    labs(y = "λ", x = "t") +
+    labs(y = "w", x = "t") +
     theme_minimal(base_size = 10)
 
-  p_series / p_lambda + plot_layout(heights = c(2, 1))
+  p_series / p_w + plot_layout(heights = c(2, 1))
 }
 
 plot_dist <- function(sim, title = NULL) {
   n <- length(sim$x1)
-  data.frame(t = seq_len(n), y1 = sim$x1, y2 = sim$x2) |>
-    pivot_longer(c(y1, y2), names_to = "series", values_to = "value") |>
+  data.frame(t = seq_len(n), x1 = sim$x1, x2 = sim$x2) |>
+    pivot_longer(c(x1, x2), names_to = "series", values_to = "value") |>
     ggplot(aes(x = t, y = value, color = series)) +
     geom_line(linewidth = 0.45) +
-    scale_color_manual(values = c(y1 = "steelblue", y2 = "tomato")) +
+    scale_color_manual(values = c(x1 = "steelblue", x2 = "tomato")) +
     labs(title = title, y = NULL, x = "t", color = NULL) +
     theme_minimal(base_size = 10) +
     theme(legend.position = "none", plot.title = element_text(size = 9))
@@ -89,7 +88,7 @@ plot_dist <- function(sim, title = NULL) {
 ds <- c(0.5, 1, 2, 4)
 ```
 
-## `make_trends_dist()`
+## `method = "dist"`
 
 Generates two stationary trend series at a controlled coefficient-space
 distance `d`. There is no coupling process — the series are independent
@@ -98,80 +97,82 @@ series with lower correlation.
 
 ```{r dist, fig.cap = "Two series at varying d."}
 plots_dist <- lapply(ds, \(d)
-  plot_dist(make_trends_dist(n = 500, d = d, seed = 7),
+  plot_dist(sim_trends(n = 500, d = d, seed = 7),
             title = sprintf("d = %.1f", d))
 )
 
 wrap_plots(plots_dist, ncol = 2) +
-  plot_annotation(title = "make_trends_dist(): varying d")
+  plot_annotation(title = "method = 'dist': varying d")
 ```
 
-## `make_trends_rate()`
+## `method = "rate"`
 
 Generates two trend series that repel symmetrically at periodic decoupling
 events. `d` controls the Euclidean distance between the output series;
 `rate` (events per unit time) controls how often events occur. The
-`lambda` panel shows the structured, evenly-spaced dips.
+`w` panel shows the structured, evenly-spaced dips.
 
 ```{r rate, fig.height = 8, fig.cap = "Periodic repulsion at varying d (rate = 0.01)."}
 plots_rate <- lapply(ds, \(d)
-  plot_trends(make_trends_rate(n = 500, d = d, rate = 0.01, seed = 7),
+  plot_trends(sim_trends(n = 500, d = d, method = "rate",
+                          rate = 0.01, seed = 7),
               title = sprintf("d = %.1f", d))
 )
 
 wrap_plots(plots_rate, ncol = 2) +
-  plot_annotation(title = "make_trends_rate(): varying d  (rate = 0.01)")
+  plot_annotation(title = "method = 'rate': varying d  (rate = 0.01)")
 ```
 
-## `make_trends_smooth()`
+## `method = "smooth"`
 
 Generates two trend series with organic, aperiodic repulsion governed by a
-smooth stochastic `lambda` derived from kernel-smoothed Gaussian noise.
-Lambda is restricted to (0, 1) so the series always stay on their respective
+smooth stochastic `w` derived from kernel-smoothed Gaussian noise.
+`w` is restricted to (0, 1) so the series always stay on their respective
 sides of the mean. `bw` controls the timescale of coupling/decoupling
 stretches; `coupling` controls the fraction of time the series track closely.
 
 ```{r smooth, fig.height = 8, fig.cap = "Stochastic repulsion at varying d (bw = 50, coupling = 0.8)."}
 plots_smooth <- lapply(ds, \(d)
-  plot_trends(make_trends_smooth(n = 500, d = d, bw = 50,
-                                 coupling = 0.8, seed = 7),
+  plot_trends(sim_trends(n = 500, d = d, method = "smooth",
+                          bw = 50, coupling = 0.8, seed = 7),
               title = sprintf("d = %.1f", d))
 )
 
 wrap_plots(plots_smooth, ncol = 2) +
-  plot_annotation(title = "make_trends_smooth(): varying d  (bw = 50, coupling = 0.8)")
+  plot_annotation(title = "method = 'smooth': varying d  (bw = 50, coupling = 0.8)")
 ```
 
-## `make_trends_cross()`
+## `method = "cross"`
 
-A variant of `make_trends_smooth()` where `lambda` is generated as a linear
+A variant of `method = "smooth"` where `w` is generated as a linear
 process centered at 1, allowing it to exceed 1 (crossing: the series swap
 sides of the mean) as well as drop below 0 (strong decoupling). The
-`coupling` parameter controls the fraction of time lambda stays within 0.5
+`coupling` parameter controls the fraction of time `w` stays within 0.5
 of 1, with the remainder split equally between decoupling and crossing tails.
 
 ```{r cross, fig.height = 8, fig.cap = "Stochastic coupling with crossings at varying d (bw = 50, coupling = 0.8)."}
 plots_cross <- lapply(ds, \(d)
-  plot_trends(make_trends_cross(n = 500, d = d, bw = 50,
-                                coupling = 0.8, seed = 7),
+  plot_trends(sim_trends(n = 500, d = d, method = "cross",
+                          bw = 50, coupling = 0.8, seed = 7),
               title = sprintf("d = %.1f", d))
 )
 
 wrap_plots(plots_cross, ncol = 2) +
-  plot_annotation(title = "make_trends_cross(): varying d  (bw = 50, coupling = 0.8)")
+  plot_annotation(title = "method = 'cross': varying d  (bw = 50, coupling = 0.8)")
 ```
 
-Lambda values above the shaded band (λ > 1.5) indicate crossing events,
+`w` values above the shaded band (w > 1.5) indicate crossing events,
 where the two series have swapped sides of their shared mean.
 
 ## Summary
 
-| Function | Coupling structure | Lambda range | Key parameters |
+| Method | Coupling structure | w range | Key parameters |
 |---|---|---|---|
-| `make_trends_dist()` | None (static) | — | `d` |
-| `make_trends_rate()` | Periodic gamma bumps | [0, 1] | `d`, `rate` |
-| `make_trends_smooth()` | Stochastic, repel only | (0, 1) | `d`, `bw`, `coupling` |
-| `make_trends_cross()` | Stochastic, with crossings | unbounded | `d`, `bw`, `coupling` |
+| `"dist"` | None (static) | 0 | `d` |
+| `"rate"` | Periodic gamma bumps | [0, 1] | `d`, `rate` |
+| `"smooth"` | Stochastic, repel only | (0, 1) | `d`, `bw`, `coupling` |
+| `"cross"` | Stochastic, with crossings | unbounded | `d`, `bw`, `coupling` |
 
 In all cases `d` sets the Euclidean distance between the two output series,
-and `lambda` (where present) is returned as the ground-truth coupling state.
+and `w` is returned as the ground-truth coupling weight. A custom `w` vector
+or function `f(n)` can also be passed directly to `sim_trends()`.

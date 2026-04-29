@@ -1,72 +1,46 @@
 #' Detect and test local correlation decoupling
 #'
-#' Convenience wrapper around [lomad_fit()] followed by one of the test
-#' functions. Fits the null model, then tests whether the observed decoupling
-#' statistics exceed what is expected under the null.
+#' Convenience wrapper that calls [lomad_fit()] followed by [lomad_test()].
+#' Returns the combined fit and test results.
 #'
 #' @param x1 Numeric vector. First time series.
 #' @param x2 Numeric vector. Second time series, same length as `x1`.
-#' @param q Integer or NULL. MA window for trend smoothing (see [lomad_fit()]).
-#' @param h Integer or NULL. Rolling correlation window length (see
-#'   [lomad_fit()]).
-#' @param alpha Numeric. FDR level for BY threshold (default 0.05).
-#' @param rho0 Numeric. Null correlation value (default 0).
-#' @param max_pq Integer. Maximum ARMA order (default 2).
-#' @param method Character. Inference method: `"boot"` (full parametric
-#'   bootstrap, default), `"mc"` (Markov-chain bootstrap on state process),
-#'   or `"analytic"` (closed-form CLT for `frac_state`).
-#' @param B Integer. Number of bootstrap replicates for `"boot"` and `"mc"`
-#'   (default 500).
-#' @param T_sim Integer or NULL. Simulated chain length for `"mc"`. Defaults
-#'   to `length(fit$valid_idx)`.
-#' @param T_eff Integer or NULL. Effective chain length for `"analytic"`.
-#'   Defaults to `length(fit$valid_idx)`.
-#' @param seed Integer or NULL. RNG seed for `"boot"` and `"mc"`.
-#' @param ncores Integer. Number of cores for parallel bootstrap when
-#'   `method = "boot"` (default 1). Passed to [lomad_test_boot()]; ignored for
-#'   other methods and on Windows.
-#' @param verbose Logical. If `TRUE`, prints a live progress bar during
-#'   bootstrap replicates (passed to [lomad_test_boot()] or [lomad_test_mc()];
-#'   has no effect for `method = "analytic"`). Default `FALSE`.
+#' @param method Character. Inference pipeline: `"clt"` (default, paper
+#'   method) or `"state"` (legacy). Passed to [lomad_fit()].
+#' @param test_method Character or NULL. Test method within the pipeline.
+#'   If `NULL`, auto-selected: CLT fits use the pointwise Z-test; state fits
+#'   use `"boot"`. Passed to [lomad_test()].
+#' @param alpha Numeric. FDR level (default 0.05).
+#' @param ... Additional arguments passed to [lomad_fit()] and/or
+#'   [lomad_test()] (e.g. `h`, `s`, `lag_max`, `B`, `seed`, `ncores`).
 #'
-#' @return The list returned by the selected test function
-#'   ([lomad_test_boot()], [lomad_test_mc()], or [lomad_test_analytic()]),
-#'   which contains observed statistics, p-values, expected values under the
-#'   null, and the full fitted null model.
+#' @return A list combining the output of [lomad_fit()] and [lomad_test()].
+#'   The fit is stored as `$fit` and the test as `$test`.
 #'
-#' @seealso [lomad_fit()], [lomad_test_boot()], [lomad_test_mc()],
-#'   [lomad_test_analytic()], [plot_lomad_fit()]
+#' @seealso [lomad_fit()], [lomad_test()], [lomad_plot()]
 #'
 #' @export
 lomad <- function(x1,
                   x2,
-                  q       = NULL,
-                  h       = NULL,
-                  alpha   = 0.05,
-                  rho0    = 0,
-                  max_pq  = 2,
-                  method  = c("boot", "mc", "analytic"),
-                  B       = 500,
-                  T_sim   = NULL,
-                  T_eff   = NULL,
-                  seed    = NULL,
-                  ncores  = 1L,
-                  verbose = FALSE) {
+                  method      = c("clt", "state"),
+                  test_method = NULL,
+                  alpha       = 0.05,
+                  ...) {
 
   method <- match.arg(method)
+  dots   <- list(...)
 
-  fit <- lomad_fit(x1, x2,
-                   q      = q,
-                   h      = h,
-                   alpha  = alpha,
-                   rho0   = rho0,
-                   max_pq = max_pq)
+  # Split ... into fit args and test args
+  fit_args  <- c(list(x1 = x1, x2 = x2, method = method),
+                 dots[names(dots) %in% c("h", "s", "lag_max", "q", "rho0",
+                                         "max_pq", "blocks",
+                                         "noise_override")])
+  test_args <- c(list(method = test_method, alpha = alpha),
+                 dots[names(dots) %in% c("B", "seed", "ncores", "verbose",
+                                         "T_sim", "T_eff")])
 
-  switch(method,
-    boot     = lomad_test_boot(fit,     B = B, seed = seed, ncores = ncores,
-                               verbose = verbose),
-    mc       = lomad_test_mc(fit,       B = B, T_sim = T_sim, seed = seed,
-                             verbose = verbose),
-    analytic = lomad_test_analytic(fit, T_eff = T_eff)
-  )
+  fit <- do.call(lomad_fit, fit_args)
+  tst <- do.call(lomad_test, c(list(fit = fit), test_args))
+
+  list(fit = fit, test = tst)
 }

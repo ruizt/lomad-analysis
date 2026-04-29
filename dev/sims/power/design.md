@@ -40,6 +40,13 @@ L² separation *d* (see paper §Simulation / Trend construction).
 
 *S* = 500 replicates per cell.
 
+**Note on SNR levels:** λ_lo and λ_hi should be chosen after reviewing the
+calibration rejection rate curve. A good λ_lo keeps the CLT test rejection
+rate near nominal (≤ 10%) across the null region (d ≤ 0.5), while λ_hi
+represents a higher-SNR regime where the test has more power. λ = 1.5 was
+used for calibration verification; λ = 2.5 is a reasonable starting point
+for λ_hi.
+
 ## Estimands
 
 For each replicate and each flagged time point, record:
@@ -61,9 +68,153 @@ faceted by trend structure and *φ*, coloured by *T*.
 `figures/sensitivity_fdr_by_structure.png` — sensitivity and FDR vs *d* for
 the three structured methods.
 
-## Notes
+---
 
-- SNR levels λ_lo, λ_hi should be chosen after reviewing calibration results
-  to ensure the method is well-calibrated at both levels.
-- The *wₜ* threshold (0.5) for sensitivity/FDR is defined in the paper; see
-  §Simulation / Performance metrics.
+## Workflow
+
+### Reference implementation: `run.R`
+
+`run.R` contains a complete `run_rep()` function handling all four trend
+structures via a `switch` statement, plus a full parameter grid. It is
+designed to be sourced by an HPC entrypoint. The `RUN_LOCAL` flag at the
+bottom enables a small spot-check run directly in RStudio.
+
+To run a quick local spot-check:
+
+```r
+RUN_LOCAL <- TRUE
+source("dev/sims/power/run.R")
+```
+
+Inspect the printed `detected` rates. At *d* = 0 they should be near zero
+for unstructured trends; at *d* = 1.5 or higher they should be meaningfully
+above zero for the structured methods.
+
+---
+
+## Student assignment: proof-of-concept scripts
+
+Your task is to write a set of `run-small.R` scripts — one per trend
+structure — that serve as local proof-of-concept drivers and are structured
+so that a second student can adapt them for parallel execution on the Tide
+Kubernetes cluster (following the same pattern as the calibration study).
+
+### What each script must do
+
+Each `run-small.R` (or equivalent, e.g. `run-small-rate.R`) should:
+
+1. **Define `run_rep(d, seed, ...)`** — a function that generates one
+   replicate for its structure, fits the CLT test, and returns a one-row
+   data frame with columns `d`, `seed`, `detected`, `sensitivity`, `fdr`,
+   and any structure-specific parameters.
+
+2. **Define a local driver block** — a short loop over a small *d* grid
+   (e.g., 3–4 values) with *S* = 10–20 replicates, printing rejection rates
+   and producing a simple plot. This is the main thing to run locally.
+
+3. **Be HPC-adaptable** — all parameters that vary across parallel jobs
+   (at minimum: *d*, *S*, seed) should be defined as named constants near
+   the top of the script so they can be trivially replaced by `Sys.getenv()`
+   calls when adapting the script for a Kubernetes entrypoint. Do not bury
+   these inside loops or helper functions.
+
+### Suggested script structure
+
+```r
+## run-small-<structure>.R
+## Power proof-of-concept — <structure> trend method
+
+devtools::load_all()
+library(dplyr)
+library(ggplot2)
+
+# ---- Parameters (replace with Sys.getenv() calls for HPC) ------------------
+
+n          <- 500L
+phi        <- 0.5
+snr        <- 1.5       # update after calibration confirms good λ_lo
+struct_param <- 0.01    # e.g. rate r or bandwidth b — one value for local run
+S          <- 10
+d_vals     <- c(0, 0.5, 1.0, 1.5, 2.0)
+alpha      <- 0.05
+seed0      <- <your chosen seed>
+
+h_win <- max(5L, floor(n / 200L))
+s_win <- min(60L * h_win, floor(n / 4L))
+
+# ---- run_rep ---------------------------------------------------------------
+
+run_rep <- function(d, seed) {
+  # 1. Generate trends
+  trends <- make_trends_<structure>(n = n, d = d, <param> = struct_param,
+                                    seed = seed)
+  # 2. Add noise
+  sim <- suppressMessages(
+    add_noise(trends, h = h_win, lambda_target = snr,
+              ar.coefs = phi, seed = seed + 1L)
+  )
+  # 3. Fit + test
+  fit <- suppressMessages(
+    lomad_fit_clt(sim$y1, sim$y2, h = h_win, s = s_win, max_pq = 3L)
+  )
+  tst <- lomad_test_clt(fit, alpha = alpha)
+  vi  <- fit$valid_idx
+
+  # 4. Estimands
+  rejected    <- tst$rejected[vi]
+  w           <- trends$w[vi]      # NULL for unstructured
+  detected    <- any(rejected, na.rm = TRUE)
+  sensitivity <- if (!is.null(w) && any(w < 0.5))
+                   mean(rejected[w < 0.5], na.rm = TRUE) else NA_real_
+  fdr_val     <- if (!is.null(w) && any(rejected, na.rm = TRUE))
+                   mean(w[rejected] >= 0.5, na.rm = TRUE) else NA_real_
+
+  data.frame(d = d, seed = seed, detected = detected,
+             sensitivity = sensitivity, fdr = fdr_val)
+}
+
+# ---- Local driver ----------------------------------------------------------
+
+set.seed(seed0)
+seeds <- sample.int(1e6, S)
+
+results <- lapply(d_vals, function(dv) {
+  cat(sprintf("d = %.1f ... ", dv))
+  reps <- lapply(seeds, function(s) run_rep(dv, s)) |> dplyr::bind_rows()
+  cat(sprintf("detected: %.2f\n", mean(reps$detected, na.rm = TRUE)))
+  reps
+}) |> dplyr::bind_rows()
+
+# simple power plot
+results |>
+  dplyr::group_by(d) |>
+  dplyr::summarise(power = mean(detected, na.rm = TRUE)) |>
+  ggplot2::ggplot(ggplot2::aes(d, power)) +
+  ggplot2::geom_line() + ggplot2::geom_point() +
+  ggplot2::geom_hline(yintercept = 0.05, linetype = "dashed") +
+  ggplot2::scale_y_continuous(limits = c(0, 1)) +
+  ggplot2::labs(title = "<structure>: power vs d (S = <S>, n = <n>)")
+```
+
+### HPC adaptation notes (for the student who scales up)
+
+The second student adapting these scripts for Tide should follow the same
+pattern as the calibration study:
+
+- Replace each hardcoded parameter with `Sys.getenv("SIM_D", "0")` etc.
+- One container = one *d* value for one trend structure.
+- Save results as `.rds` (e.g. `rate_d1-5.rds` for the event-rate structure
+  at *d* = 1.5).
+- See `dev/sims/calibration/tide/` for working examples of `sim.R`,
+  `Dockerfile`, `job.yaml`, `submit_sweep.sh`, `fetch.sh`, and `collect.R`.
+  The power study entrypoints should follow the same conventions so
+  `fetch.sh` and `collect.R` can be adapted with minimal changes.
+
+### What to verify locally before handing off
+
+For each structure, confirm:
+
+- At *d* = 0, `detected` rate ≤ 0.10 (type I error not inflated).
+- At *d* = 2.0 or higher, `detected` rate is clearly above 0.05.
+- `sensitivity` and `fdr` are defined and non-degenerate for structured
+  methods (not all NA).

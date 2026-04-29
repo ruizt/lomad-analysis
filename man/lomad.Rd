@@ -7,18 +7,10 @@
 lomad(
   x1,
   x2,
-  q = NULL,
-  h = NULL,
+  method = c("clt", "state"),
+  test_method = NULL,
   alpha = 0.05,
-  rho0 = 0,
-  max_pq = 2,
-  method = c("boot", "mc", "analytic"),
-  B = 500,
-  T_sim = NULL,
-  T_eff = NULL,
-  seed = NULL,
-  ncores = 1L,
-  verbose = FALSE
+  ...
 )
 }
 \arguments{
@@ -26,52 +18,26 @@ lomad(
 
 \item{x2}{Numeric vector. Second time series, same length as \code{x1}.}
 
-\item{q}{Integer or NULL. MA window for trend smoothing (see \code{\link[=lomad_fit]{lomad_fit()}}).}
+\item{method}{Character. Inference pipeline: \code{"clt"} (default, paper
+method) or \code{"state"} (legacy). Passed to \code{\link[=lomad_fit]{lomad_fit()}}.}
 
-\item{h}{Integer or NULL. Rolling correlation window length (see
-\code{\link[=lomad_fit]{lomad_fit()}}).}
+\item{test_method}{Character or NULL. Test method within the pipeline.
+If \code{NULL}, auto-selected: CLT fits use the pointwise Z-test; state fits
+use \code{"boot"}. Passed to \code{\link[=lomad_test]{lomad_test()}}.}
 
-\item{alpha}{Numeric. FDR level for BY threshold (default 0.05).}
+\item{alpha}{Numeric. FDR level (default 0.05).}
 
-\item{rho0}{Numeric. Null correlation value (default 0).}
-
-\item{max_pq}{Integer. Maximum ARMA order (default 2).}
-
-\item{method}{Character. Inference method: \code{"boot"} (full parametric
-bootstrap, default), \code{"mc"} (Markov-chain bootstrap on state process),
-or \code{"analytic"} (closed-form CLT for \code{frac_state}).}
-
-\item{B}{Integer. Number of bootstrap replicates for \code{"boot"} and \code{"mc"}
-(default 500).}
-
-\item{T_sim}{Integer or NULL. Simulated chain length for \code{"mc"}. Defaults
-to \code{length(fit$valid_idx)}.}
-
-\item{T_eff}{Integer or NULL. Effective chain length for \code{"analytic"}.
-Defaults to \code{length(fit$valid_idx)}.}
-
-\item{seed}{Integer or NULL. RNG seed for \code{"boot"} and \code{"mc"}.}
-
-\item{ncores}{Integer. Number of cores for parallel bootstrap when
-\code{method = "boot"} (default 1). Passed to \code{\link[=lomad_test_boot]{lomad_test_boot()}}; ignored for
-other methods and on Windows.}
-
-\item{verbose}{Logical. If \code{TRUE}, prints a live progress bar during
-bootstrap replicates (passed to \code{\link[=lomad_test_boot]{lomad_test_boot()}} or \code{\link[=lomad_test_mc]{lomad_test_mc()}};
-has no effect for \code{method = "analytic"}). Default \code{FALSE}.}
+\item{...}{Additional arguments passed to \code{\link[=lomad_fit]{lomad_fit()}} and/or
+\code{\link[=lomad_test]{lomad_test()}} (e.g. \code{h}, \code{s}, \code{lag_max}, \code{B}, \code{seed}, \code{ncores}).}
 }
 \value{
-The list returned by the selected test function
-(\code{\link[=lomad_test_boot]{lomad_test_boot()}}, \code{\link[=lomad_test_mc]{lomad_test_mc()}}, or \code{\link[=lomad_test_analytic]{lomad_test_analytic()}}),
-which contains observed statistics, p-values, expected values under the
-null, and the full fitted null model.
+A list combining the output of \code{\link[=lomad_fit]{lomad_fit()}} and \code{\link[=lomad_test]{lomad_test()}}.
+The fit is stored as \verb{$fit} and the test as \verb{$test}.
 }
 \description{
-Convenience wrapper around \code{\link[=lomad_fit]{lomad_fit()}} followed by one of the test
-functions. Fits the null model, then tests whether the observed decoupling
-statistics exceed what is expected under the null.
+Convenience wrapper that calls \code{\link[=lomad_fit]{lomad_fit()}} followed by \code{\link[=lomad_test]{lomad_test()}}.
+Returns the combined fit and test results.
 }
 \seealso{
-\code{\link[=lomad_fit]{lomad_fit()}}, \code{\link[=lomad_test_boot]{lomad_test_boot()}}, \code{\link[=lomad_test_mc]{lomad_test_mc()}},
-\code{\link[=lomad_test_analytic]{lomad_test_analytic()}}, \code{\link[=plot_lomad_fit]{plot_lomad_fit()}}
+\code{\link[=lomad_fit]{lomad_fit()}}, \code{\link[=lomad_test]{lomad_test()}}, \code{\link[=lomad_plot]{lomad_plot()}}
 }

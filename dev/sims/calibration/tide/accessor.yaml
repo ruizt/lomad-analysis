@@ -1,0 +1,32 @@
+# accessor.yaml — lightweight pod for copying files out of the PVC
+#
+# Used by fetch.sh. Not a Job — just a sleep pod that mounts the PVC
+# so kubectl cp can reach the files.
+#
+# Usage (via fetch.sh — don't apply this directly):
+#   bash dev/sims/calibration/tide/fetch.sh
+#
+# If you need to inspect the PVC interactively:
+#   kubectl apply -f dev/sims/calibration/tide/accessor.yaml
+#   kubectl exec -it lomad-fetch -- sh
+#   kubectl delete pod lomad-fetch
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lomad-fetch
+  labels:
+    app: lomad-fetch
+spec:
+  restartPolicy: Never
+  containers:
+    - name: fetch
+      image: busybox
+      command: ["sleep", "300"]
+      volumeMounts:
+        - name: output
+          mountPath: /jobs/output
+  volumes:
+    - name: output
+      persistentVolumeClaim:
+        claimName: lomad-calib-results

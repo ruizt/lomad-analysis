@@ -29,8 +29,8 @@ estimate_trends <- function(y1, y2, h) {
   if (h < 1L) stop("`h` must be >= 1.")
 
   kernel <- rep(1 / h, h)
-  ma1    <- as.numeric(stats::filter(y1, kernel, sides = 2))
-  ma2    <- as.numeric(stats::filter(y2, kernel, sides = 2))
+  ma1    <- as.numeric(stats::filter(y1, kernel, sides = 1))
+  ma2    <- as.numeric(stats::filter(y2, kernel, sides = 1))
   trend  <- (ma1 + ma2) / 2
 
   list(trend = trend, ma1 = ma1, ma2 = ma2, h = h)

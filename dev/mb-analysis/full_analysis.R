@@ -60,11 +60,11 @@ for (loc in names(loc_results)) {
   blocks_presm <- loc_results[[loc]]$blocks_presm
   blocks       <- lapply(blocks_presm, \(b) list(x1 = b$o2, x2 = b$ph))
 
-  fit <- lomad_fit_blocks(blocks,
-                          rho0   = 0,
-                          q      = 5 * 4,
-                          h      = 10 * 4,
-                          max_pq = 2)
+  fit <- lomad_fit(blocks = blocks,
+                   rho0   = 0,
+                   q      = 5 * 4,
+                   h      = 10 * 4,
+                   max_pq = 2)
 
   cat('\n===', loc, '===\n')
   print(fit$null_model)
@@ -75,9 +75,9 @@ for (loc in names(loc_results)) {
 
   pdf(paste0(img_out, '/', loc, '-blocks-fit.pdf'), width = 5, height = 4)
   for (nm in names(fit$blocks)) {
-    plot_lomad_fit(blocks[[nm]]$x1, blocks[[nm]]$x2,
-                   fit   = block_fit_view(fit, nm),
-                   alpha = 0.4)
+    lomad_plot(blocks[[nm]]$x1, blocks[[nm]]$x2,
+               fit   = block_fit_view(fit, nm),
+               alpha = 0.4)
     title(main = paste(loc, 'block', nm), line = 0.5)
   }
   dev.off()
@@ -85,20 +85,20 @@ for (loc in names(loc_results)) {
   # --- Inference ------------------------------------------------------------
 
   # Asymptotic test (rough approximation)
-  test_analytic <- lomad_test_analytic(fit)
+  test_analytic <- lomad_test(fit, method = "analytic")
   cat('\n--- Analytic p-values (', loc, ') ---\n')
   print(test_analytic$p_values)
 
   # Markov-chain bootstrap (fast)
-  test_mc <- lomad_test_mc(fit, B = 1000, seed = 4721,
-                           verbose = TRUE)
+  test_mc <- lomad_test(fit, method = "mc", B = 1000, seed = 4721,
+                        verbose = TRUE)
   cat('\n--- MC bootstrap p-values (', loc, ') ---\n')
   print(test_mc$p_values)
 
   # Full parametric bootstrap (use parallel cores to speed up)
-  test_boot <- lomad_test_boot(fit, B = 1000, seed = 4721,
-                               ncores = parallel::detectCores() - 1,
-                               verbose = TRUE)
+  test_boot <- lomad_test(fit, method = "boot", B = 1000, seed = 4721,
+                          ncores = parallel::detectCores() - 1,
+                          verbose = TRUE)
   cat('\n--- Parametric bootstrap p-values (', loc, ') ---\n')
   print(test_boot$p_values)
   print(test_boot$expected)

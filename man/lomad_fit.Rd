@@ -2,54 +2,71 @@
 % Please edit documentation in R/lomad_fit.R
 \name{lomad_fit}
 \alias{lomad_fit}
-\title{Fit the null model for local correlation decoupling}
+\title{Fit the LOMAD local correlation model}
 \usage{
-lomad_fit(x1, x2, q = NULL, h = NULL, alpha = 0.05, rho0 = 0, max_pq = 2)
+lomad_fit(
+  x1 = NULL,
+  x2 = NULL,
+  method = c("clt", "state"),
+  blocks = NULL,
+  noise_override = NULL,
+  h = NULL,
+  s = NULL,
+  lag_max = 100L,
+  q = NULL,
+  alpha = 0.05,
+  rho0 = 0,
+  max_pq = 2
+)
 }
 \arguments{
 \item{x1}{Numeric vector. First time series.}
 
 \item{x2}{Numeric vector. Second time series, same length as \code{x1}.}
 
-\item{q}{Integer or NULL. MA window for shared trend smoothing. If \code{NULL},
-chosen automatically as \code{max(5, floor(n/200))}.}
+\item{method}{Character. \code{"clt"} (default, paper method) or \code{"state"}
+(legacy state-process pipeline).}
 
-\item{h}{Integer or NULL. Rolling correlation window length. If \code{NULL},
-chosen automatically to target \code{n_eff ~ 30}. Must be > 3.}
+\item{blocks}{List of block data for multi-block fitting (legacy only).
+If supplied, \code{x1} and \code{x2} are ignored and \code{method} is forced to
+\code{"state"}. Use \code{\link[=blocks_from_df]{blocks_from_df()}} to construct.}
 
-\item{alpha}{Numeric. FDR level for the BY multiple testing correction
-(default 0.05).}
+\item{noise_override}{Optional list with elements \code{ar}, \code{ma}, \code{sigma2}
+(CLT only). If supplied, these noise parameters are used directly instead
+of being estimated from the data. Useful for oracle experiments where the
+true noise process is known. May also be a list of two such lists (one per
+series).}
 
-\item{rho0}{Numeric. Null correlation to test against (default 0). Tests
-H0: rho = rho0 vs H1: rho < rho0. Must be in (-1, 1).}
+\item{h}{Integer or NULL. Smoothing window width. Auto-selected if \code{NULL}.}
 
-\item{max_pq}{Integer. Maximum AR/MA order for AIC-based model selection
-(default 2).}
+\item{s}{Integer or NULL. Rolling correlation window length (CLT only).
+Auto-selected if \code{NULL}.}
+
+\item{lag_max}{Integer. Lag truncation for autocovariance sums (CLT only).
+Default 100.}
+
+\item{q}{Integer or NULL. MA trend window (state only). Auto-selected if
+\code{NULL}.}
+
+\item{alpha}{Numeric. FDR level (state only, default 0.05).}
+
+\item{rho0}{Numeric. Null correlation (state only, default 0).}
+
+\item{max_pq}{Integer. Maximum ARMA order (state only, default 2).}
 }
 \value{
-A named list:
-\describe{
-\item{null_model}{ARMA fits, window sizes, HAC n_eff/tau2, and
-lambda (signal-to-noise) for each series.}
-\item{observed}{\code{entry_rate}, \code{mean_run_length}, \code{frac_state}, and
-\code{n_entries} (number of distinct decoupling episodes) from the data.}
-\item{expected_asymptotic}{Asymptotic null expectations for the same
-statistics.}
-\item{inputs}{\code{n} and \code{max_pq}.}
-\item{trend_hat}{Estimated shared trend (length \code{n}).}
-\item{ma1, ma2}{MA-smoothed series (length \code{n}).}
-\item{R}{Rolling correlation series (length \code{n}, NA before window fills).}
-\item{thresholds}{\code{alpha_eff} (BY-corrected p-threshold) and \code{x_eff}
-(corresponding correlation threshold).}
-\item{I}{Integer vector (length \code{n}): 1 = low-correlation state, 0 =
-normal, NA = no valid estimate.}
-\item{valid_idx}{Integer indices where R is defined.}
-}
+A named list whose contents depend on \code{method}. All fit objects
+include a \verb{$method} field (\code{"clt"} or \code{"state"}) used by \code{\link[=lomad_test]{lomad_test()}}
+for automatic dispatch. See the internal implementations for full details.
 }
 \description{
-Estimates a null model for two time series, smooths out the shared trend,
-fits ARMA residual models, computes a rolling correlation series, and
-classifies each time point as inside or outside a low-correlation state
-using a Benjamini-Yekutieli-corrected Fisher z threshold. Returns observed
-state statistics and asymptotic expectations under the null.
+Estimates quantities needed for inference on the local correlation between
+two time series. The default \code{method = "clt"} runs the paper's pipeline:
+MA trend estimation, variogram-based AR(1) noise fitting, and rolling
+computation of \eqn{R_t}, \eqn{\rho_t}, and \eqn{V_t}. The legacy
+\code{method = "state"} fits a state-process model with ARMA noise and
+Fisher-z thresholding.
+}
+\seealso{
+\code{\link[=lomad_test]{lomad_test()}}, \code{\link[=lomad]{lomad()}}, \code{\link[=blocks_from_df]{blocks_from_df()}}
 }

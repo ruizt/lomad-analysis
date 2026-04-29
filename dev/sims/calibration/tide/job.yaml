@@ -1,0 +1,52 @@
+# job.yaml — Kubernetes Job template for one calibration run
+#
+# Used as a template by submit_sweep.sh (not submitted directly).
+#
+# Build and push the container image from the repo root:
+#   docker buildx build --platform linux/amd64 \
+#     -f dev/sims/calibration/tide/Dockerfile \
+#     -t ghcr.io/<org>/lomad-calib:latest --push .
+#
+# Submit the full d sweep:
+#   bash dev/sims/calibration/tide/submit_sweep.sh
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lomad-calib-JOBNAME
+  labels:
+    app: lomad-calib
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: lomad-calib
+          image: ghcr.io/<org>/lomad-calib:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "1200m"
+              memory: "2Gi"
+          env:
+            - name: SIM_D
+              value: "SIMVAL_D"
+            - name: SIM_S
+              value: "200"
+            - name: SIM_SEED
+              value: "4853"
+            - name: SIM_OUT_DIR
+              value: "/jobs/output"
+          volumeMounts:
+            - name: output
+              mountPath: /jobs/output
+      volumes:
+        - name: output
+          persistentVolumeClaim:
+            claimName: lomad-calib-results

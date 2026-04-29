@@ -75,6 +75,7 @@ x1 <- example_block_presm$o2
 x2 <- example_block_presm$ph
 dt <- example_block_presm$datetime
 fit <- lomad_fit(x1, x2,
+                 method = "state",
                  rho0   = 0,
                  q      = 14*4,
                  h      = 14*2*4,
@@ -86,7 +87,7 @@ fit$null_model
 # plot fit and detected decoupling periods
 paste(img_out, 'bs1-20-fit.png', sep = '/') |>
   png(width = 5, height = 4, units = 'in', res = 400)
-plot_lomad_fit(x1, x2, fit, dates = dt, alpha = 0.4)
+lomad_plot(x1, x2, fit, dates = dt, alpha = 0.4)
 dev.off()
 
 ## END ------------
@@ -96,17 +97,17 @@ fit$observed
 fit$expected_asymptotic
 
 # asymptotic test (very rough... approximation of approximation)
-test1 <- lomad_test_analytic(fit)
+test1 <- lomad_test(fit, method = "analytic")
 test1$p_values
 
 # state process bootstrap (quick)
-test2 <- lomad_test_mc(fit, B = 1000, seed = 123)
+test2 <- lomad_test(fit, method = "mc", B = 1000, seed = 123)
 test2$p_values
 
 # full parametric bootstrap (takes a bit)
-test3 <- lomad_test_boot(fit, B = 500, seed = 123, 
-                         ncores = parallel::detectCores() - 1,
-                         verbose = T)
+test3 <- lomad_test(fit, method = "boot", B = 500, seed = 123,
+                    ncores = parallel::detectCores() - 1,
+                    verbose = TRUE)
 test3$p_values
 test3$expected
 test3$observed
