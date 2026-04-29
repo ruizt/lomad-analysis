@@ -32,8 +32,7 @@ spec:
 
       containers:
         - name: lomad-sim
-          # ← CHANGE: replace otishunt with your GitHub username
-          image: ghcr.io/otishunt/lomad-sim:latest
+          image: ghcr.io/<github-username>/lomad-sim:latest
           imagePullPolicy: Always
 
           resources:
