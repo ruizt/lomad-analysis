@@ -19,12 +19,17 @@ set -euo pipefail
 # ── CONFIG ───────────────────────────────────────────────────────────────────
 NAMESPACE="${NAMESPACE:-cal-poly-lomad}"
 PVC_NAME="${PVC_NAME:-lomad-sim-results}"
+GHCR_USER="${GHCR_USER:-otishunt}"
 REMOTE_FILE="/output/lomad_results_log.csv"
 # Always save to a fixed path in the repo so the viewer artifact can find it
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LOCAL_OUT="${REPO_ROOT}/lomad-sim/results/lomad_results_log.csv"
 HELPER_POD="lomad-fetch-$(date +%s)"   # unique name avoids conflicts
+# Use the lomad-sim image as the helper — it is already cached on cluster nodes
+# from recent jobs, so it starts in seconds. busybox requires a fresh pull
+# which can time out on a busy cluster.
+HELPER_IMAGE="ghcr.io/${GHCR_USER}/lomad-sim:latest"
 # ─────────────────────────────────────────────────────────────────────────────
 
 echo "Namespace : ${NAMESPACE}"
@@ -37,20 +42,21 @@ echo ""
 # for us to copy the file, then the pod exits on its own after 60 s).
 # We use 'sleep 60' as a minimal idle — the pod exits after the copy, so it
 # never holds resources beyond the ~5 seconds it takes to copy the file.
-echo "Starting helper pod ${HELPER_POD}..."
+echo "Starting helper pod ${HELPER_POD} (image: ${HELPER_IMAGE})..."
 kubectl run "${HELPER_POD}" \
   --namespace="${NAMESPACE}" \
-  --image=busybox \
+  --image="${HELPER_IMAGE}" \
   --restart=Never \
   --overrides="{
     \"spec\": {
+      \"imagePullSecrets\": [{\"name\": \"ghcr-secret\"}],
       \"volumes\": [{
         \"name\": \"output\",
         \"persistentVolumeClaim\": {\"claimName\": \"${PVC_NAME}\"}
       }],
       \"containers\": [{
         \"name\": \"fetch\",
-        \"image\": \"busybox\",
+        \"image\": \"${HELPER_IMAGE}\",
         \"command\": [\"sleep\", \"60\"],
         \"volumeMounts\": [{
           \"name\": \"output\",
@@ -61,12 +67,13 @@ kubectl run "${HELPER_POD}" \
     }
   }"
 
-# Step 2: Wait until the pod is Running
+# Step 2: Wait until the pod is Running (generous timeout — image is cached
+# but scheduling can take a moment on a busy cluster)
 echo "Waiting for pod to be ready..."
 kubectl wait pod "${HELPER_POD}" \
   --namespace="${NAMESPACE}" \
   --for=condition=Ready \
-  --timeout=60s
+  --timeout=120s
 
 # Step 3: Copy the CSV
 echo "Copying results..."
@@ -106,5 +113,4 @@ else
   fi
 fi
 
-echo ""
-echo "Done. Open the lomad Results Viewer in Cowork to see the table."
+echo "Done."
