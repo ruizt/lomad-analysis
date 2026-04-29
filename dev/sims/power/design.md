@@ -3,9 +3,9 @@
 ## Objective
 
 Characterise the power of the CLT-based test as a function of separation *d*
-across all four trend structures (unstructured, event-rate, stochastic
-repulsion, stochastic crossing) and key nuisance factors (SNR, autocorrelation,
-series length).
+across three trend structures (event-rate, stochastic repulsion, stochastic
+crossing) and key nuisance factors (SNR,
+autocorrelation, series length).
 
 ## Data-generating process
 
@@ -22,199 +22,135 @@ L² separation *d* (see paper §Simulation / Trend construction).
 
 | Label | Generator | Key parameter |
 |-------|-----------|---------------|
-| `unstructured` | `make_trends_dist()` | *d* (global) |
-| `event_rate` | `make_trends_rate()` | rate *r* ∈ {0.005, 0.02} |
-| `repulsion` | `make_trends_smooth()` | bandwidth *b* ∈ {25, 75} |
-| `crossing` | `make_trends_cross()` | bandwidth *b* ∈ {25, 75} |
+| `rate` | `sim_trends(method = "rate")` | rate *r* = 0.01 |
+| `smooth` | `sim_trends(method = "smooth")` | bandwidth *bw* = 50 |
+| `cross` | `sim_trends(method = "cross")` | bandwidth *bw* = 50 |
 
-## Parameter grid
+## Parameters
 
-| Factor | Levels |
-|--------|--------|
-| Separation *d* | 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0 |
-| Trend structure | unstructured, event_rate, repulsion, crossing |
-| AR(1) coefficient *φ* | 0.3, 0.8 |
-| SNR *λ* | λ_lo, λ_hi (to be determined from calibration results) |
-| Series length *T* | 250, 500, 1000 |
-| Structure-specific parameter | 2 levels each (see table above) |
-
-*S* = 500 replicates per cell.
-
-**Note on SNR levels:** λ_lo and λ_hi should be chosen after reviewing the
-calibration rejection rate curve. A good λ_lo keeps the CLT test rejection
-rate near nominal (≤ 10%) across the null region (d ≤ 0.5), while λ_hi
-represents a higher-SNR regime where the test has more power. λ = 1.5 was
-used for calibration verification; λ = 2.5 is a reasonable starting point
-for λ_hi.
+| Parameter              | Value                      |
+|------------------------|----------------------------|
+| Series length *T*      | 500                        |
+| AR(1) coefficient *φ*  | 0.5                        |
+| Target SNR *λ*         | 1.5                        |
+| Smoothing window *h*   | max(5, floor(T/200))       |
+| Correlation window *s* | min(60h, floor(T/4))       |
+| *d* grid               | 0, 0.5, 1.0, 1.5, 2.0     |
+| Trend structures       | smooth, cross, rate        |
+| Replicates *S*         | 20 (local) → 200+ (Tide)  |
+| Significance level *α* | 0.05                       |
 
 ## Estimands
 
-For each replicate and each flagged time point, record:
+For each replicate, record:
 
-- **detected**: indicator — did any time point get flagged (global detection)?
-- **sensitivity**: fraction of truly decoupled time points (*wₜ* < 0.5) flagged
-- **fdr**: fraction of flagged time points where *wₜ* ≥ 0.5
+- **detected**: indicator — did any time point get flagged?
+- **sensitivity**: fraction of truly decoupled time points (*w_t* < 0.5) flagged
+- **fdr**: fraction of flagged time points where *w_t* ≥ 0.5
 - **n_flagged**: total flagged time points
-
-For unstructured trends, *wₜ* ≡ 0 so only `detected` is meaningful.
 
 ## Expected outputs
 
-`results/summary.rds` — one row per replicate, all grid parameters + estimands.
+- `results/results.rds` — all replicates, all (structure, d) combinations
+- `results/results_summary.rds` — detection rates, sensitivity, FDR by (structure, d)
+- `results/power_curves.png` — detection rate vs *d*, faceted by structure
 
-`figures/power_curves_by_structure.png` — power (global detection rate) vs *d*,
-faceted by trend structure and *φ*, coloured by *T*.
+---
 
-`figures/sensitivity_fdr_by_structure.png` — sensitivity and FDR vs *d* for
-the three structured methods.
+## File layout
+
+```
+power/
+├── design.md           ← you are here
+├── template.R          ← local proof-of-concept (defines run_rep())
+├── settings.R          ← visual walkthrough of single replicates
+├── run.R               ← legacy reference implementation
+├── results/            ← output (gitignored)
+│   ├── results.rds
+│   ├── results_summary.rds
+│   ├── power_curves.png
+│   └── raw/            ← per-job .rds files fetched from Tide
+└── tide/               ← Kubernetes scaffolding
+    ├── sim.R           ← simulation script (mounted into container)
+    ├── submit.sh       ← runs the full pipeline (PVC → jobs → wait → fetch)
+    ├── submit_sweep.sh ← submits one Job per (structure, d)
+    ├── pvc.yaml        ← shared storage (create once)
+    ├── job.yaml        ← Job template (reference only)
+    ├── accessor.yaml   ← lightweight pod for file retrieval
+    ├── fetch.sh        ← copies results from PVC to local machine
+    └── collect.R       ← assembles per-job files into summary
+
+```
 
 ---
 
 ## Workflow
 
-### Reference implementation: `run.R`
+### Local development
 
-`run.R` contains a complete `run_rep()` function handling all four trend
-structures via a `switch` statement, plus a full parameter grid. It is
-designed to be sourced by an HPC entrypoint. The `RUN_LOCAL` flag at the
-bottom enables a small spot-check run directly in RStudio.
+Source `template.R` in RStudio. It loops over all (structure, d) combinations
+with *S* = 20 replicates, computes detection rates, and saves results to
+`results/`. See `settings.R` for a visual walkthrough of single replicates
+at each structure.
 
-To run a quick local spot-check:
-
-```r
-RUN_LOCAL <- TRUE
-source("dev/sims/power/run.R")
-```
-
-Inspect the printed `detected` rates. At *d* = 0 they should be near zero
-for unstructured trends; at *d* = 1.5 or higher they should be meaningfully
-above zero for the structured methods.
-
----
-
-## Student assignment: proof-of-concept scripts
-
-Your task is to write a set of `run-small.R` scripts — one per trend
-structure — that serve as local proof-of-concept drivers and are structured
-so that a second student can adapt them for parallel execution on the Tide
-Kubernetes cluster (following the same pattern as the calibration study).
-
-### What each script must do
-
-Each `run-small.R` (or equivalent, e.g. `run-small-rate.R`) should:
-
-1. **Define `run_rep(d, seed, ...)`** — a function that generates one
-   replicate for its structure, fits the CLT test, and returns a one-row
-   data frame with columns `d`, `seed`, `detected`, `sensitivity`, `fdr`,
-   and any structure-specific parameters.
-
-2. **Define a local driver block** — a short loop over a small *d* grid
-   (e.g., 3–4 values) with *S* = 10–20 replicates, printing rejection rates
-   and producing a simple plot. This is the main thing to run locally.
-
-3. **Be HPC-adaptable** — all parameters that vary across parallel jobs
-   (at minimum: *d*, *S*, seed) should be defined as named constants near
-   the top of the script so they can be trivially replaced by `Sys.getenv()`
-   calls when adapting the script for a Kubernetes entrypoint. Do not bury
-   these inside loops or helper functions.
-
-### Suggested script structure
+To inspect a single replicate interactively:
 
 ```r
-## run-small-<structure>.R
-## Power proof-of-concept — <structure> trend method
-
-devtools::load_all()
-library(dplyr)
-library(ggplot2)
-
-# ---- Parameters (replace with Sys.getenv() calls for HPC) ------------------
-
-n          <- 500L
-phi        <- 0.5
-snr        <- 1.5       # update after calibration confirms good λ_lo
-struct_param <- 0.01    # e.g. rate r or bandwidth b — one value for local run
-S          <- 10
-d_vals     <- c(0, 0.5, 1.0, 1.5, 2.0)
-alpha      <- 0.05
-seed0      <- <your chosen seed>
-
-h_win <- max(5L, floor(n / 200L))
-s_win <- min(60L * h_win, floor(n / 4L))
-
-# ---- run_rep ---------------------------------------------------------------
-
-run_rep <- function(d, seed) {
-  # 1. Generate trends
-  trends <- make_trends_<structure>(n = n, d = d, <param> = struct_param,
-                                    seed = seed)
-  # 2. Add noise
-  sim <- suppressMessages(
-    add_noise(trends, h = h_win, lambda_target = snr,
-              ar.coefs = phi, seed = seed + 1L)
-  )
-  # 3. Fit + test
-  fit <- suppressMessages(
-    lomad_fit_clt(sim$y1, sim$y2, h = h_win, s = s_win, max_pq = 3L)
-  )
-  tst <- lomad_test_clt(fit, alpha = alpha)
-  vi  <- fit$valid_idx
-
-  # 4. Estimands
-  rejected    <- tst$rejected[vi]
-  w           <- trends$w[vi]      # NULL for unstructured
-  detected    <- any(rejected, na.rm = TRUE)
-  sensitivity <- if (!is.null(w) && any(w < 0.5))
-                   mean(rejected[w < 0.5], na.rm = TRUE) else NA_real_
-  fdr_val     <- if (!is.null(w) && any(rejected, na.rm = TRUE))
-                   mean(w[rejected] >= 0.5, na.rm = TRUE) else NA_real_
-
-  data.frame(d = d, seed = seed, detected = detected,
-             sensitivity = sensitivity, fdr = fdr_val)
-}
-
-# ---- Local driver ----------------------------------------------------------
-
-set.seed(seed0)
-seeds <- sample.int(1e6, S)
-
-results <- lapply(d_vals, function(dv) {
-  cat(sprintf("d = %.1f ... ", dv))
-  reps <- lapply(seeds, function(s) run_rep(dv, s)) |> dplyr::bind_rows()
-  cat(sprintf("detected: %.2f\n", mean(reps$detected, na.rm = TRUE)))
-  reps
-}) |> dplyr::bind_rows()
-
-# simple power plot
-results |>
-  dplyr::group_by(d) |>
-  dplyr::summarise(power = mean(detected, na.rm = TRUE)) |>
-  ggplot2::ggplot(ggplot2::aes(d, power)) +
-  ggplot2::geom_line() + ggplot2::geom_point() +
-  ggplot2::geom_hline(yintercept = 0.05, linetype = "dashed") +
-  ggplot2::scale_y_continuous(limits = c(0, 1)) +
-  ggplot2::labs(title = "<structure>: power vs d (S = <S>, n = <n>)")
+source("dev/sims/power/template.R")
+run_rep(d = 1.0, structure = "smooth", seed = 12345)
 ```
 
-### HPC adaptation notes (for the student who scales up)
+### Shared container image
 
-The second student adapting these scripts for Tide should follow the same
-pattern as the calibration study:
+All studies share a single Docker image that is pre-built and publicly
+available:
 
-- Replace each hardcoded parameter with `Sys.getenv("SIM_D", "0")` etc.
-- One container = one *d* value for one trend structure.
-- Save results as `.rds` (e.g. `rate_d1-5.rds` for the event-rate structure
-  at *d* = 1.5).
-- See `dev/sims/calibration/tide/` for working examples of `sim.R`,
-  `Dockerfile`, `job.yaml`, `submit_sweep.sh`, `fetch.sh`, and `collect.R`.
-  The power study entrypoints should follow the same conventions so
-  `fetch.sh` and `collect.R` can be adapted with minimal changes.
+```
+ghcr.io/ruizt/lomad-sims:latest
+```
 
-### What to verify locally before handing off
+The image contains R and all packages (including lomad) but no simulation
+scripts — `sim.R` is mounted into the container via a Kubernetes ConfigMap.
+See `../tide-example/building-containers.md` for build/update instructions.
 
-For each structure, confirm:
+### Running on Tide
 
-- At *d* = 0, `detected` rate ≤ 0.10 (type I error not inflated).
-- At *d* = 2.0 or higher, `detected` rate is clearly above 0.05.
-- `sensitivity` and `fdr` are defined and non-degenerate for structured
-  methods (not all NA).
+#### One-shot pipeline
+
+```bash
+bash dev/sims/power/tide/submit.sh
+```
+
+This creates the PVC, submits one job per (structure, d) pair (20 jobs total),
+polls until all complete, and fetches results to `results/raw/`.
+
+#### Step-by-step
+
+```bash
+# 1. Create PVC (once)
+kubectl apply -n cal-poly-lomad -f dev/sims/power/tide/pvc.yaml
+
+# 2. Submit all (structure, d) pairs (creates ConfigMap + Jobs)
+bash dev/sims/power/tide/submit_sweep.sh
+
+# 3. Monitor
+kubectl get jobs -n cal-poly-lomad -l app=lomad-power
+
+# 4. Fetch results
+bash dev/sims/power/tide/fetch.sh
+
+# 5. Assemble summary and plot
+Rscript dev/sims/power/tide/collect.R
+
+# 6. Clean up
+kubectl delete jobs -n cal-poly-lomad -l app=lomad-power
+kubectl delete -n cal-poly-lomad -f dev/sims/power/tide/pvc.yaml
+```
+
+#### Tips
+
+- Start with `SIM_S=20` to confirm everything works end-to-end.
+- The power study submits 3 structures × 5 d values = 15 jobs. These run
+  in parallel on the cluster.
+- If you update `sim.R`, re-running `submit_sweep.sh` updates the ConfigMap
+  automatically — no image rebuild needed.
