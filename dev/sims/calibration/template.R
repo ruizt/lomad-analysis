@@ -6,7 +6,7 @@
 ##   CLT test (oracle): lomad_fit(noise_override = ...) + lomad_test().
 ##   Identity test (oracle): L2 norm of MA-smoothed difference.
 ##
-## See templates.R for a visual walkthrough of the simulation setup.
+## See settings.R for a visual walkthrough of the simulation setup.
 
 devtools::load_all()
 library(dplyr)
@@ -95,7 +95,7 @@ for (i in seq_along(d_vals)) {
 results <- bind_rows(results)
 
 # export
-write_rds(results, file = 'dev/sims/calibration/results/run-small-result.rds')
+write_rds(results, file = 'dev/sims/calibration/results/template-result.rds')
 
 # ---- Summary and plot ------------------------------------------------------
 

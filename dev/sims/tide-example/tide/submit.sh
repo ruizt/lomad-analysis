@@ -1,8 +1,8 @@
 #!/bin/bash
-# submit.sh — one-shot script to run the full power study on Tide
+# submit.sh — one-shot script to run the full MVN example on Tide
 #
 # Usage (from the repo root):
-#   bash dev/sims/power/tide/submit.sh
+#   bash dev/sims/tide-example/tide/submit.sh
 #
 # What it does:
 #   1. Creates the PVC (idempotent — safe to re-run)
@@ -12,14 +12,14 @@
 #   5. Cleans up jobs and accessor pod
 #
 # The PVC is left in place so you can inspect results later.
-# To delete it: kubectl delete -n cal-poly-lomad -f dev/sims/power/tide/pvc.yaml
+# To delete it: kubectl delete -n cal-poly-lomad -f dev/sims/tide-example/tide/pvc.yaml
 
 set -euo pipefail
 
 NAMESPACE="cal-poly-lomad"
-STUDY_DIR="dev/sims/power"
+STUDY_DIR="dev/sims/tide-example"
 
-echo "=== lomad power study: full pipeline ==="
+echo "=== MVN coverage example: full pipeline ==="
 echo ""
 
 # ---- Step 1: Create PVC -----------------------------------------------------
@@ -38,8 +38,8 @@ echo ""
 
 echo "[3/4] Waiting for jobs to complete ..."
 while true; do
-  total=$(kubectl get jobs -n ${NAMESPACE} -l app=lomad-power --no-headers 2>/dev/null | wc -l | tr -d ' ')
-  complete=$(kubectl get jobs -n ${NAMESPACE} -l app=lomad-power --no-headers 2>/dev/null | grep -c "1/1" || true)
+  total=$(kubectl get jobs -n ${NAMESPACE} -l app=mvn-example --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  complete=$(kubectl get jobs -n ${NAMESPACE} -l app=mvn-example --no-headers 2>/dev/null | grep -c "1/1" || true)
 
   echo "      ${complete}/${total} complete"
 
@@ -47,7 +47,7 @@ while true; do
     break
   fi
 
-  sleep 30
+  sleep 15
 done
 echo ""
 
@@ -65,5 +65,5 @@ echo "Assemble results locally with:"
 echo "  Rscript ${STUDY_DIR}/tide/collect.R"
 echo ""
 echo "Clean up cluster resources with:"
-echo "  kubectl delete jobs -n ${NAMESPACE} -l app=lomad-power"
+echo "  kubectl delete jobs -n ${NAMESPACE} -l app=mvn-example"
 echo "  kubectl delete -n ${NAMESPACE} -f ${STUDY_DIR}/tide/pvc.yaml"

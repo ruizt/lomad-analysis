@@ -1,28 +1,24 @@
-# job.yaml — Kubernetes Job template for one calibration run
+# job.yaml — Kubernetes Job template for one power study run
 #
 # Used as a reference by submit_sweep.sh (not submitted directly).
 #
-# Build and push the shared container image from the repo root:
-#   docker buildx build --platform linux/amd64 \
-#     -t ghcr.io/USERNAME/lomad-sims:latest --push .
-#
-# Submit the full d sweep:
-#   bash dev/sims/calibration/tide/submit_sweep.sh
+# Submit the full sweep:
+#   bash dev/sims/power/tide/submit_sweep.sh
 
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: lomad-calib-JOBNAME
+  name: lomad-power-JOBNAME
   namespace: cal-poly-lomad
   labels:
-    app: lomad-calib
+    app: lomad-power
 spec:
   backoffLimit: 1
   template:
     spec:
       restartPolicy: Never
       containers:
-        - name: lomad-calib
+        - name: lomad-power
           image: ghcr.io/USERNAME/lomad-sims:latest
           imagePullPolicy: Always
           resources:
@@ -35,10 +31,12 @@ spec:
           env:
             - name: SIM_D
               value: "SIMVAL_D"
+            - name: SIM_STRUCTURE
+              value: "SIMVAL_STRUCTURE"
             - name: SIM_S
               value: "200"
             - name: SIM_SEED
-              value: "4853"
+              value: "2847"
             - name: SIM_OUT_DIR
               value: "/jobs/output"
           volumeMounts:
@@ -49,7 +47,7 @@ spec:
       volumes:
         - name: script
           configMap:
-            name: lomad-calib-script
+            name: lomad-power-script
         - name: output
           persistentVolumeClaim:
-            claimName: lomad-calib-results
+            claimName: lomad-power-results

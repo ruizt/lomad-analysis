@@ -1,0 +1,31 @@
+# Version control
+.git
+.gitignore
+
+# RStudio / R user files
+.Rproj.user
+*.Rproj
+.Rhistory
+.RData
+.Renviron
+.Ruserdata
+.positai
+.claude
+
+# Build artifacts
+*.tar.gz
+*.Rcheck
+
+# Dev files not needed in the image
+dev/
+_img/
+_mb-data/
+scratch/
+docs/
+vignettes/
+AGENTS.md
+README.md
+
+# OS junk
+.DS_Store
+Thumbs.db

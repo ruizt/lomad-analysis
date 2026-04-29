@@ -1,41 +1,45 @@
 #!/bin/bash
-# submit_sweep.sh — submit one Kubernetes job per value of d
+# submit_sweep.sh — submit one Kubernetes job per (structure, d) combination
 #
-# Usage: bash dev/sims/calibration/tide/submit_sweep.sh
+# Usage: bash dev/sims/power/tide/submit_sweep.sh
 #
-# Each job runs SIM_S replicates for one value of d.
-# Results land in the lomad-calib-results PVC as one .rds file per job
-# (e.g. d0-0.rds, d0-2.rds, d0-5.rds, d1-0.rds).
+# Each job runs SIM_S replicates for one (structure, d) pair.
+# Results land in the lomad-power-results PVC as one .rds file per job
+# (e.g. dist_d0-0.rds, smooth_d1-5.rds).
 # Collect after all jobs complete with tide/collect.R.
 
 NAMESPACE="cal-poly-lomad"
-D_VALUES=(0 0.2 0.5 1)
+D_VALUES=(0 0.5 1.0 1.5 2.0)
+STRUCTURES=(dist smooth cross rate)
 SIM_S=200
-SIM_SEED=4853
+SIM_SEED=2847
 IMAGE="ghcr.io/ruizt/lomad-sims:latest"
-CONFIGMAP="lomad-calib-script"
+CONFIGMAP="lomad-power-script"
 
 # Create/update the ConfigMap from the local sim.R
 echo "Creating ConfigMap '${CONFIGMAP}' ..."
 kubectl create configmap ${CONFIGMAP} \
   -n ${NAMESPACE} \
-  --from-file=sim.R=dev/sims/calibration/tide/sim.R \
+  --from-file=sim.R=dev/sims/power/tide/sim.R \
   --dry-run=client -o yaml | kubectl apply -f -
 echo ""
 
-for d in "${D_VALUES[@]}"; do
-  job_name="lomad-calib-d$(echo $d | tr '.' '-')"
+for structure in "${STRUCTURES[@]}"; do
+  for d in "${D_VALUES[@]}"; do
+    d_label=$(echo $d | tr '.' '-')
+    job_name="lomad-power-${structure}-d${d_label}"
 
-  echo "Submitting ${job_name} (d=${d}) ..."
+    echo "Submitting ${job_name} (structure=${structure}, d=${d}) ..."
 
-  kubectl apply -n ${NAMESPACE} -f - <<EOF
+    kubectl apply -n ${NAMESPACE} -f - <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: ${job_name}
   namespace: ${NAMESPACE}
   labels:
-    app: lomad-calib
+    app: lomad-power
+    structure: "${structure}"
     d: "${d}"
 spec:
   backoffLimit: 1
@@ -43,7 +47,7 @@ spec:
     spec:
       restartPolicy: Never
       containers:
-        - name: lomad-calib
+        - name: lomad-power
           image: ${IMAGE}
           imagePullPolicy: Always
           resources:
@@ -56,6 +60,8 @@ spec:
           env:
             - name: SIM_D
               value: "${d}"
+            - name: SIM_STRUCTURE
+              value: "${structure}"
             - name: SIM_S
               value: "${SIM_S}"
             - name: SIM_SEED
@@ -73,12 +79,13 @@ spec:
             name: ${CONFIGMAP}
         - name: output
           persistentVolumeClaim:
-            claimName: lomad-calib-results
+            claimName: lomad-power-results
 EOF
 
+  done
 done
 
 echo ""
 echo "All jobs submitted. Monitor with:"
-echo "  kubectl get jobs -n ${NAMESPACE} -l app=lomad-calib"
+echo "  kubectl get jobs -n ${NAMESPACE} -l app=lomad-power"
 echo "  kubectl logs -n ${NAMESPACE} job/<job-name>"

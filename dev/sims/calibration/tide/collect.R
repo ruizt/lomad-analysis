@@ -1,4 +1,4 @@
-## collect.R — assemble per-job .rds files into results/summary.rds
+## collect.R — assemble per-job .rds files into combined results
 ##
 ## Run this after fetch.sh has copied the per-job .rds files locally.
 ## By default reads from results/raw/ (where fetch.sh writes).
@@ -13,30 +13,27 @@
 library(dplyr)
 library(ggplot2)
 
-PVC_DIR  <- Sys.getenv("RAW_DIR", "dev/sims/calibration/results/raw")
-OUT_DIR  <- "dev/sims/calibration/results"
-alpha    <- 0.05
+RAW_DIR <- Sys.getenv("RAW_DIR", "dev/sims/calibration/results/raw")
+OUT_DIR <- "dev/sims/calibration/results"
+alpha   <- 0.05
 
-# ---- Collect ----------------------------------------------------------------
+# ---- Collect -----------------------------------------------------------------
 
-files <- list.files(PVC_DIR, pattern = "\\.rds$", full.names = TRUE)
+files <- list.files(RAW_DIR, pattern = "\\.rds$", full.names = TRUE)
 
 if (length(files) == 0) {
-  stop("No .rds files found in: ", PVC_DIR,
+  stop("No .rds files found in: ", RAW_DIR,
        "\nCheck that the PVC is mounted and all jobs have completed.")
 }
 
-cat(sprintf("Found %d file(s) in %s\n", length(files), PVC_DIR))
-
 results <- lapply(files, function(f) {
   obj <- readRDS(f)
-  cat(sprintf("  %s  (d=%.1f, S=%d)\n", basename(f), obj$d, obj$S))
   obj$results
 }) |> bind_rows()
 
-# ---- Summary ----------------------------------------------------------------
+# ---- Summary -----------------------------------------------------------------
 
-summary_tbl <- results |>
+results_summary <- results |>
   group_by(d) |>
   summarise(
     S             = n(),
@@ -46,18 +43,14 @@ summary_tbl <- results |>
     .groups = "drop"
   )
 
-cat("\nRejection rates (alpha =", alpha, ")\n")
-print(summary_tbl)
+# ---- Save --------------------------------------------------------------------
 
-# ---- Save -------------------------------------------------------------------
+saveRDS(results, file.path(OUT_DIR, "results.rds"))
+saveRDS(results_summary, file.path(OUT_DIR, "results_summary.rds"))
 
-dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
-saveRDS(results, file.path(OUT_DIR, "summary.rds"))
-cat("\nSaved ->", file.path(OUT_DIR, "summary.rds"), "\n")
+# ---- Plot --------------------------------------------------------------------
 
-# ---- Plot -------------------------------------------------------------------
-
-fig <- summary_tbl |>
+fig <- results_summary |>
   tidyr::pivot_longer(c(clt_rate, oracle_rate, identity_rate),
                       names_to = "method", values_to = "rate") |>
   mutate(method = factor(method,
@@ -83,4 +76,3 @@ fig <- summary_tbl |>
 
 ggsave(file.path(OUT_DIR, "power_curve.png"),
        fig, width = 6, height = 4, dpi = 150)
-cat("Saved ->", file.path(OUT_DIR, "power_curve.png"), "\n")

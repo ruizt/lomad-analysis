@@ -2,28 +2,28 @@
 # fetch.sh — copy .rds results from the PVC to a local directory
 #
 # Usage (from the repo root):
-#   bash dev/sims/calibration/tide/fetch.sh
+#   bash dev/sims/tide-example/tide/fetch.sh
 #
 # Optional: override the local destination as the first argument:
-#   bash dev/sims/calibration/tide/fetch.sh /tmp/my-results
+#   bash dev/sims/tide-example/tide/fetch.sh /tmp/my-results
 #
 # How it works:
-#   1. Spins up a lightweight accessor pod that mounts the lomad-calib-results PVC.
+#   1. Spins up a lightweight accessor pod that mounts the mvn-example-results PVC.
 #   2. Waits for the pod to be Ready (up to 2 minutes).
 #   3. kubectl cp copies all .rds files to LOCAL_DIR.
 #   4. Deletes the accessor pod.
 #
 # After this completes, assemble the results in R:
-#   Rscript dev/sims/calibration/tide/collect.R
+#   Rscript dev/sims/tide-example/tide/collect.R
 
 set -euo pipefail
 
-LOCAL_DIR="${1:-dev/sims/calibration/results/raw}"
-ACCESSOR_YAML="dev/sims/calibration/tide/accessor.yaml"
-POD_NAME="lomad-fetch"
+LOCAL_DIR="${1:-dev/sims/tide-example/results/raw}"
+ACCESSOR_YAML="dev/sims/tide-example/tide/accessor.yaml"
+POD_NAME="mvn-fetch"
 NAMESPACE="cal-poly-lomad"
 
-echo "=== lomad calibration: fetch results from PVC ==="
+echo "=== MVN example: fetch results from PVC ==="
 echo "Destination: ${LOCAL_DIR}"
 echo ""
 
@@ -50,5 +50,5 @@ kubectl delete -n "${NAMESPACE}" pod "${POD_NAME}" --ignore-not-found
 echo ""
 echo "Results are in: ${LOCAL_DIR}"
 echo ""
-echo "Next step — assemble results:"
-echo "  Rscript dev/sims/calibration/tide/collect.R"
+echo "Next step — assemble into summary.rds:"
+echo "  Rscript dev/sims/tide-example/tide/collect.R"
