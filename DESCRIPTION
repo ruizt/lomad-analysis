@@ -15,20 +15,13 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Imports:
-    fda,
     mvtnorm,
     parallel,
-    roll,
     stats,
     graphics,
     grDevices
 Suggests:
-    forecast,
-    ggplot2,
-    tidyverse,
-    knitr,
-    rmarkdown,
-    patchwork,
+    fda,
+    roll,
     testthat (>= 3.0.0)
-VignetteBuilder: knitr
 Config/testthat/edition: 3

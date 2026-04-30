@@ -107,6 +107,9 @@ sim_noise <- function(x.state,
 
   # --- Calibration ---
 
+  if (!requireNamespace("roll", quietly = TRUE))
+    stop("Package 'roll' is required for sim_noise(). Install with install.packages('roll').")
+
   max_lag <- s + h - 2L
 
   if (length(ar.coefs) == 0 && length(ma.coefs) == 0) {

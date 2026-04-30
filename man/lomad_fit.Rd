@@ -8,7 +8,6 @@ lomad_fit(
   x1 = NULL,
   x2 = NULL,
   method = c("clt", "state"),
-  blocks = NULL,
   noise_override = NULL,
   h = NULL,
   s = NULL,
@@ -26,10 +25,6 @@ lomad_fit(
 
 \item{method}{Character. \code{"clt"} (default, paper method) or \code{"state"}
 (legacy state-process pipeline).}
-
-\item{blocks}{List of block data for multi-block fitting (legacy only).
-If supplied, \code{x1} and \code{x2} are ignored and \code{method} is forced to
-\code{"state"}. Use \code{\link[=blocks_from_df]{blocks_from_df()}} to construct.}
 
 \item{noise_override}{Optional list with elements \code{ar}, \code{ma}, \code{sigma2}
 (CLT only). If supplied, these noise parameters are used directly instead
@@ -68,5 +63,5 @@ computation of \eqn{R_t}, \eqn{\rho_t}, and \eqn{V_t}. The legacy
 Fisher-z thresholding.
 }
 \seealso{
-\code{\link[=lomad_test]{lomad_test()}}, \code{\link[=lomad]{lomad()}}, \code{\link[=blocks_from_df]{blocks_from_df()}}
+\code{\link[=lomad_test]{lomad_test()}}, \code{\link[=lomad]{lomad()}}, \code{\link[=lomad_plot]{lomad_plot()}}
 }

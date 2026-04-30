@@ -1,7 +1,7 @@
 ## Shared simulation image for lomad
 ##
 ## Contains R + all packages needed by any simulation study (lomad, mvtnorm,
-## dplyr, ggplot2). Scripts are NOT baked in — mount them at /scripts/sim.R
+## dplyr). Scripts are NOT baked in — mount them at /scripts/sim.R
 ## via a Kubernetes ConfigMap or a Docker volume.
 ##
 ## Build and push from the repo root:
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # R package dependencies (install before copying source for layer caching)
 RUN Rscript -e "install.packages( \
-    c('mvtnorm', 'dplyr', 'remotes'), \
+    c('mvtnorm', 'dplyr', 'remotes', 'fda'), \
     repos = 'https://packagemanager.posit.co/cran/latest')"
 
 # Copy the lomad package source and install (Imports only — skip Suggests

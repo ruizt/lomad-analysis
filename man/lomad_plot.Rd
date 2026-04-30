@@ -4,16 +4,19 @@
 \alias{lomad_plot}
 \title{Plot detected decoupling periods from a lomad fit}
 \usage{
-lomad_plot(x1, x2, fit, dates = NULL, alpha = 0.25)
+lomad_plot(fit, tst = NULL, x1 = NULL, x2 = NULL, dates = NULL, alpha = 0.25)
 }
 \arguments{
-\item{x1}{Numeric vector. First raw time series.}
+\item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}}.}
 
-\item{x2}{Numeric vector. Second raw time series, same length as \code{x1}.}
+\item{tst}{List returned by \code{\link[=lomad_test]{lomad_test()}} (required for CLT fits, ignored
+for state fits).}
 
-\item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}} (state method) or \code{\link[=lomad]{lomad()}}.}
+\item{x1}{Numeric vector. First raw series (state fits only).}
 
-\item{dates}{Optional vector of dates or axis labels, same length as \code{x1}.}
+\item{x2}{Numeric vector. Second raw series (state fits only).}
+
+\item{dates}{Optional vector of dates or axis labels.}
 
 \item{alpha}{Numeric. Fill transparency for shaded regions (default 0.25).}
 }
@@ -21,7 +24,16 @@ lomad_plot(x1, x2, fit, dates = NULL, alpha = 0.25)
 Invisibly returns \code{NULL}. Called for its side effect (base R plot).
 }
 \description{
-Two-panel base R plot. The upper panel overlays the raw and smoothed series
-with shaded regions marking detected decoupling periods. The lower panel
-shows the rolling correlation series with the BY-corrected threshold.
+Two-panel base R plot. The upper panel shows the smoothed series with shaded
+regions marking detected decoupling periods. The lower panel shows the
+rolling correlation series.
+}
+\details{
+For CLT fits, the upper panel plots the MA-smoothed series (\code{ma1}, \code{ma2})
+and shared trend, with shading where \code{tst$rejected} is \code{TRUE}. The lower
+panel plots \code{R_t} with theoretical \code{rho_t} as a dashed reference.
+
+For legacy state fits, the upper panel plots raw series \code{x1}, \code{x2} with
+the MA lines overlaid, and the lower panel shows \code{R_t} with the
+BY-corrected Fisher-z threshold.
 }

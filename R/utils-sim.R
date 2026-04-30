@@ -53,6 +53,8 @@
   coefs <- .generate_coef_pair(nb = nb, sd0 = sd0, d = d, p = p,
                                k_min = k_min, seed = seed)
 
+  if (!requireNamespace("fda", quietly = TRUE))
+    stop("Package 'fda' is required for sim_trends(). Install with install.packages('fda').")
   fb  <- fda::create.fourier.basis(rangeval = c(0, n), nbasis = nb, period = n)
   Phi <- fda::eval.basis(seq_len(n), fb)[, -1]
 

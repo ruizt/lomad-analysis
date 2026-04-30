@@ -8,7 +8,8 @@ Kubernetes submission materials.
 
 | Directory | Purpose |
 |-----------|---------|
-| `calibration/` | Validate CLT approximation: rejection rates under H₀ across noise/window conditions |
+| `validation/` | Finite-sample accuracy of CLT approximation, Proposition 1 moments, and end-to-end pipeline coverage |
+| `calibration/` | Rejection rates under H₀ across noise/window conditions |
 | `power/` | Power curves as a function of separation *d* for each trend structure |
 | `tide-example/`  | Minimal working example (MVN coverage) to learn the Tide workflow |
 
