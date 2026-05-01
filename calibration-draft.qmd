@@ -1,0 +1,211 @@
+---
+title: "Calibration Draft"
+format: html
+editor: visual
+---
+
+# tes-scripts.R
+
+```{r}
+devtools::load_all()
+
+# generate trends
+trends <- make_trends_dist(n = 500, d = 2, seed = 32026)
+plot(trends$x1, type = "l", col = 'red',
+     xlab = "t", ylab = expression(mu[t]))
+lines(trends$x2, col = "blue")
+
+# add ARMA noise
+sim <- add_noise(trends,
+                 h             = 30,
+                 lambda_target = 4,
+                 scale         = 1,
+                 order         = c(2, 1),
+                 s             = 100,
+                 n_start       = 30,
+                 seed          = 31726)
+
+# summary of added noise processes
+sim$noise
+
+# plot observed series with true trends overlaid
+plot(sim$y1, type = "l", col = 'red',
+     xlab = 't', ylab = expression(X[t]))
+lines(sim$y2, col = "blue")
+lines(sim$x1, col = "darkgrey", lwd = 2)
+lines(sim$x2, col = "darkgrey", lwd = 2)
+
+# local moving average decoupling (method = "boot", "mc", or "analytic")
+out <- lomad(sim$y1, sim$y2, q = 10, h = 50, B = 100, 
+             seed = 31726, method = "boot", ncores = parallel::detectCores() - 1,
+             verbose = TRUE)
+out$p_values
+out$observed
+out$expected
+
+# plot
+plot_lomad_fit(sim$y1, sim$y2, out)
+
+# plot smoothed trends only
+plot(out$ma1, type = "l", col = "red")
+lines(out$ma2, type = "l", col = "blue")
+lines(out$trend_hat, type = 'l', col = 'grey')
+
+```
+
+```{r}
+
+library(zoo)
+library(roll)
+
+# moving average window length
+q <- 10
+# window width - 
+h <- 50
+
+# correlation threshhold
+x_thresh <- 0.8
+
+# smoothed series
+ma1 <- out$ma1
+ma2 <- out$ma2
+
+# estimated trend
+# if you had to only estimate one - trend_hat
+trend <- out$trend_hat
+
+# smoothed noise
+noise1_sm <- ma1 - trend
+noise2_sm <- ma2 - trend
+
+# oracle SNR: use the same h and s as the add_noise call so that the
+# local variances here match what make_noise targeted during calibration.
+# previous code used q=10 (MA window) and h=50 (variance window) which
+# both differ from the add_noise parameters h=30 and s=100, causing
+# lambda to appear far below lambda_target.
+h_noise <- 30   # matches h in add_noise call above
+s_noise <- 100  # matches s in add_noise call above
+
+# MA-smooth true trend and true noise with add_noise's window
+trend_sm_true <- roll::roll_mean(sim$x1, width = h_noise, min_obs = h_noise)
+noise1_true   <- sim$y1 - sim$x1
+noise2_true   <- sim$y2 - sim$x2
+e1_sm         <- roll::roll_mean(noise1_true, width = h_noise, min_obs = h_noise)
+e2_sm         <- roll::roll_mean(noise2_true, width = h_noise, min_obs = h_noise)
+
+# local variances using add_noise's variance window
+lv_signal <- roll::roll_var(trend_sm_true, width = s_noise, center = TRUE, min_obs = s_noise)
+lv_noise1 <- roll::roll_var(e1_sm,         width = s_noise, center = TRUE, min_obs = s_noise)
+lv_noise2 <- roll::roll_var(e2_sm,         width = s_noise, center = TRUE, min_obs = s_noise)
+
+lambda1 <- lv_signal / lv_noise1
+lambda2 <- lv_signal / lv_noise2
+
+#rho 
+rho_t <- sqrt((lambda1 * lambda2) /
+              ((1 + lambda1) * (1 + lambda2)))
+
+# starting with neff = h = 50 - will change later
+n_eff <- h
+z_t <- sqrt(n_eff) * (x_thresh - rho_t)
+p_t <- pnorm(z_t)
+
+plot(rho_t, type = "l")
+plot(lv_signal, type = "l")
+
+#histogram of lambdas 
+hist(lambda1, 
+     main = "Lambda 1",
+     breaks = 50) 
+
+hist(lambda2, main = "lambda 2", 
+     breaks = 50)
+```
+
+
+## Approach 2 
+
+```{r}
+# theoretical smoothed trend over same q window length
+trend_sm_true <- stats::filter(sim$x1, rep(1/q, q), sides = 1)
+
+# theoretical vairance of smoothed trend
+tau2_t_theory <- zoo::rollapply(
+  trend_sm_true,
+  width = h,
+  FUN = var,
+  align = "right",
+  fill = NA
+)
+
+#arma parameters from noise process
+ar1 <- sim$noise$series1$ar
+ma1_coef <- sim$noise$series1$ma
+innov_var1 <- sim$noise$series1$sigma^2
+
+ar2 <- sim$noise$series2$ar
+ma2_coef <- sim$noise$series2$ma
+innov_var2 <- sim$noise$series2$sigma^2
+
+# noise autocovariance computation
+lag_max <- 200
+# gammaZ = vector of noise autocovariances
+gammaZ1 <- stats::ARMAacf(ar = ar1, ma = ma1_coef, lag.max = lag_max) * innov_var1
+gammaZ2 <- stats::ARMAacf(ar = ar2, ma = ma2_coef, lag.max = lag_max) * innov_var2
+
+# smoothing noise autocovariance
+# smoothed-noise covariance as the double sum over the autocovariance.
+gamma_eta_at_lag <- function(gammaZ, lag, q) {
+  total <- 0
+  for (i in 0:(q - 1)) {
+    for (j in 0:(q - 1)) {
+      idx <- abs(lag + i - j) + 1
+      total <- total + gammaZ[idx]
+    }
+  }
+  total / q^2
+}
+
+gammaEta1 <- sapply(0:lag_max, function(L) gamma_eta_at_lag(gammaZ1, L, q))
+gammaEta2 <- sapply(0:lag_max, function(L) gamma_eta_at_lag(gammaZ2, L, q))
+
+# theoretical smoothed noise covariances
+sigma1_sq_theory <- gammaEta1[1]
+sigma2_sq_theory <- gammaEta2[1]
+
+# compute theoritical lambda values
+lambda1_theory <- tau2_t_theory / sigma1_sq_theory
+lambda2_theory <- tau2_t_theory / sigma2_sq_theory
+
+# correlation 
+rho_t_theory <- sqrt((lambda1_theory * lambda2_theory) /
+                     ((1 + lambda1_theory) * (1 + lambda2_theory)))
+
+# full probability calculation 
+n_eff_theory <- h
+z_t_theory <- sqrt(n_eff_theory) * (x_thresh - rho_t_theory)
+p_t_theory <- pnorm(z_t_theory)
+
+
+# lambdas check 
+summary(lambda1_theory)
+summary(lambda2_theory)
+
+hist(lambda1_theory, 
+     main = "Lambda 1 Theory",
+     breaks = 50) 
+
+# shows higher lambda 2 values unlike data based approach
+hist(lambda2_theory, main = "lambda 2 Theory", 
+     breaks = 50)
+
+```
+
+
+# Approach 1 vs 2 Rho
+
+```{r}
+# higher correlations shown with theoretical values approach 2
+plot(rho_t_theory, type = "l")
+plot(rho_t, type = "l")
+```
