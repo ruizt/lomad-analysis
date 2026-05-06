@@ -30,13 +30,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # R package dependencies (install before copying source for layer caching)
 RUN Rscript -e "install.packages( \
-    c('mvtnorm', 'dplyr', 'remotes', 'fda'), \
+    c('mvtnorm', 'dplyr', 'remotes'), \
     repos = 'https://packagemanager.posit.co/cran/latest')"
 
 # Copy the lomad package source and install (Imports only — skip Suggests
 # like ggplot2/tidyverse to keep the image lean; plotting happens locally)
 COPY . /build/lomad
-RUN Rscript -e "remotes::install_local('/build/lomad', dependencies = FALSE, \
+RUN Rscript -e "remotes::install_local('/build/lomad', dependencies = TRUE, \
     upgrade = 'never')"
 
 # Default: run whatever script is mounted at /scripts/sim.R
