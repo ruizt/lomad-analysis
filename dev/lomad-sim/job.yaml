@@ -27,9 +27,6 @@ spec:
     spec:
       restartPolicy: Never
 
-      imagePullSecrets:
-        - name: ghcr-secret
-
       containers:
         - name: lomad-sim
           image: ghcr.io/<github-username>/lomad-sim:latest

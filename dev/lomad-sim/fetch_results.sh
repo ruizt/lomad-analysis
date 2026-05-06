@@ -19,17 +19,15 @@ set -euo pipefail
 # ── CONFIG ───────────────────────────────────────────────────────────────────
 NAMESPACE="${NAMESPACE:-cal-poly-lomad}"
 PVC_NAME="${PVC_NAME:-lomad-sim-results}"
-GHCR_USER="${GHCR_USER:-otishunt}"
 REMOTE_FILE="/output/lomad_results_log.csv"
 # Always save to a fixed path in the repo so the viewer artifact can find it
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LOCAL_OUT="${REPO_ROOT}/lomad-sim/results/lomad_results_log.csv"
 HELPER_POD="lomad-fetch-$(date +%s)"   # unique name avoids conflicts
-# Use the lomad-sim image as the helper — it is already cached on cluster nodes
-# from recent jobs, so it starts in seconds. busybox requires a fresh pull
-# which can time out on a busy cluster.
-HELPER_IMAGE="ghcr.io/${GHCR_USER}/lomad-sim:latest"
+# Use the canonical lomad-sim image as the helper — already cached on cluster
+# nodes from recent jobs, so it starts in seconds.
+HELPER_IMAGE="ghcr.io/ruizt/lomad-sim:latest"
 # ─────────────────────────────────────────────────────────────────────────────
 
 echo "Namespace : ${NAMESPACE}"
@@ -49,7 +47,6 @@ kubectl run "${HELPER_POD}" \
   --restart=Never \
   --overrides="{
     \"spec\": {
-      \"imagePullSecrets\": [{\"name\": \"ghcr-secret\"}],
       \"volumes\": [{
         \"name\": \"output\",
         \"persistentVolumeClaim\": {\"claimName\": \"${PVC_NAME}\"}
@@ -109,7 +106,7 @@ else
     ROW_COUNT=$(( $(wc -l < "${LOCAL_OUT}") - 1 ))
     git commit -m "results: update lomad_results_log.csv (${ROW_COUNT} rows) [$(date '+%Y-%m-%d %H:%M')]"
     git push
-    echo "Pushed -> github.com/otishunt/lomad"
+    echo "Pushed -> github.com/ruizt/lomad"
   fi
 fi
 

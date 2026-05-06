@@ -19,7 +19,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: lomad-power
-          image: ghcr.io/USERNAME/lomad-sims:latest
+          image: ghcr.io/ruizt/lomad-sims:latest
           imagePullPolicy: Always
           resources:
             requests:

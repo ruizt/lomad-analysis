@@ -2,21 +2,19 @@
 # submit_sweep.sh — submit one Kubernetes job per value of d
 #
 # Usage:
-#   bash lomad-sim/submit_sweep.sh
+#   bash dev/lomad-sim/submit_sweep.sh
 #
-# To use a different GitHub username (e.g. a collaborator's fork):
-#   GHCR_USER=their-username bash lomad-sim/submit_sweep.sh
+# The image is built automatically by GitHub Actions and published at
+# ghcr.io/ruizt/lomad-sim:latest. No local Docker build required.
 
 # ── CONFIGURE ────────────────────────────────────────────────────────────────
-# Your GitHub username — controls which container registry image is pulled.
-# Override at runtime: GHCR_USER=yourname bash submit_sweep.sh
-GHCR_USER="${GHCR_USER:-otishunt}"
+# Canonical image — built and pushed automatically from the main branch.
+IMAGE="ghcr.io/ruizt/lomad-sim:latest"
 
 # Separation values to sweep over
 D_VALUES=(0.5 1 2 3 5)
 # ─────────────────────────────────────────────────────────────────────────────
 
-IMAGE="ghcr.io/${GHCR_USER}/lomad-sim:latest"
 echo "Using image: ${IMAGE}"
 
 for d in "${D_VALUES[@]}"; do
@@ -41,8 +39,6 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: lomad-sim
           image: ${IMAGE}

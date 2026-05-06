@@ -4,7 +4,7 @@
 #
 # Build and push the shared container image from the repo root:
 #   docker buildx build --platform linux/amd64 \
-#     -t ghcr.io/USERNAME/lomad-sims:latest --push .
+#     -t ghcr.io/ruizt/lomad-sims:latest --push .
 #
 # Submit the full n sweep:
 #   bash dev/sims/tide-example/tide/submit_sweep.sh
@@ -23,7 +23,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: mvn-example
-          image: ghcr.io/USERNAME/lomad-sims:latest
+          image: ghcr.io/ruizt/lomad-sims:latest
           imagePullPolicy: Always
           resources:
             requests:

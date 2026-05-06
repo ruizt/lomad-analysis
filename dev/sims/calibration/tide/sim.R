@@ -3,16 +3,13 @@
 ## One container = all S replicates for one value of d.
 ## Parameters are passed as environment variables by the job spec.
 ##
-## Your task: adapt template.R into this entrypoint. The parameter
-## reading below is done for you. You need to:
-##   1. Copy the run_rep() function from template.R — it can be used
-##      here without modification.
-##   2. Implement the simulation loop: draw S seeds, call run_rep() for each,
-##      bind the results into a data frame.
-##   3. Save the results to SIM_OUT_DIR as a .rds file named after d
-##      (e.g. d0-0.rds for d=0, d0-5.rds for d=0.5).
+## Environment variables:
+##   SIM_D       — L² separation (default: 0)
+##   SIM_S       — number of replicates (default: 200)
+##   SIM_SEED    — base seed (default: 4853)
+##   SIM_OUT_DIR — output directory (default: /jobs/output)
 ##
-## To test locally before submitting to Tide:
+## Test locally before submitting to Tide:
 ##   SIM_D=0 SIM_S=5 SIM_SEED=4853 SIM_OUT_DIR=dev/sims/calibration/results/raw \
 ##     Rscript dev/sims/calibration/tide/sim.R
 
@@ -36,25 +33,66 @@ alpha <- 0.05
 h_win <- 10
 s_win <- 50
 
-# ---- TODO: copy run_rep() from template.R ----------------------------------
-#
-# Paste run_rep() here. It depends only on the parameters above and on
-# the lomad package, so it can be copied verbatim. run_rep() returns a
-# data frame with columns: d, seed, clt_rejected, oracle_rejected,
-# identity_rejected.
+# ---- Single-replicate function (copied from template.R) -------------------
 
-# ---- TODO: simulation loop -------------------------------------------------
-#
-# Draw S seeds and run run_rep(d, seed) for each.
-# Collect the results into a single data frame called `results`.
-#
-# Hint: set.seed(seed0 + as.integer(d * 100)) before drawing seeds so each
-# d value gets a distinct random stream even if seed0 is the same.
+run_rep <- function(d, seed) {
+  trends <- sim_trends(n = n, d = d, method = "dist", seed = seed)
+  sim    <- suppressMessages(
+    sim_noise_pair(trends, h = h_win, s = s_win, lambda_target = snr,
+                   ar.coefs = phi, seed = seed + 1L)
+  )
 
-# ---- TODO: save results ----------------------------------------------------
-#
-# Create out_dir if it does not exist.
-# Save a list(d = d, S = S, seed0 = seed0, results = results) as an .rds
-# file in out_dir. Name the file after d, e.g. "d0-5.rds" for d = 0.5.
-# Hint: gsub("\\.", "-", format(d, nsmall = 1)) produces the d part of
-# the filename.
+  # 1. CLT test: estimated pipeline
+  fit <- suppressMessages(
+    lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win)
+  )
+  tst <- suppressMessages(lomad_test(fit, alpha = alpha))
+  clt_rejected <- if (length(fit$valid_idx) > 0) {
+    any(tst$rejected[fit$valid_idx], na.rm = TRUE)
+  } else NA
+
+  # 2. CLT test: oracle (true per-series noise parameters)
+  fit_orc <- suppressMessages(
+    lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win,
+              noise_override = list(
+                list(ar = phi, sigma2 = sim$noise$series1$sigma^2),
+                list(ar = phi, sigma2 = sim$noise$series2$sigma^2)
+              ))
+  )
+  tst_orc <- lomad_test(fit_orc, alpha = alpha)
+  oracle_rejected <- if (length(fit_orc$valid_idx) > 0) {
+    any(tst_orc$rejected[fit_orc$valid_idx], na.rm = TRUE)
+  } else NA
+
+  # 3. Identity test (oracle, global Bonferroni p-value)
+  sigma2_innov <- mean(c(sim$noise$series1$sigma,
+                         sim$noise$series2$sigma)^2)
+  ident <- suppressMessages(
+    lomad_test_identity(sim$y1, sim$y2, q = h_win, alpha = alpha,
+                        noise_override = list(ar = phi, sigma2 = sigma2_innov))
+  )
+  identity_rejected <- ident$global_p < alpha
+
+  data.frame(d = d, seed = seed,
+             clt_rejected      = clt_rejected,
+             oracle_rejected   = oracle_rejected,
+             identity_rejected = identity_rejected)
+}
+
+# ---- Simulation loop -------------------------------------------------------
+
+set.seed(seed0 + as.integer(d * 100))
+seeds <- sample.int(1e6, S)
+
+results <- bind_rows(lapply(seq_len(S), function(i) {
+  run_rep(d, seeds[i])
+}))
+
+# ---- Save results ----------------------------------------------------------
+
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+filename <- sprintf("d%s.rds", gsub("\\.", "-", format(d, nsmall = 1)))
+saveRDS(list(d = d, S = S, seed0 = seed0, results = results),
+        file.path(out_dir, filename))
+
+cat(sprintf("Saved: %s\n", file.path(out_dir, filename)))

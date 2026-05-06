@@ -11,15 +11,12 @@
 # so results from both sweeps are directly comparable.
 #
 # Usage:
-#   bash lomad-sim/submit_diagnostic.sh
-#
-# Override GitHub username:
-#   GHCR_USER=yourname bash lomad-sim/submit_diagnostic.sh
+#   bash dev/lomad-sim/submit_diagnostic.sh
 
 set -euo pipefail
 
-GHCR_USER="${GHCR_USER:-otishunt}"
-IMAGE="ghcr.io/${GHCR_USER}/lomad-sim:latest"
+# Canonical image — built and pushed automatically from the main branch.
+IMAGE="ghcr.io/ruizt/lomad-sim:latest"
 NAMESPACE="cal-poly-lomad"
 
 echo "Using image: ${IMAGE}"
@@ -47,8 +44,6 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: lomad-sim
           image: ${IMAGE}

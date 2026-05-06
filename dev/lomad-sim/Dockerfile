@@ -1,8 +1,7 @@
 # Dockerfile — lomad simulation runner
-# Build from the repo root so the package source is available.
-# Replace <github-username> with your GitHub username (e.g. otishunt):
-#   docker buildx build --platform linux/amd64 -f lomad-sim/Dockerfile \
-#     -t ghcr.io/<github-username>/lomad-sim:latest --push .
+# Built automatically by GitHub Actions on push to main.
+# Canonical image: ghcr.io/ruizt/lomad-sim:latest
+# Build from the repo root (COPY . . requires the full package source).
 
 FROM rocker/r-ver:4.4.2
 
