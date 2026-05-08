@@ -7,17 +7,17 @@
 ## Build and push from the repo root:
 ##   docker buildx build --platform linux/amd64 \
 ##     -f dev/sims/Dockerfile \
-##     -t ghcr.io/USERNAME/lomad-sims:latest --push .
+##     -t ghcr.io/ruizt/lomad-sims:latest --push .
 ##
 ## Run locally (mount a script + output directory):
 ##   docker run --rm \
 ##     -e SIM_N=30 -e SIM_S=5 \
 ##     -v $(pwd)/dev/sims/tide-example/tide/sim.R:/scripts/sim.R \
 ##     -v $(pwd)/dev/sims/tide-example/results:/jobs/output \
-##     ghcr.io/USERNAME/lomad-sims:latest
+##     ghcr.io/ruizt/lomad-sims:latest
 ##
 ## Interactive R session:
-##   docker run --rm -it ghcr.io/USERNAME/lomad-sims:latest R
+##   docker run --rm -it ghcr.io/ruizt/lomad-sims:latest R
 
 FROM rocker/r-ver:4.5.0
 
@@ -28,15 +28,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# R package dependencies (install before copying source for layer caching)
+# Install remotes and non-lomad runtime dependencies used by sim scripts
 RUN Rscript -e "install.packages( \
-    c('mvtnorm', 'dplyr', 'remotes'), \
+    c('remotes', 'dplyr'), \
     repos = 'https://packagemanager.posit.co/cran/latest')"
 
-# Copy the lomad package source and install (Imports only — skip Suggests
-# like ggplot2/tidyverse to keep the image lean; plotting happens locally)
+# Copy the lomad package source and install with Imports
 COPY . /build/lomad
-RUN Rscript -e "remotes::install_local('/build/lomad', dependencies = TRUE, \
+RUN Rscript -e "remotes::install_local('/build/lomad', dependencies = NA, \
     upgrade = 'never')"
 
 # Default: run whatever script is mounted at /scripts/sim.R
