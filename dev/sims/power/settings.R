@@ -16,14 +16,14 @@ library(patchwork)
 
 # ---- Shared parameters -------------------------------------------------------
 
-n     <- 1000L
-phi   <- 0.5
-snr   <- 1.5
-alpha <- 0.05
-seed  <- 6183
+n     <- 1000L # 250, 500, 1000
+phi   <- 0.5 # 0.3, 0.8
+snr   <- 0.5 # hi/low (TBD)
+alpha <- 0.05 # stays fixed
+seed  <- 6183 # stays fixed
 
-h_win <- 5
-s_win <- 50
+h_win <- 5 # seemed reasonable earlier
+s_win <- 50 # seemed reasonable earlier
 
 theme_strip <- theme_minimal(base_size = 10) +
   theme(axis.title.x = element_blank(), axis.text.x = element_blank())

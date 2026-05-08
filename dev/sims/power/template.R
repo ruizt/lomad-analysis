@@ -74,6 +74,8 @@ run_rep <- function(d, structure, seed) {
              fdr = fdr_val, n_flagged = sum(rejected, na.rm = TRUE))
 }
 
+run_rep(0.5, 'rate', 123)
+
 # ---- Main loop ---------------------------------------------------------------
 
 set.seed(2847)

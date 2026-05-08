@@ -99,6 +99,8 @@ write_rds(results, file = 'dev/sims/calibration/results/template-result.rds')
 
 # ---- Summary and plot ------------------------------------------------------
 
+results <- read_rds('dev/sims/calibration/results/template-result.rds')
+
 summary_tbl <- results |>
   group_by(d) |>
   summarise(clt_rate      = mean(clt_rejected,      na.rm = TRUE),
