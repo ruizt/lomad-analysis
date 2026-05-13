@@ -9,8 +9,8 @@
 # Collect after all jobs complete with tide/collect.R.
 
 NAMESPACE="cal-poly-lomad"
-D_VALUES=(0 0.2 0.5 1)
-SIM_S=200
+D_VALUES=(3 4)
+SIM_S=500
 SIM_SEED=4853
 IMAGE="ghcr.io/ruizt/lomad-sims:latest"
 CONFIGMAP="lomad-calib-script"
