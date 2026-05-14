@@ -1,17 +1,21 @@
 ## Power study — Kubernetes container entrypoint
 ##
-## One container = all S replicates for one (structure, d) combination.
+## One container = all S replicates for one (structure, d, n, snr) combination.
 ## Parameters are passed as environment variables by the job spec.
 ##
 ## Environment variables:
 ##   SIM_D         — L² separation (default: 0)
-##   SIM_STRUCTURE — trend structure: dist, smooth, cross, rate (default: dist)
+##   SIM_STRUCTURE — trend structure: smooth, cross, rate (default: smooth)
+##   SIM_N         — series length (default: 500)
+##   SIM_SNR       — signal-to-noise ratio (default: 1.5)
+##   SIM_PHI       — AR(1) coefficient, fixed (default: 0.5)
 ##   SIM_S         — number of replicates (default: 200)
 ##   SIM_SEED      — base seed (default: 2847)
 ##   SIM_OUT_DIR   — output directory (default: /jobs/output)
 ##
 ## Test locally:
-##   SIM_D=0 SIM_STRUCTURE=dist SIM_S=5 SIM_OUT_DIR=dev/sims/power/results/raw \
+##   SIM_D=0 SIM_STRUCTURE=smooth SIM_N=500 SIM_SNR=1.5 SIM_S=5 \
+##     SIM_OUT_DIR=dev/sims/power/results/raw \
 ##     Rscript dev/sims/power/tide/sim.R
 
 library(lomad)
@@ -20,16 +24,16 @@ library(dplyr)
 # ---- Parameters from environment -------------------------------------------
 
 d         <- as.numeric(Sys.getenv("SIM_D",         "0"))
-structure <- Sys.getenv("SIM_STRUCTURE", "dist")
+structure <- Sys.getenv("SIM_STRUCTURE", "smooth")
+n         <- as.integer(Sys.getenv("SIM_N",         "500"))
+snr       <- as.numeric(Sys.getenv("SIM_SNR",       "1.5"))
+phi       <- as.numeric(Sys.getenv("SIM_PHI",       "0.5"))
 S         <- as.integer(Sys.getenv("SIM_S",         "200"))
 seed0     <- as.integer(Sys.getenv("SIM_SEED",      "2847"))
 out_dir   <- Sys.getenv("SIM_OUT_DIR", "/jobs/output")
 
 # ---- Fixed parameters (must match template.R) --------------------------------
 
-n     <- 500L
-phi   <- 0.5
-snr   <- 1.5
 alpha <- 0.05
 
 h_win <- max(5L, floor(n / 200L))
@@ -103,7 +107,12 @@ results_summary <- results |>
 # ---- Save results ------------------------------------------------------------
 
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-filename <- sprintf("%s_d%s.rds", structure, gsub("\\.", "-", format(d, nsmall = 1)))
-saveRDS(list(d = d, structure = structure, S = S, seed0 = seed0,
+filename <- sprintf("%s_d%s_n%d_snr%s.rds",
+                    structure,
+                    gsub("\\.", "-", format(d,   nsmall = 1)),
+                    n,
+                    gsub("\\.", "-", format(snr, nsmall = 1)))
+saveRDS(list(d = d, structure = structure, n = n, snr = snr, phi = phi,
+             S = S, seed0 = seed0,
              results = results, results_summary = results_summary),
         file.path(out_dir, filename))

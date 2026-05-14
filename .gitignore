@@ -55,3 +55,4 @@ rsconnect/
 .positai
 dev/sims/*/results/
 !dev/sims/calibration/results
+!dev/sims/power/results

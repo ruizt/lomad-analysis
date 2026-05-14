@@ -9,7 +9,7 @@
 # Collect after all jobs complete with tide/collect.R.
 
 NAMESPACE="cal-poly-lomad"
-D_VALUES=(3 4)
+D_VALUES=(0.25 0.5 0.75 1 1.25 1.5 1.75 2)
 SIM_S=500
 SIM_SEED=4853
 IMAGE="ghcr.io/ruizt/lomad-sims:latest"

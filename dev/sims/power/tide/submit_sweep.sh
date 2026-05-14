@@ -1,16 +1,19 @@
 #!/bin/bash
-# submit_sweep.sh — submit one Kubernetes job per (structure, d) combination
+# submit_sweep.sh — submit one Kubernetes job per (structure, d, n, snr) combination
 #
 # Usage: bash dev/sims/power/tide/submit_sweep.sh
 #
-# Each job runs SIM_S replicates for one (structure, d) pair.
+# Each job runs SIM_S replicates for one parameter combination.
 # Results land in the lomad-power-results PVC as one .rds file per job
-# (e.g. dist_d0-0.rds, smooth_d1-5.rds).
+# (e.g. smooth_d0-5_n500_snr1-5.rds).
 # Collect after all jobs complete with tide/collect.R.
 
 NAMESPACE="cal-poly-lomad"
 D_VALUES=(0 0.5 1.0 1.5 2.0)
-STRUCTURES=(dist smooth cross rate)
+STRUCTURES=(smooth cross rate)
+SAMPLE_SIZES=(100 500 1000)
+SNR_VALUES=(0.5 1.0 1.5 2.0)
+SIM_PHI=0.9
 SIM_S=200
 SIM_SEED=2847
 IMAGE="ghcr.io/ruizt/lomad-sims:latest"
@@ -26,12 +29,15 @@ echo ""
 
 for structure in "${STRUCTURES[@]}"; do
   for d in "${D_VALUES[@]}"; do
-    d_label=$(echo $d | tr '.' '-')
-    job_name="lomad-power-${structure}-d${d_label}"
+    for n in "${SAMPLE_SIZES[@]}"; do
+      for snr in "${SNR_VALUES[@]}"; do
+        d_label=$(echo $d | tr '.' '-')
+        snr_label=$(echo $snr | tr '.' '-')
+        job_name="lomad-power-${structure}-d${d_label}-n${n}-snr${snr_label}"
 
-    echo "Submitting ${job_name} (structure=${structure}, d=${d}) ..."
+        echo "Submitting ${job_name} ..."
 
-    kubectl apply -n ${NAMESPACE} -f - <<EOF
+        kubectl apply -n ${NAMESPACE} -f - <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -41,6 +47,8 @@ metadata:
     app: lomad-power
     structure: "${structure}"
     d: "${d}"
+    n: "${n}"
+    snr: "${snr}"
 spec:
   backoffLimit: 1
   template:
@@ -62,6 +70,12 @@ spec:
               value: "${d}"
             - name: SIM_STRUCTURE
               value: "${structure}"
+            - name: SIM_N
+              value: "${n}"
+            - name: SIM_SNR
+              value: "${snr}"
+            - name: SIM_PHI
+              value: "${SIM_PHI}"
             - name: SIM_S
               value: "${SIM_S}"
             - name: SIM_SEED
@@ -82,6 +96,8 @@ spec:
             claimName: lomad-power-results
 EOF
 
+      done
+    done
   done
 done
 
