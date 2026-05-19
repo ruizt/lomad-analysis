@@ -24,13 +24,13 @@ if (length(files) == 0) {
 
 results <- lapply(files, function(f) {
   obj <- readRDS(f)
-  obj$results
+  obj$results |> mutate(n = obj$n, snr = obj$snr, phi = obj$phi)
 }) |> bind_rows()
 
 # ---- Summary -----------------------------------------------------------------
 
 results_summary <- results |>
-  group_by(structure, d) |>
+  group_by(structure, d, n, snr, phi) |>
   summarise(
     S           = n(),
     detection   = mean(detected, na.rm = TRUE),
@@ -44,20 +44,29 @@ results_summary <- results |>
 saveRDS(results, file.path(OUT_DIR, "results.rds"))
 saveRDS(results_summary, file.path(OUT_DIR, "results_summary.rds"))
 
-# ---- Plot: power curves by structure -----------------------------------------
+# ---- Plot: power curves faceted by snr x phi, one PNG per n -----------------
 
-fig <- ggplot(results_summary, aes(d, detection)) +
-  geom_hline(yintercept = alpha, linetype = "dashed", colour = "grey60") +
-  geom_line(linewidth = 0.8) +
-  geom_point(size = 2.5) +
-  scale_y_continuous(limits = c(0, 1),
-                     labels = scales::percent_format(accuracy = 1)) +
-  facet_wrap(~structure) +
-  labs(x      = expression(paste(italic(d), "  (L"^2, " separation)")),
-       y      = "Detection rate",
-       title  = "Power — CLT test by trend structure",
-       subtitle = sprintf("alpha = %.2f  |  dashed: nominal level", alpha)) +
-  theme_minimal(base_size = 12)
+for (n_val in sort(unique(results_summary$n))) {
+  df <- filter(results_summary, n == n_val)
 
-ggsave(file.path(OUT_DIR, "power_curves.png"),
-       fig, width = 8, height = 6, dpi = 150)
+  fig <- ggplot(df, aes(d, detection, colour = structure, group = structure)) +
+    geom_hline(yintercept = alpha, linetype = "dashed", colour = "grey60") +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2.5) +
+    scale_y_continuous(limits = c(0, 1),
+                       labels = scales::percent_format(accuracy = 1)) +
+    scale_colour_manual(values = c("smooth" = "#0072B2",
+                                   "cross"  = "#D55E00",
+                                   "rate"   = "#009E73")) +
+    facet_grid(snr ~ phi, labeller = label_both) +
+    labs(x        = expression(paste(italic(d), "  (L"^2, " separation)")),
+         y        = "Detection rate",
+         colour   = "Structure",
+         title    = sprintf("Power — CLT test  |  n = %d", n_val),
+         subtitle = sprintf("alpha = %.2f  |  dashed: nominal level", alpha)) +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "top")
+
+  ggsave(file.path(OUT_DIR, sprintf("power_curves_n%d.png", n_val)),
+         fig, width = 8, height = 6, dpi = 150)
+}

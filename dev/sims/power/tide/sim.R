@@ -107,11 +107,12 @@ results_summary <- results |>
 # ---- Save results ------------------------------------------------------------
 
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-filename <- sprintf("%s_d%s_n%d_snr%s.rds",
+filename <- sprintf("%s_d%s_n%d_snr%s_phi%s.rds",
                     structure,
                     gsub("\\.", "-", format(d,   nsmall = 1)),
                     n,
-                    gsub("\\.", "-", format(snr, nsmall = 1)))
+                    gsub("\\.", "-", format(snr, nsmall = 1)),
+                    gsub("\\.", "-", format(phi, nsmall = 1)))
 saveRDS(list(d = d, structure = structure, n = n, snr = snr, phi = phi,
              S = S, seed0 = seed0,
              results = results, results_summary = results_summary),

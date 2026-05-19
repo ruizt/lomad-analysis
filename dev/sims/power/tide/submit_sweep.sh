@@ -11,10 +11,10 @@
 NAMESPACE="cal-poly-lomad"
 D_VALUES=(0 0.5 1.0 1.5 2.0)
 STRUCTURES=(smooth cross rate)
-SAMPLE_SIZES=(100 500 1000)
-SNR_VALUES=(0.5 1.0 1.5 2.0)
-SIM_PHI=0.9
-SIM_S=200
+SAMPLE_SIZES=(200 400 600)
+SNR_VALUES=(0.5 1.5)
+PHI_VALUES=(0.3 0.5 0.8)
+SIM_S=500
 SIM_SEED=2847
 IMAGE="ghcr.io/ruizt/lomad-sims:latest"
 CONFIGMAP="lomad-power-script"
@@ -31,13 +31,15 @@ for structure in "${STRUCTURES[@]}"; do
   for d in "${D_VALUES[@]}"; do
     for n in "${SAMPLE_SIZES[@]}"; do
       for snr in "${SNR_VALUES[@]}"; do
-        d_label=$(echo $d | tr '.' '-')
-        snr_label=$(echo $snr | tr '.' '-')
-        job_name="lomad-power-${structure}-d${d_label}-n${n}-snr${snr_label}"
+        for phi in "${PHI_VALUES[@]}"; do
+          d_label=$(echo $d | tr '.' '-')
+          snr_label=$(echo $snr | tr '.' '-')
+          phi_label=$(echo $phi | tr '.' '-')
+          job_name="lomad-power-${structure}-d${d_label}-n${n}-snr${snr_label}-phi${phi_label}"
 
-        echo "Submitting ${job_name} ..."
+          echo "Submitting ${job_name} ..."
 
-        kubectl apply -n ${NAMESPACE} -f - <<EOF
+          kubectl apply -n ${NAMESPACE} -f - <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -49,6 +51,7 @@ metadata:
     d: "${d}"
     n: "${n}"
     snr: "${snr}"
+    phi: "${phi}"
 spec:
   backoffLimit: 1
   template:
@@ -75,7 +78,7 @@ spec:
             - name: SIM_SNR
               value: "${snr}"
             - name: SIM_PHI
-              value: "${SIM_PHI}"
+              value: "${phi}"
             - name: SIM_S
               value: "${SIM_S}"
             - name: SIM_SEED
@@ -96,6 +99,7 @@ spec:
             claimName: lomad-power-results
 EOF
 
+        done
       done
     done
   done
