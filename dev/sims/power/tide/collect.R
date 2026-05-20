@@ -70,3 +70,56 @@ for (n_val in sort(unique(results_summary$n))) {
   ggsave(file.path(OUT_DIR, sprintf("power_curves_n%d.png", n_val)),
          fig, width = 8, height = 6, dpi = 150)
 }
+
+# ---- Plot: sensitivity curves faceted by snr x phi, one PNG per n -----------
+
+for (n_val in sort(unique(results_summary$n))) {
+  df <- filter(results_summary, n == n_val)
+
+  fig <- ggplot(df, aes(d, sensitivity, colour = structure, group = structure)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2.5) +
+    scale_y_continuous(limits = c(0, 1),
+                       labels = scales::percent_format(accuracy = 1)) +
+    scale_colour_manual(values = c("smooth" = "#0072B2",
+                                   "cross"  = "#D55E00",
+                                   "rate"   = "#009E73")) +
+    facet_grid(snr ~ phi, labeller = label_both) +
+    labs(x        = expression(paste(italic(d), "  (L"^2, " separation)")),
+         y        = "Sensitivity",
+         colour   = "Structure",
+         title    = sprintf("Sensitivity — CLT test  |  n = %d", n_val),
+         subtitle = "Fraction of truly decoupled points flagged  |  NA at d = 0") +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "top")
+
+  ggsave(file.path(OUT_DIR, sprintf("sensitivity_curves_n%d.png", n_val)),
+         fig, width = 8, height = 6, dpi = 150)
+}
+
+# ---- Plot: FDR curves faceted by snr x phi, one PNG per n -------------------
+
+for (n_val in sort(unique(results_summary$n))) {
+  df <- filter(results_summary, n == n_val)
+
+  fig <- ggplot(df, aes(d, fdr, colour = structure, group = structure)) +
+    geom_hline(yintercept = alpha, linetype = "dashed", colour = "grey60") +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2.5) +
+    scale_y_continuous(limits = c(0, 1),
+                       labels = scales::percent_format(accuracy = 1)) +
+    scale_colour_manual(values = c("smooth" = "#0072B2",
+                                   "cross"  = "#D55E00",
+                                   "rate"   = "#009E73")) +
+    facet_grid(snr ~ phi, labeller = label_both) +
+    labs(x        = expression(paste(italic(d), "  (L"^2, " separation)")),
+         y        = "FDR",
+         colour   = "Structure",
+         title    = sprintf("FDR — CLT test  |  n = %d", n_val),
+         subtitle = sprintf("alpha = %.2f  |  dashed: nominal level  |  NA at d = 0", alpha)) +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "top")
+
+  ggsave(file.path(OUT_DIR, sprintf("fdr_curves_n%d.png", n_val)),
+         fig, width = 8, height = 6, dpi = 150)
+}
