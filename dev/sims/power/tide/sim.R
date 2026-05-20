@@ -73,12 +73,13 @@ run_rep <- function(d, structure, seed) {
   rejected <- tst$rejected[vi]
 
   w <- if (!is.null(trends$w)) trends$w[vi] else NULL
+  w_thresh <- 0.1
 
   detected    <- any(rejected, na.rm = TRUE)
-  sensitivity <- if (!is.null(w) && any(w < 0.5))
-                   mean(rejected[w < 0.5], na.rm = TRUE) else NA_real_
+  sensitivity <- if (!is.null(w) && any(abs(w - 1) > w_thresh))
+    mean(rejected[abs(w - 1) > w_thresh], na.rm = TRUE) else NA_real_
   fdr_val     <- if (!is.null(w) && any(rejected, na.rm = TRUE))
-                   mean(w[rejected] >= 0.5, na.rm = TRUE) else NA_real_
+    mean(abs(w[rejected] - 1) <= w_thresh, na.rm = TRUE) else NA_real_
 
   data.frame(d = d, structure = structure, seed = seed,
              detected = detected, sensitivity = sensitivity,
