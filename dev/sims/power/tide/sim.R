@@ -69,10 +69,16 @@ run_rep <- function(d, structure, seed) {
   }
 
   tst <- lomad_test(fit, alpha = alpha)
+  
+  #TO DO: Pull p_adj and p_values
+  
   vi  <- fit$valid_idx
   rejected <- tst$rejected[vi]
 
   w <- if (!is.null(trends$w)) trends$w[vi] else NULL
+  
+  #Ensure we are getting wt vector
+  
   w_thresh <- 0.1
 
   detected    <- any(rejected, na.rm = TRUE)
@@ -118,3 +124,17 @@ saveRDS(list(d = d, structure = structure, n = n, snr = snr, phi = phi,
              S = S, seed0 = seed0,
              results = results, results_summary = results_summary),
         file.path(out_dir, filename))
+
+#Ensure this RDS is being written with the correct name and correct relevant items 
+# (seed, p-values (raw and adj), series)
+
+# filename <- sprintf("%s_d%s_n%d_snr%s_phi%s-series.rds",
+#                     structure,
+#                     gsub("\\.", "-", format(d,   nsmall = 1)),
+#                     n,
+#                     gsub("\\.", "-", format(snr, nsmall = 1)),
+#                     gsub("\\.", "-", format(phi, nsmall = 1)))
+# saveRDS(list(d = d, structure = structure, n = n, snr = snr, phi = phi,
+#              S = S, seed0 = seed0,
+#              results = results, results_summary = results_summary),
+#         file.path(out_dir, filename))
