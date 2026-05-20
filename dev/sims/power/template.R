@@ -135,9 +135,9 @@ saveRDS(results_summary, "dev/sims/power/results/results_summary.rds")
 #------ Plot -------------------------------------------------------------------
 
 # example
-n <- 600
-phi <- 0.8
-snr <- 1.5
+n_val <- 400
+phi_val <- 0.5
+snr_val <- 1.5
 
 # Graph of Detection Rate
 results_summary |>
@@ -146,9 +146,9 @@ results_summary |>
     se = sqrt(var)
   ) |>
   filter(
-    n == n,
-    phi == phi,
-    snr == snr
+    n == n_val,
+    phi == phi_val,
+    snr == snr_val
   ) |>
   ggplot(aes(x = d, y = detection)) +
   geom_point(size = 3) +
@@ -163,9 +163,11 @@ results_summary |>
   facet_wrap(~ struct, ncol=2) +   
   theme_minimal(base_size = 18) +
   labs(
-    title = "Detection Rate by Structure (n = 200, phi = 0.5, snr = 1.5)",
-    x = "Detection Rate",
-    y = "Distance"
+    title = sprintf("Detection Rate by Structure 
+(n = %d, phi = %.1f, snr = %.1f)", 
+                    n_val, phi_val, snr_val),
+    x = "Distance",
+    y = "Detection Rate"
   ) +
   scale_x_continuous(breaks = scales::breaks_width(0.5)) +
   scale_y_continuous(limits = c(0, 1)) +
@@ -185,9 +187,9 @@ results_summary |>
     se  = sqrt(var)
   ) |>
   filter(
-    n == n,
-    phi == phi,
-    snr == snr
+    n == n_val,
+    phi == phi_val,
+    snr == snr_val
   ) |>
   ggplot(aes(x = d, y = sensitivity)) +
   geom_point(size = 3) +
@@ -202,9 +204,11 @@ results_summary |>
   facet_wrap(~ struct, ncol = 2) +   
   theme_minimal(base_size = 18) +
   labs(
-    title = "Sensitivity by Structure (n = 200, phi = 0.5, snr = 1.5)",
-    x = "Sensitivity",
-    y = "Distance"
+    title = sprintf("Sensitivity by Structure 
+(n = %d, phi = %.1f, snr = %.1f)", 
+                    n_val, phi_val, snr_val),
+    x = "Distance",
+    y = "Sensitivity"
   ) +
   scale_x_continuous(breaks = scales::breaks_width(0.5)) +
   scale_y_continuous(limits = c(0, 1)) +
@@ -224,9 +228,9 @@ results_summary |>
     se  = sqrt(var)
   ) |>
   filter(
-    n == n,
-    phi == phi,
-    snr == snr
+    n == n_val,
+    phi == phi_val,
+    snr == snr_val
   ) |>
   ggplot(aes(x = d, y = fdr)) +
   geom_point(size = 3) +
@@ -241,9 +245,11 @@ results_summary |>
   facet_wrap(~ struct, ncol = 2) +   
   theme_minimal(base_size = 18) +
   labs(
-    title = "FDR by Structure (n = 200, phi = 0.5, snr = 1.5)",
-    x = "FDR",
-    y = "Distance"
+    title = sprintf("FDR by Structure 
+(n = %d, phi = %.1f, snr = %.1f)", 
+    n_val, phi_val, snr_val),
+    x = "Distance",
+    y = "FDR"
   ) +
   scale_x_continuous(breaks = scales::breaks_width(0.5)) +
   scale_y_continuous(limits = c(0, 1)) +
@@ -262,9 +268,9 @@ results_summary |>
     se  = sqrt(var)
   ) |>
   filter(
-    n == n,
-    phi == phi,
-    snr == snr
+    n == n_val,
+    phi == phi_val,
+    snr == snr_val
   ) |>
   ggplot(aes(x = d, y = n_flagged)) +
   geom_point(size = 3) +
@@ -279,12 +285,13 @@ results_summary |>
   facet_wrap(~ struct, ncol = 2) +   
   theme_minimal(base_size = 18) +
   labs(
-    title = "Number of Values Flagged by Structure (n = 200, phi = 0.5, snr = 1.5)",
-    x = "Values Flagged",
-    y = "Distance"
+    title = sprintf("Number of Values Flagged by Structure
+(n = %d, phi = %.1f, snr = %.1f)", 
+                    n_val, phi_val, snr_val),
+    x = "Distance",
+    y = "Values Flagged"
   ) +
   scale_x_continuous(breaks = scales::breaks_width(0.5)) +
-  scale_y_continuous(limits = c(0, 1)) +
   theme(
     plot.title = element_text(size = 22),
     strip.text = element_text(size = 18, face = "bold"),
@@ -292,3 +299,4 @@ results_summary |>
     axis.text = element_text(size = 16),
     panel.grid.minor = element_blank()
   )
+
