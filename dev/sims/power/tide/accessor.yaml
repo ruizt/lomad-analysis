@@ -7,15 +7,15 @@
 #   bash dev/sims/power/tide/fetch.sh
 #
 # If you need to inspect the PVC interactively:
-#   kubectl apply -n cal-poly-lomad -f dev/sims/power/tide/accessor.yaml
-#   kubectl exec -n cal-poly-lomad -it power-fetch -- sh
-#   kubectl delete -n cal-poly-lomad pod power-fetch
+#   kubectl apply -n cal-poly-ruiz -f dev/sims/power/tide/accessor.yaml
+#   kubectl exec -n cal-poly-ruiz -it power-fetch -- sh
+#   kubectl delete -n cal-poly-ruiz pod power-fetch
 
 apiVersion: v1
 kind: Pod
 metadata:
   name: power-fetch
-  namespace: cal-poly-lomad
+  namespace: cal-poly-ruiz
   labels:
     app: power-fetch
 spec:

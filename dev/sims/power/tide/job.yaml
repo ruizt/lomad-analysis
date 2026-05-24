@@ -9,7 +9,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: lomad-power-JOBNAME
-  namespace: cal-poly-lomad
+  namespace: cal-poly-ruiz
   labels:
     app: lomad-power
 spec:

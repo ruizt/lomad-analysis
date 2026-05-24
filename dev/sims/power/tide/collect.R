@@ -15,7 +15,9 @@ alpha   <- 0.05
 
 # ---- Collect -----------------------------------------------------------------
 
+# Summary files only; series files are kept on disk for downstream analysis
 files <- list.files(RAW_DIR, pattern = "\\.rds$", full.names = TRUE)
+files <- files[!grepl("-series\\.rds$", files)]
 
 if (length(files) == 0) {
   stop("No .rds files found in: ", RAW_DIR,
@@ -23,20 +25,18 @@ if (length(files) == 0) {
 }
 
 results <- lapply(files, function(f) {
-  obj <- readRDS(f)
-  obj$results |> mutate(n = obj$n, snr = obj$snr, phi = obj$phi)
+  is_oracle <- grepl("-oracle\\.rds$", f)
+  readRDS(f)$results |> mutate(method = if (is_oracle) "oracle" else "estimated")
 }) |> bind_rows()
 
 # ---- Summary -----------------------------------------------------------------
 
 results_summary <- results |>
-  group_by(structure, d, n, snr, phi) |>
+  group_by(struct, d, n, snr, phi, method) |>
   summarise(
-    S           = n(),
-    detection   = mean(detected, na.rm = TRUE),
-    sensitivity = mean(sensitivity, na.rm = TRUE),
-    fdr         = mean(fdr, na.rm = TRUE),
-    .groups     = "drop"
+    S         = n(),
+    detection = mean(detected, na.rm = TRUE),
+    .groups   = "drop"
   )
 
 # ---- Save --------------------------------------------------------------------
@@ -49,7 +49,8 @@ saveRDS(results_summary, file.path(OUT_DIR, "results_summary.rds"))
 for (n_val in sort(unique(results_summary$n))) {
   df <- filter(results_summary, n == n_val)
 
-  fig <- ggplot(df, aes(d, detection, colour = structure, group = structure)) +
+  fig <- ggplot(df, aes(d, detection, colour = struct,
+                         linetype = method, group = interaction(struct, method))) +
     geom_hline(yintercept = alpha, linetype = "dashed", colour = "grey60") +
     geom_line(linewidth = 0.8) +
     geom_point(size = 2.5) +
@@ -58,68 +59,18 @@ for (n_val in sort(unique(results_summary$n))) {
     scale_colour_manual(values = c("smooth" = "#0072B2",
                                    "cross"  = "#D55E00",
                                    "rate"   = "#009E73")) +
+    scale_linetype_manual(values = c("estimated" = "solid",
+                                     "oracle"    = "dashed")) +
     facet_grid(snr ~ phi, labeller = label_both) +
     labs(x        = expression(paste(italic(d), "  (L"^2, " separation)")),
          y        = "Detection rate",
          colour   = "Structure",
+         linetype = "Method",
          title    = sprintf("Power — CLT test  |  n = %d", n_val),
-         subtitle = sprintf("alpha = %.2f  |  dashed: nominal level", alpha)) +
+         subtitle = sprintf("alpha = %.2f  |  dashed lines: oracle noise params", alpha)) +
     theme_minimal(base_size = 12) +
     theme(legend.position = "top")
 
   ggsave(file.path(OUT_DIR, sprintf("power_curves_n%d.png", n_val)),
-         fig, width = 8, height = 6, dpi = 150)
-}
-
-# ---- Plot: sensitivity curves faceted by snr x phi, one PNG per n -----------
-
-for (n_val in sort(unique(results_summary$n))) {
-  df <- filter(results_summary, n == n_val)
-
-  fig <- ggplot(df, aes(d, sensitivity, colour = structure, group = structure)) +
-    geom_line(linewidth = 0.8) +
-    geom_point(size = 2.5) +
-    scale_y_continuous(limits = c(0, 1),
-                       labels = scales::percent_format(accuracy = 1)) +
-    scale_colour_manual(values = c("smooth" = "#0072B2",
-                                   "cross"  = "#D55E00",
-                                   "rate"   = "#009E73")) +
-    facet_grid(snr ~ phi, labeller = label_both) +
-    labs(x        = expression(paste(italic(d), "  (L"^2, " separation)")),
-         y        = "Sensitivity",
-         colour   = "Structure",
-         title    = sprintf("Sensitivity — CLT test  |  n = %d", n_val),
-         subtitle = "Fraction of truly decoupled points flagged  |  NA at d = 0") +
-    theme_minimal(base_size = 12) +
-    theme(legend.position = "top")
-
-  ggsave(file.path(OUT_DIR, sprintf("sensitivity_curves_n%d.png", n_val)),
-         fig, width = 8, height = 6, dpi = 150)
-}
-
-# ---- Plot: FDR curves faceted by snr x phi, one PNG per n -------------------
-
-for (n_val in sort(unique(results_summary$n))) {
-  df <- filter(results_summary, n == n_val)
-
-  fig <- ggplot(df, aes(d, fdr, colour = structure, group = structure)) +
-    geom_hline(yintercept = alpha, linetype = "dashed", colour = "grey60") +
-    geom_line(linewidth = 0.8) +
-    geom_point(size = 2.5) +
-    scale_y_continuous(limits = c(0, 1),
-                       labels = scales::percent_format(accuracy = 1)) +
-    scale_colour_manual(values = c("smooth" = "#0072B2",
-                                   "cross"  = "#D55E00",
-                                   "rate"   = "#009E73")) +
-    facet_grid(snr ~ phi, labeller = label_both) +
-    labs(x        = expression(paste(italic(d), "  (L"^2, " separation)")),
-         y        = "FDR",
-         colour   = "Structure",
-         title    = sprintf("FDR — CLT test  |  n = %d", n_val),
-         subtitle = sprintf("alpha = %.2f  |  dashed: nominal level  |  NA at d = 0", alpha)) +
-    theme_minimal(base_size = 12) +
-    theme(legend.position = "top")
-
-  ggsave(file.path(OUT_DIR, sprintf("fdr_curves_n%d.png", n_val)),
          fig, width = 8, height = 6, dpi = 150)
 }

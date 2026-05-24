@@ -47,66 +47,82 @@ run_rep <- function(d, struct, n, phi, snr, seed) {
                     c(list(n = n, d = d, method = struct, seed = seed),
                       struct_params[[struct]]))
   
+  # Coupling weight (NULL for dist/unstructured)
+  w <- if (!is.null(trends$w)) trends$w else NULL
+  
   # Add noise
   sim <- sim_noise_pair(trends, h = h_win, lambda_target = snr,
                         ar.coefs = phi, seed = seed + 1L)
   
-  # Fit + test
+  # Fit
   fit <- tryCatch(
     lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win),
     error = function(e) NULL
   )
   if (is.null(fit)) {
-    return(data.frame(d = d, 
-                      struct = struct, 
-                      n = n,
-                      phi = phi,
-                      snr = snr,
-                      seed = seed,
-                      detected = NA, 
-                      sensitivity = NA_real_, 
-                      fdr = NA_real_,
-                      n_flagged = NA_integer_))
+    return(list(
+      summary = data.frame(d = d, 
+                           struct = struct, 
+                           n = n,
+                           phi = phi,
+                           snr = snr,
+                           seed = seed,
+                           detected = NA, 
+                           sensitivity = NA_real_, 
+                           fdr = NA_real_,
+                           n_flagged = NA_integer_),
+      series = NULL
+    ))
   }
   
+  # Test
   tst <- lomad_test(fit, alpha = alpha)
-  vi  <- fit$valid_idx
-  rejected <- tst$rejected[vi]
   
-  # Coupling weight (NULL for dist/unstructured)
-  w <- if (!is.null(trends$w)) trends$w[vi] else NULL
-  
-  detected    <- any(rejected, na.rm = TRUE)
-  sensitivity <- if (!is.null(w) && any(w < 0.5))
-    mean(rejected[w < 0.5], na.rm = TRUE) else NA_real_
-  fdr_val     <- if (!is.null(w) && any(rejected, na.rm = TRUE))
-    mean(w[rejected] >= 0.5, na.rm = TRUE) else NA_real_
-  
-  data.frame(d = d, 
-             n = n,
-             phi = phi,
-             snr = snr,
-             struct = struct, 
-             seed = seed,
-             detected = detected, 
-             sensitivity = sensitivity,
-             fdr = fdr_val, 
-             n_flagged = sum(rejected, na.rm = TRUE))
+  # Outputs
+  list(
+    summary = data.frame(d = d, 
+                         n = n,
+                         phi = phi,
+                         snr = snr,
+                         struct = struct, 
+                         seed = seed,
+                         detected = any(tst$rejected, na.rm = TRUE)),
+    series = list(w = w, 
+                  vi = fit$valid_idx,
+                  p_raw = tst$p_values,
+                  p_adj = tst$p_adj,
+                  rejected = tst$rejected)
+  )
 }
 
-run_rep(d=0.5, struct='rate', n=500, phi=0.5, snr=1.5, seed=123)
+# summary output
+run_rep(d=0.5, struct='rate', n=500, phi=0.5, snr=1.5, seed=123)$summary
+
+# series output
+run_rep(d=0.5, struct='rate', n=500, phi=0.5, snr=1.5, seed=123)$series |>
+  str()
 
 # ---- Main loop ---------------------------------------------------------------
 
 set.seed(2847)
 all_seeds <- sample.int(1e6, S)
 
+# series_dir <- "dev/sims/power/results/_local/series"
+# dir.create(series_dir, recursive = TRUE, showWarnings = FALSE)
+
 results <- lapply(structs, function(struct) {
   lapply(d_vals, function(d) {
     lapply(n_vals, function(n) {
       lapply(phi_vals, function(phi) {
         lapply(snr_vals, function(snr) {
-          bind_rows(lapply(all_seeds, function(s) run_rep(d, struct, n, phi, snr, s)))
+          reps <- lapply(all_seeds, function(s) run_rep(d, struct, n, phi, snr, s))
+          
+          # # Write series to disk, keyed by seed
+          # series <- setNames(lapply(reps, `[[`, "series"), all_seeds)
+          # saveRDS(series, file.path(series_dir,
+          #   sprintf("%s_d%s_n%d_phi%s_snr%s.rds", struct, d, n, phi, snr)))
+          
+          bind_rows(lapply(reps, `[[`, "summary"))
         }) |> bind_rows()
       }) |> bind_rows()
     }) |> bind_rows()
@@ -121,16 +137,13 @@ results_summary <- results |>
   summarise(
     S           = n(),
     detection   = mean(detected, na.rm = TRUE),
-    sensitivity = mean(sensitivity, na.rm = TRUE),
-    fdr         = mean(fdr, na.rm = TRUE),
-    n_flagged   = mean(n_flagged, na.rm = TRUE),
     .groups     = "drop"
   )
 
-# ---- Save --------------------------------------------------------------------
-
-saveRDS(results, "dev/sims/power/results/results.rds")
-saveRDS(results_summary, "dev/sims/power/results/results_summary.rds")
+# # ---- Save --------------------------------------------------------------------
+# 
+# saveRDS(results, "dev/sims/power/results/results.rds")
+# saveRDS(results_summary, "dev/sims/power/results/results_summary.rds")
 
 #------ Plot -------------------------------------------------------------------
 
@@ -178,125 +191,3 @@ results_summary |>
     axis.text = element_text(size = 16),
     panel.grid.minor = element_blank()
   )
-
-
-# Graph of Sensitivity 
-results_summary |>
-  mutate(
-    var = (sensitivity * (1 - sensitivity)) / S,
-    se  = sqrt(var)
-  ) |>
-  filter(
-    n == n_val,
-    phi == phi_val,
-    snr == snr_val
-  ) |>
-  ggplot(aes(x = d, y = sensitivity)) +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(
-      ymin = sensitivity - se,
-      ymax = sensitivity + se,
-    ),
-    width = 0.2
-  ) +
-  geom_smooth(se= FALSE) +
-  facet_wrap(~ struct, ncol = 2) +   
-  theme_minimal(base_size = 18) +
-  labs(
-    title = sprintf("Sensitivity by Structure 
-(n = %d, phi = %.1f, snr = %.1f)", 
-                    n_val, phi_val, snr_val),
-    x = "Distance",
-    y = "Sensitivity"
-  ) +
-  scale_x_continuous(breaks = scales::breaks_width(0.5)) +
-  scale_y_continuous(limits = c(0, 1)) +
-  theme(
-    plot.title = element_text(size = 22),
-    strip.text = element_text(size = 18, face = "bold"),
-    axis.title = element_text(size = 18),
-    axis.text = element_text(size = 16),
-    panel.grid.minor = element_blank()
-  )
-
-
-# Graph of FDR 
-results_summary |>
-  mutate(
-    var = (fdr * (1 - fdr)) / S,
-    se  = sqrt(var)
-  ) |>
-  filter(
-    n == n_val,
-    phi == phi_val,
-    snr == snr_val
-  ) |>
-  ggplot(aes(x = d, y = fdr)) +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(
-      ymin = fdr - se,
-      ymax = fdr + se,
-    ),
-    width = 0.2
-  ) +
-  geom_smooth(se=FALSE) +
-  facet_wrap(~ struct, ncol = 2) +   
-  theme_minimal(base_size = 18) +
-  labs(
-    title = sprintf("FDR by Structure 
-(n = %d, phi = %.1f, snr = %.1f)", 
-    n_val, phi_val, snr_val),
-    x = "Distance",
-    y = "FDR"
-  ) +
-  scale_x_continuous(breaks = scales::breaks_width(0.5)) +
-  scale_y_continuous(limits = c(0, 1)) +
-  theme(
-    plot.title = element_text(size = 22),
-    strip.text = element_text(size = 18, face = "bold"),
-    axis.title = element_text(size = 18),
-    axis.text = element_text(size = 16),
-    panel.grid.minor = element_blank()
-  )
-
-# Graph of n flagged 
-results_summary |>
-  mutate(
-    var = (n_flagged * (1 - n_flagged)) / S,
-    se  = sqrt(var)
-  ) |>
-  filter(
-    n == n_val,
-    phi == phi_val,
-    snr == snr_val
-  ) |>
-  ggplot(aes(x = d, y = n_flagged)) +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(
-      ymin = n_flagged - se,
-      ymax = n_flagged + se,
-    ),
-    width = 0.2
-  ) +
-  geom_smooth(se=FALSE) +
-  facet_wrap(~ struct, ncol = 2) +   
-  theme_minimal(base_size = 18) +
-  labs(
-    title = sprintf("Number of Values Flagged by Structure
-(n = %d, phi = %.1f, snr = %.1f)", 
-                    n_val, phi_val, snr_val),
-    x = "Distance",
-    y = "Values Flagged"
-  ) +
-  scale_x_continuous(breaks = scales::breaks_width(0.5)) +
-  theme(
-    plot.title = element_text(size = 22),
-    strip.text = element_text(size = 18, face = "bold"),
-    axis.title = element_text(size = 18),
-    axis.text = element_text(size = 16),
-    panel.grid.minor = element_blank()
-  )
-

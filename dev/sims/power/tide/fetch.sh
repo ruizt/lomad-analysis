@@ -12,7 +12,7 @@ set -euo pipefail
 LOCAL_DIR="${1:-dev/sims/power/results/raw}"
 ACCESSOR_YAML="dev/sims/power/tide/accessor.yaml"
 POD_NAME="power-fetch"
-NAMESPACE="cal-poly-lomad"
+NAMESPACE="cal-poly-ruiz"
 
 echo "=== lomad power: fetch results from PVC ==="
 echo "Destination: ${LOCAL_DIR}"

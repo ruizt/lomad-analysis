@@ -12,11 +12,11 @@
 #   5. Cleans up jobs and accessor pod
 #
 # The PVC is left in place so you can inspect results later.
-# To delete it: kubectl delete -n cal-poly-lomad -f dev/sims/power/tide/pvc.yaml
+# To delete it: kubectl delete -n cal-poly-ruiz -f dev/sims/power/tide/pvc.yaml
 
 set -euo pipefail
 
-NAMESPACE="cal-poly-lomad"
+NAMESPACE="cal-poly-ruiz"
 STUDY_DIR="dev/sims/power"
 
 echo "=== lomad power study: full pipeline ==="
