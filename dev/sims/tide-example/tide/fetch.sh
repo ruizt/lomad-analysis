@@ -21,7 +21,7 @@ set -euo pipefail
 LOCAL_DIR="${1:-dev/sims/tide-example/results/raw}"
 ACCESSOR_YAML="dev/sims/tide-example/tide/accessor.yaml"
 POD_NAME="mvn-fetch"
-NAMESPACE="cal-poly-lomad"
+NAMESPACE="cal-poly-ruiz"
 
 echo "=== MVN example: fetch results from PVC ==="
 echo "Destination: ${LOCAL_DIR}"

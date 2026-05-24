@@ -7,15 +7,15 @@
 #   bash dev/sims/validation/tide/fetch.sh
 #
 # If you need to inspect the PVC interactively:
-#   kubectl apply -n cal-poly-lomad -f dev/sims/validation/tide/accessor.yaml
-#   kubectl exec -n cal-poly-lomad -it lomad-valid-fetch -- sh
-#   kubectl delete -n cal-poly-lomad pod lomad-valid-fetch
+#   kubectl apply -n cal-poly-ruiz -f dev/sims/validation/tide/accessor.yaml
+#   kubectl exec -n cal-poly-ruiz -it lomad-valid-fetch -- sh
+#   kubectl delete -n cal-poly-ruiz pod lomad-valid-fetch
 
 apiVersion: v1
 kind: Pod
 metadata:
   name: lomad-valid-fetch
-  namespace: cal-poly-lomad
+  namespace: cal-poly-ruiz
   labels:
     app: lomad-valid-fetch
 spec:

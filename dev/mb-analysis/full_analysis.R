@@ -21,12 +21,11 @@ block_data |>
   mutate(days = n / 24) |>
   arrange(location, block_id)
 
-# Split by location; block_id is not globally unique
+# Split by location
 location_data <- split(block_data, block_data$location)
 
-# --- Presmooth --------------------------------------------------------------
-# Remove tidal periodicity (~25 h cycle at hourly resolution) and downsample
-# to 6-hour resolution. Applied independently within each block.
+# --- Presmooth ---------------------------------------------------------------
+# Remove tidal periodicity (~25h cycle at hourly) and downsample to 6h
 
 loc_results <- lapply(names(location_data), function(loc) {
   loc_dat <- location_data[[loc]]
@@ -43,109 +42,99 @@ loc_results <- lapply(names(location_data), function(loc) {
 })
 names(loc_results) <- names(location_data)
 
-# --- Fit null model, separately per location --------------------------------
+# --- Fit CLT model with ARMA noise ------------------------------------------
 
-block_fit_view <- function(fit, k) {
-  blk <- fit$blocks[[k]]
-  fit$trend_hat <- blk$trend_hat
-  fit$ma1       <- blk$ma1
-  fit$ma2       <- blk$ma2
-  fit$R         <- blk$R
-  fit$I         <- blk$I
-  fit$valid_idx <- blk$valid_idx   # local indices, correct for this block's length
-  fit
-}
+h_win <- 4
+s_win <- 60
+alpha <- 0.05
 
 for (loc in names(loc_results)) {
   blocks_presm <- loc_results[[loc]]$blocks_presm
-  blocks       <- lapply(blocks_presm, \(b) list(x1 = b$o2, x2 = b$ph))
+  blocks <- lapply(blocks_presm, \(b) list(x1 = b$o2, x2 = b$ph))
 
-  fit <- fit_blocks_state(blocks,
-                          rho0   = 0,
-                          q      = 5 * 4,
-                          h      = 10 * 4,
-                          max_pq = 2)
+  # Drop blocks too short for the window parameters
+  min_len <- 2L * h_win + s_win
+  too_short <- vapply(blocks, \(b) length(b$x1) < min_len, logical(1))
+  if (any(too_short))
+    cat(sprintf('  Dropping %d blocks shorter than %d observations\n',
+                sum(too_short), min_len))
+  blocks       <- blocks[!too_short]
+  blocks_presm <- blocks_presm[!too_short]
+
+  # Fit each block with ARMA noise, then test
+  block_fits <- lapply(names(blocks), \(nm) {
+    b <- blocks[[nm]]
+    tryCatch({
+      fit <- lomad_fit(b$x1, b$x2, h = h_win, s = s_win, noise_method = "arma")
+      tst <- lomad_test(fit, alpha = alpha)
+      list(fit = fit, tst = tst)
+    }, error = function(e) { message(paste("  Block", nm, "failed:", e$message)); NULL })
+  })
+  names(block_fits) <- names(blocks)
+  block_fits <- Filter(Negate(is.null), block_fits)
+
+  if (length(block_fits) == 0) {
+    cat('\n===', loc, '=== No blocks fit successfully\n')
+    next
+  }
 
   cat('\n===', loc, '===\n')
-  print(fit$null_model)
-  print(fit$observed)
-  print(fit$expected_asymptotic)
+  cat(sprintf('  %d / %d blocks fit successfully\n',
+              length(block_fits), length(blocks)))
 
-  # --- Visualize individual blocks ------------------------------------------
+  # --- Base R block plots ---------------------------------------------------
 
-  pdf(paste0(img_out, '/', loc, '-blocks-fit.pdf'), width = 5, height = 4)
-  for (nm in names(fit$blocks)) {
-    lomad_plot(block_fit_view(fit, nm),
-               x1 = blocks[[nm]]$x1, x2 = blocks[[nm]]$x2,
-               alpha = 0.4)
-    title(main = paste(loc, 'block', nm), line = 0.5)
-  }
-  dev.off()
+  tryCatch({
+    pdf(paste0(img_out, '/', loc, '-blocks-fit.pdf'), width = 5, height = 4)
+    for (nm in names(block_fits)) {
+      dt <- blocks_presm[[nm]]$datetime
+      lomad_plot(block_fits[[nm]]$fit, block_fits[[nm]]$tst,
+                 dates = dt, alpha = 0.4)
+      title(main = paste(loc, 'block', nm), line = 0.5)
+    }
+  }, finally = dev.off())
 
-  # --- Inference ------------------------------------------------------------
-
-  # Asymptotic test (rough approximation)
-  test_analytic <- lomad_test(fit, method = "analytic")
-  cat('\n--- Analytic p-values (', loc, ') ---\n')
-  print(test_analytic$p_values)
-
-  # Markov-chain bootstrap (fast)
-  test_mc <- lomad_test(fit, method = "mc", B = 1000, seed = 4721,
-                        verbose = TRUE)
-  cat('\n--- MC bootstrap p-values (', loc, ') ---\n')
-  print(test_mc$p_values)
-
-  # Full parametric bootstrap (use parallel cores to speed up)
-  test_boot <- lomad_test(fit, method = "boot", B = 1000, seed = 4721,
-                          ncores = parallel::detectCores() - 1,
-                          verbose = TRUE)
-  cat('\n--- Parametric bootstrap p-values (', loc, ') ---\n')
-  print(test_boot$p_values)
-  print(test_boot$expected)
-  print(test_boot$observed)
-
-  # Store results back
-  loc_results[[loc]]$blocks <- blocks
-  loc_results[[loc]]$fit    <- fit
-  loc_results[[loc]]$test_analytic <- test_analytic
-  loc_results[[loc]]$test_mc       <- test_mc
-  loc_results[[loc]]$test_boot     <- test_boot
+  # Store results
+  loc_results[[loc]]$blocks     <- blocks
+  loc_results[[loc]]$block_fits <- block_fits
 }
 
-# --- Summary table: p-values by location ------------------------------------
+# --- Rejection summary by location ------------------------------------------
 
-pval_summary <- function(results, test_slot) {
-  stats <- c('entry_rate', 'mean_run_length', 'frac_state', 'n_entries')
-  rows <- lapply(names(results), function(loc) {
-    pv <- results[[loc]][[test_slot]]$p_values
-    data.frame(
-      location = loc,
-      statistic = stats,
-      p_value   = signif(unlist(pv[stats]), 3),
-      row.names = NULL
-    )
-  })
-  bind_rows(rows) |>
-    pivot_wider(names_from = location, values_from = p_value)
-}
+rejection_summary <- bind_rows(lapply(names(loc_results), function(loc) {
+  bf <- loc_results[[loc]]$block_fits
+  if (is.null(bf)) return(NULL)
+  bind_rows(lapply(names(bf), function(nm) {
+    tst <- bf[[nm]]$tst
+    n_valid    <- sum(!is.na(tst$rejected))
+    n_rejected <- sum(tst$rejected, na.rm = TRUE)
+    data.frame(location = loc, block_id = nm,
+               n_valid = n_valid, n_rejected = n_rejected,
+               frac_rejected = n_rejected / n_valid,
+               detected = n_rejected > 0)
+  }))
+}))
 
-cat('\n========== P-value summary ==========\n')
-cat('\n-- Analytic --\n');   print(pval_summary(loc_results, 'test_analytic'))
-cat('\n-- MC bootstrap --\n'); print(pval_summary(loc_results, 'test_mc'))
-cat('\n-- Parametric bootstrap --\n'); print(pval_summary(loc_results, 'test_boot'))
+cat('\n========== Rejection summary ==========\n')
+print(rejection_summary, row.names = FALSE)
 
-# --- ggplot lomad-fit visualizations (BM1 and BS1) ---------------------------
+rejection_summary |>
+  group_by(location) |>
+  summarise(n_blocks = n(),
+            blocks_detected = sum(detected),
+            total_valid = sum(n_valid),
+            total_rejected = sum(n_rejected),
+            frac_rejected = total_rejected / total_valid,
+            .groups = "drop") |>
+  print()
+
+# --- ggplot lomad-fit visualizations -----------------------------------------
 
 library(patchwork)
 
-# Assemble per-location data frames from loc_results for ggplot rendering.
-# Returns main time-series data, shading intervals, trigger points, and the
-# BY-corrected correlation threshold.
 make_lomad_plot_data <- function(loc_name, results) {
-  loc   <- results[[loc_name]]
-  fit   <- loc$fit
-  h     <- fit$null_model$h
-  x_eff <- fit$thresholds$x_eff
+  loc <- results[[loc_name]]
+  bf  <- loc$block_fits
 
   block_dfs    <- list()
   shade_list   <- list()
@@ -160,42 +149,44 @@ make_lomad_plot_data <- function(loc_name, results) {
     tibble(block_id = bid, xmin = dates[ds], xmax = dates[de], panel = panel_label)
   }
 
-  for (nm in names(fit$blocks)) {
+  for (nm in names(bf)) {
     presm <- loc$blocks_presm[[nm]]
-    blk   <- fit$blocks[[nm]]
+    fit   <- bf[[nm]]$fit
+    tst   <- bf[[nm]]$tst
     n     <- nrow(presm)
     dates <- presm$datetime
-    I     <- blk$I
-    valid <- blk$valid_idx
     bid   <- presm$block_id[[1]]
+    h     <- fit$inputs$h
+
+    rejected <- tst$rejected
+    rejected[is.na(rejected)] <- FALSE
 
     block_dfs[[nm]] <- tibble(
-      datetime  = dates,
-      block_id  = bid,
-      o2        = loc$blocks[[nm]]$x1,
-      ph        = loc$blocks[[nm]]$x2,
-      ma1       = blk$ma1,
-      ma2       = blk$ma2,
-      trend_hat = blk$trend_hat,
-      R         = blk$R,
-      I         = I
+      datetime = dates,
+      block_id = bid,
+      o2       = loc$blocks[[nm]]$x1,
+      ph       = loc$blocks[[nm]]$x2,
+      ma1      = fit$ma1,
+      ma2      = fit$ma2,
+      R        = fit$R,
+      rho      = fit$rho,
+      rejected = rejected
     )
 
-    # Back-shifted shading for upper panel (expand each detected point t back
-    # to [t-(h-1), t] to align with the data window that drove the detection)
-    I_shifted <- rep(FALSE, n)
-    for (t in which(!is.na(I) & I == 1L))
-      I_shifted[max(1L, t - (h - 1L)):t] <- TRUE
+    # Back-shifted shading for upper panel
+    rej_shifted <- rep(FALSE, n)
+    for (t in which(rejected))
+      rej_shifted[max(1L, t - (h - 1L)):t] <- TRUE
 
-    shade_list[[paste0(nm, '_up')]] <- add_shade(I_shifted, dates, bid, 'upper')
-    # Lower panel shading: no back-shift, just where R actually crossed threshold
-    shade_list[[paste0(nm, '_lo')]] <- add_shade(!is.na(I) & I == 1L, dates, bid, 'lower')
+    shade_list[[paste0(nm, '_up')]] <- add_shade(rej_shifted, dates, bid, 'upper')
+    shade_list[[paste0(nm, '_lo')]] <- add_shade(rejected, dates, bid, 'lower')
 
-    # Trigger points: left edge of the back-shifted window for each new episode
-    I_v       <- I[valid]
-    m2        <- length(I_v)
-    entry_pos <- which(I_v == 1L & c(0L, I_v[-m2]) != 1L)
-    trig_t    <- pmax(1L, valid[entry_pos] - (h - 1L))
+    # Trigger points
+    r_rej     <- rle(rejected)
+    en_rej    <- cumsum(r_rej$lengths)
+    st_rej    <- en_rej - r_rej$lengths + 1L
+    entry_pos <- st_rej[r_rej$values]
+    trig_t    <- pmax(1L, entry_pos - (h - 1L))
     if (length(trig_t) > 0)
       trigger_list[[nm]] <- tibble(block_id = bid, datetime = dates[trig_t])
   }
@@ -203,8 +194,7 @@ make_lomad_plot_data <- function(loc_name, results) {
   list(
     main     = bind_rows(block_dfs),
     shade    = bind_rows(shade_list),
-    triggers = bind_rows(trigger_list),
-    x_eff    = x_eff
+    triggers = bind_rows(trigger_list)
   )
 }
 
@@ -213,19 +203,16 @@ make_lomad_ggplot <- function(pd, title_str) {
   shade_lo  <- pd$shade |> filter(panel == 'lower')
   shade_col <- rgb(0.7, 0.85, 1, 0.4)
 
-  # Upper panel: raw series (transparent), smoothed MA lines, shared trend,
-  # back-shifted decoupling shading, and dashed trigger-point lines
   p_up <- ggplot(pd$main, aes(x = datetime)) +
     geom_rect(data = shade_up, inherit.aes = FALSE,
               aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
               fill = shade_col) +
     geom_vline(data = pd$triggers, aes(xintercept = datetime),
                color = 'grey50', linetype = 'dashed', linewidth = 0.5) +
-    geom_line(aes(y = o2),        color = rgb(0, 0, 1, 0.2)) +
-    geom_line(aes(y = ph),        color = rgb(1, 0, 0, 0.2)) +
-    # geom_line(aes(y = trend_hat), color = rgb(0.4, 0.4, 0.4, 0.8), linewidth = 0.2) +
-    geom_line(aes(y = ma1),       color = 'blue', linewidth = 0.3) +
-    geom_line(aes(y = ma2),       color = 'red',  linewidth = 0.3) +
+    geom_line(aes(y = o2), color = rgb(0, 0, 1, 0.2)) +
+    geom_line(aes(y = ph), color = rgb(1, 0, 0, 0.2)) +
+    geom_line(aes(y = ma1), color = 'blue', linewidth = 0.3) +
+    geom_line(aes(y = ma2), color = 'red',  linewidth = 0.3) +
     facet_grid(~block_id, scales = 'free_x', space = 'free_x') +
     scale_x_datetime(breaks = function(x) mean(x), date_labels = '%b %Y') +
     ggthm +
@@ -234,14 +221,13 @@ make_lomad_ggplot <- function(pd, title_str) {
           strip.text   = element_text(size = 7)) +
     labs(x = NULL, y = 'series', title = title_str)
 
-  # Lower panel: rolling correlation with BY-corrected threshold
-  p_lo <- ggplot(pd$main, aes(x = datetime, y = R)) +
+  p_lo <- ggplot(pd$main, aes(x = datetime)) +
     geom_rect(data = shade_lo, inherit.aes = FALSE,
               aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
               fill = shade_col) +
-    geom_hline(yintercept = 0,        color = 'grey80', linewidth = 0.3) +
-    geom_hline(yintercept = pd$x_eff, color = 'grey30', linetype = 'dashed') +
-    geom_line(color = 'grey40') +
+    geom_hline(yintercept = 0, color = 'grey80', linewidth = 0.3) +
+    geom_line(aes(y = R),   color = 'grey40') +
+    geom_line(aes(y = rho), color = 'grey30', linetype = 'dashed') +
     facet_grid(~block_id, scales = 'free_x', space = 'free_x') +
     scale_x_datetime(breaks = function(x) mean(x), date_labels = '%b %Y') +
     ggthm +
@@ -249,20 +235,14 @@ make_lomad_ggplot <- function(pd, title_str) {
           strip.text  = element_blank()) +
     labs(x = NULL, y = 'correlation')
 
-  # p_up / p_lo + plot_layout(heights = c(2, 1))
-  p_up
+  p_up / p_lo + plot_layout(heights = c(2, 1))
 }
 
-pd_bm1  <- make_lomad_plot_data('BM1', loc_results)
-pd_bs1  <- make_lomad_plot_data('BS1', loc_results)
-
-plt_bm1 <- make_lomad_ggplot(pd_bm1, 'BM1 \u2013 lomad fit')
-plt_bs1 <- make_lomad_ggplot(pd_bs1, 'BS1 \u2013 lomad fit')
-
-wrap_elements(plt_bm1) / wrap_elements(plt_bs1)
-
-ggsave(paste0(img_out, '/BM1-lomad-fit.pdf'), plt_bm1, width = 16, height = 5)
-ggsave(paste0(img_out, '/BS1-lomad-fit.pdf'), plt_bs1, width = 16, height = 5)
-
-print(plt_bm1)
-print(plt_bs1)
+# Generate ggplots for each location
+for (loc in names(loc_results)) {
+  if (is.null(loc_results[[loc]]$block_fits)) next
+  pd  <- make_lomad_plot_data(loc, loc_results)
+  plt <- make_lomad_ggplot(pd, paste0(loc, ' - lomad fit (CLT, ARMA noise)'))
+  ggsave(paste0(img_out, '/', loc, '-lomad-fit.png'), plt, width = 12, height = 3)
+  print(plt)
+}

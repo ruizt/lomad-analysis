@@ -15,7 +15,7 @@ set -euo pipefail
 LOCAL_DIR="${1:-dev/sims/validation/results/raw}"
 ACCESSOR_YAML="dev/sims/validation/tide/accessor.yaml"
 POD_NAME="lomad-valid-fetch"
-NAMESPACE="cal-poly-lomad"
+NAMESPACE="cal-poly-ruiz"
 
 echo "=== lomad validation: fetch results from PVC ==="
 echo "Destination: ${LOCAL_DIR}"

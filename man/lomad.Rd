@@ -4,35 +4,21 @@
 \alias{lomad}
 \title{Detect and test local correlation decoupling}
 \usage{
-lomad(
-  x1,
-  x2,
-  method = c("clt", "state"),
-  test_method = NULL,
-  alpha = 0.05,
-  ...
-)
+lomad(x1, x2, alpha = 0.05, ...)
 }
 \arguments{
 \item{x1}{Numeric vector. First time series.}
 
 \item{x2}{Numeric vector. Second time series, same length as \code{x1}.}
 
-\item{method}{Character. Inference pipeline: \code{"clt"} (default, paper
-method) or \code{"state"} (legacy). Passed to \code{\link[=lomad_fit]{lomad_fit()}}.}
-
-\item{test_method}{Character or NULL. Test method within the pipeline.
-If \code{NULL}, auto-selected: CLT fits use the pointwise Z-test; state fits
-use \code{"boot"}. Passed to \code{\link[=lomad_test]{lomad_test()}}.}
-
 \item{alpha}{Numeric. FDR level (default 0.05).}
 
-\item{...}{Additional arguments passed to \code{\link[=lomad_fit]{lomad_fit()}} and/or
-\code{\link[=lomad_test]{lomad_test()}} (e.g. \code{h}, \code{s}, \code{lag_max}, \code{B}, \code{seed}, \code{ncores}).}
+\item{...}{Additional arguments passed to \code{\link[=lomad_fit]{lomad_fit()}} (e.g. \code{h}, \code{s},
+\code{lag_max}, \code{noise_method}, \code{noise_override}).}
 }
 \value{
-A list combining the output of \code{\link[=lomad_fit]{lomad_fit()}} and \code{\link[=lomad_test]{lomad_test()}}.
-The fit is stored as \verb{$fit} and the test as \verb{$test}.
+A list with elements \verb{$fit} (\code{\link[=lomad_fit]{lomad_fit()}} result) and \verb{$test}
+(\code{\link[=lomad_test]{lomad_test()}} result).
 }
 \description{
 Convenience wrapper that calls \code{\link[=lomad_fit]{lomad_fit()}} followed by \code{\link[=lomad_test]{lomad_test()}}.

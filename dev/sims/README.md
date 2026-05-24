@@ -77,13 +77,13 @@ Each study's `tide/` directory contains:
 
 ``` bash
 # 1. Create the PVC (once per study)
-kubectl apply -n cal-poly-lomad -f dev/sims/<study>/tide/pvc.yaml
+kubectl apply -n cal-poly-ruiz -f dev/sims/<study>/tide/pvc.yaml
 
 # 2. Submit jobs (creates ConfigMap + parallel Jobs)
 bash dev/sims/<study>/tide/submit_sweep.sh
 
 # 3. Monitor
-kubectl get jobs -n cal-poly-lomad -l app=<study-label>
+kubectl get jobs -n cal-poly-ruiz -l app=<study-label>
 
 # 4. Fetch results
 bash dev/sims/<study>/tide/fetch.sh
@@ -92,8 +92,8 @@ bash dev/sims/<study>/tide/fetch.sh
 Rscript dev/sims/<study>/tide/collect.R
 
 # 6. Clean up
-kubectl delete jobs -n cal-poly-lomad -l app=<study-label>
-kubectl delete -n cal-poly-lomad -f dev/sims/<study>/tide/pvc.yaml
+kubectl delete jobs -n cal-poly-ruiz -l app=<study-label>
+kubectl delete -n cal-poly-ruiz -f dev/sims/<study>/tide/pvc.yaml
 ```
 
 ### Local testing with Docker

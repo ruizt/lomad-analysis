@@ -128,13 +128,13 @@ This creates the PVC, submits one job per *d* value (with the ConfigMap), polls 
 
 ``` bash
 # 1. Create PVC (once)
-kubectl apply -n cal-poly-lomad -f dev/sims/calibration/tide/pvc.yaml
+kubectl apply -n cal-poly-ruiz -f dev/sims/calibration/tide/pvc.yaml
 
 # 2. Submit all d values (creates ConfigMap + Jobs)
 bash dev/sims/calibration/tide/submit_sweep.sh
 
 # 3. Monitor until all jobs show Complete
-kubectl get jobs -n cal-poly-lomad -l app=lomad-calib
+kubectl get jobs -n cal-poly-ruiz -l app=lomad-calib
 
 # 4. Fetch results from PVC to local
 bash dev/sims/calibration/tide/fetch.sh
@@ -143,21 +143,21 @@ bash dev/sims/calibration/tide/fetch.sh
 Rscript dev/sims/calibration/tide/collect.R
 
 # 6. Clean up
-kubectl delete jobs -n cal-poly-lomad -l app=lomad-calib
-kubectl delete -n cal-poly-lomad -f dev/sims/calibration/tide/pvc.yaml
+kubectl delete jobs -n cal-poly-ruiz -l app=lomad-calib
+kubectl delete -n cal-poly-ruiz -f dev/sims/calibration/tide/pvc.yaml
 ```
 
 #### Monitoring and debugging
 
 ``` bash
 # Job status
-kubectl get jobs -n cal-poly-lomad -l app=lomad-calib
+kubectl get jobs -n cal-poly-ruiz -l app=lomad-calib
 
 # Container logs for a specific d
-kubectl logs -n cal-poly-lomad job/lomad-calib-d0-5
+kubectl logs -n cal-poly-ruiz job/lomad-calib-d0-5
 
 # Detailed events and error info
-kubectl describe job -n cal-poly-lomad lomad-calib-d0-5
+kubectl describe job -n cal-poly-ruiz lomad-calib-d0-5
 ```
 
 #### Tips

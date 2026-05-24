@@ -4,17 +4,12 @@
 \alias{lomad_plot}
 \title{Plot detected decoupling periods from a lomad fit}
 \usage{
-lomad_plot(fit, tst = NULL, x1 = NULL, x2 = NULL, dates = NULL, alpha = 0.25)
+lomad_plot(fit, tst, dates = NULL, alpha = 0.25)
 }
 \arguments{
 \item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}}.}
 
-\item{tst}{List returned by \code{\link[=lomad_test]{lomad_test()}} (required for CLT fits, ignored
-for state fits).}
-
-\item{x1}{Numeric vector. First raw series (state fits only).}
-
-\item{x2}{Numeric vector. Second raw series (state fits only).}
+\item{tst}{List returned by \code{\link[=lomad_test]{lomad_test()}}.}
 
 \item{dates}{Optional vector of dates or axis labels.}
 
@@ -24,16 +19,8 @@ for state fits).}
 Invisibly returns \code{NULL}. Called for its side effect (base R plot).
 }
 \description{
-Two-panel base R plot. The upper panel shows the smoothed series with shaded
-regions marking detected decoupling periods. The lower panel shows the
-rolling correlation series.
-}
-\details{
-For CLT fits, the upper panel plots the MA-smoothed series (\code{ma1}, \code{ma2})
-and shared trend, with shading where \code{tst$rejected} is \code{TRUE}. The lower
-panel plots \code{R_t} with theoretical \code{rho_t} as a dashed reference.
-
-For legacy state fits, the upper panel plots raw series \code{x1}, \code{x2} with
-the MA lines overlaid, and the lower panel shows \code{R_t} with the
-BY-corrected Fisher-z threshold.
+Two-panel base R plot. The upper panel shows the MA-smoothed series
+(\code{ma1}, \code{ma2}) and shared trend, with shading where \code{tst$rejected} is
+\code{TRUE}. The lower panel plots the rolling correlation \code{R_t} with
+theoretical \code{rho_t} as a dashed reference.
 }

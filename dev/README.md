@@ -19,12 +19,13 @@ pick them up.
 
 ```
 dev/
-├── notebooks/    # Quarto notebooks for simulation studies and analysis
-├── scripts/      # Standalone R scripts for prototyping and exploration
-└── simulation/   # Power study infrastructure (see simulation-study.md)
+├── sims/             # Simulation studies (calibration, power, Tide HPC scaffolding)
+├── mb-analysis/      # Morro Bay field data analysis
+├── scripts/          # Standalone R scripts for prototyping and exploration
+└── legacy-sunset.md  # Record of legacy code removal (completed 2026-05-24)
 ```
 
-See `simulation-study.md` for a full description of the simulation study design and the expected contents of `dev/simulation/`.
+See `dev/sims/README.md` for the simulation infrastructure and Tide workflow.
 
 ## Keeping files out of version control
 

@@ -4,8 +4,8 @@
 # .variogram_ar()     — general AR(p) from multi-lag variogram + Yule-Walker
 # .yule_walker()      — solve Yule-Walker equations
 # .fit_arma()         — AIC-based ARMA fitting (retained for future use)
-# .select_arma()      — AIC-based ARMA order selection (used by legacy lomad pipeline)
-# .smooth_noise_var() — variance of MA-smoothed noise process
+# .select_arma()      — AIC-based ARMA order selection (used by lomad_test_identity)
+# .smooth_noise_var() — variance of MA-smoothed noise process (used by lomad_test_identity)
 
 
 # AR(1) estimation from the lag-1 and lag-2 variogram.

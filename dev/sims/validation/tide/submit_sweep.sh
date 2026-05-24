@@ -9,7 +9,7 @@
 #   var-s150                      (Figure 2: V accuracy)
 #   e2e-s150                      (Figure 3: end-to-end pipeline)
 
-NAMESPACE="cal-poly-lomad"
+NAMESPACE="cal-poly-ruiz"
 SIM_SEED=7291
 IMAGE="ghcr.io/ruizt/lomad-sims:latest"
 CONFIGMAP="lomad-valid-script"

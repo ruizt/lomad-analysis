@@ -54,11 +54,7 @@ Detection rate (mean of `detected` across replicates) is the primary power metri
 - **p_adj**: BY-adjusted p-values
 - **rejected**: logical rejection vector
 
-The series data supports future localization analysis (e.g., evaluating how precisely the test delineates divergent regions). Sensitivity, specificity, and FDR can be computed post hoc at any coupling weight threshold via `calibrate_threshold()` in `template.R`, but these are not included in the primary results because:
-
-1. The ground truth is continuous (*w* transitions gradually for structured methods), making any binary threshold arbitrary.
-2. FDR is mechanically sensitive to the threshold choice, while sensitivity and specificity are stable but conflate inferential and localization performance.
-3. The effective detection boundary in *w*-space shifts with *d* (at large *d*, the test detects even mild decoupling).
+The series data supports future localization analysis (e.g., evaluating how precisely the test delineates divergent regions). 
 
 ## Oracle comparison
 

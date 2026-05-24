@@ -1,4 +1,4 @@
-# Tests for lomad(), lomad_fit(method="clt"), lomad_test()
+# Tests for lomad(), lomad_fit(), lomad_test()
 # Primarily structural tests — statistical calibration is handled by
 # simulation studies in dev/sims/.
 

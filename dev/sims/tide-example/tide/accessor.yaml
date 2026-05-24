@@ -7,15 +7,15 @@
 #   bash dev/sims/tide-example/tide/fetch.sh
 #
 # If you need to inspect the PVC interactively:
-#   kubectl apply -n cal-poly-lomad -f dev/sims/tide-example/tide/accessor.yaml
-#   kubectl exec -n cal-poly-lomad -it mvn-fetch -- sh
-#   kubectl delete -n cal-poly-lomad pod mvn-fetch
+#   kubectl apply -n cal-poly-ruiz -f dev/sims/tide-example/tide/accessor.yaml
+#   kubectl exec -n cal-poly-ruiz -it mvn-fetch -- sh
+#   kubectl delete -n cal-poly-ruiz pod mvn-fetch
 
 apiVersion: v1
 kind: Pod
 metadata:
   name: mvn-fetch
-  namespace: cal-poly-lomad
+  namespace: cal-poly-ruiz
   labels:
     app: mvn-fetch
 spec:

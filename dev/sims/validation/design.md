@@ -188,13 +188,13 @@ complete, and fetches results to `results/raw/`.
 
 ```bash
 # 1. Create PVC (once)
-kubectl apply -n cal-poly-lomad -f dev/sims/validation/tide/pvc.yaml
+kubectl apply -n cal-poly-ruiz -f dev/sims/validation/tide/pvc.yaml
 
 # 2. Submit all experiments (creates ConfigMap + Jobs)
 bash dev/sims/validation/tide/submit_sweep.sh
 
 # 3. Monitor until all jobs show Complete
-kubectl get jobs -n cal-poly-lomad -l app=lomad-valid
+kubectl get jobs -n cal-poly-ruiz -l app=lomad-valid
 
 # 4. Fetch results from PVC to local
 bash dev/sims/validation/tide/fetch.sh
@@ -203,21 +203,21 @@ bash dev/sims/validation/tide/fetch.sh
 Rscript dev/sims/validation/tide/collect.R
 
 # 6. Clean up
-kubectl delete jobs -n cal-poly-lomad -l app=lomad-valid
-kubectl delete -n cal-poly-lomad -f dev/sims/validation/tide/pvc.yaml
+kubectl delete jobs -n cal-poly-ruiz -l app=lomad-valid
+kubectl delete -n cal-poly-ruiz -f dev/sims/validation/tide/pvc.yaml
 ```
 
 #### Monitoring and debugging
 
 ```bash
 # Job status
-kubectl get jobs -n cal-poly-lomad -l app=lomad-valid
+kubectl get jobs -n cal-poly-ruiz -l app=lomad-valid
 
 # Container logs for a specific experiment
-kubectl logs -n cal-poly-lomad job/lomad-valid-clt-s80
+kubectl logs -n cal-poly-ruiz job/lomad-valid-clt-s80
 
 # Detailed events and error info
-kubectl describe job -n cal-poly-lomad lomad-valid-clt-s80
+kubectl describe job -n cal-poly-ruiz lomad-valid-clt-s80
 ```
 
 #### Tips

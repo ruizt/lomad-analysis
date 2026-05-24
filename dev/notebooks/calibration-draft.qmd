@@ -121,3 +121,91 @@ hist(lambda1,
 hist(lambda2, main = "lambda 2", 
      breaks = 50)
 ```
+
+
+## Approach 2 
+
+```{r}
+# theoretical smoothed trend over same q window length
+trend_sm_true <- stats::filter(sim$x1, rep(1/q, q), sides = 1)
+
+# theoretical vairance of smoothed trend
+tau2_t_theory <- zoo::rollapply(
+  trend_sm_true,
+  width = h,
+  FUN = var,
+  align = "right",
+  fill = NA
+)
+
+#arma parameters from noise process
+ar1 <- sim$noise$series1$ar
+ma1_coef <- sim$noise$series1$ma
+innov_var1 <- sim$noise$series1$sigma^2
+
+ar2 <- sim$noise$series2$ar
+ma2_coef <- sim$noise$series2$ma
+innov_var2 <- sim$noise$series2$sigma^2
+
+# noise autocovariance computation
+lag_max <- 200
+# gammaZ = vector of noise autocovariances
+gammaZ1 <- stats::ARMAacf(ar = ar1, ma = ma1_coef, lag.max = lag_max) * innov_var1
+gammaZ2 <- stats::ARMAacf(ar = ar2, ma = ma2_coef, lag.max = lag_max) * innov_var2
+
+# smoothing noise autocovariance
+# smoothed-noise covariance as the double sum over the autocovariance.
+gamma_eta_at_lag <- function(gammaZ, lag, q) {
+  total <- 0
+  for (i in 0:(q - 1)) {
+    for (j in 0:(q - 1)) {
+      idx <- abs(lag + i - j) + 1
+      total <- total + gammaZ[idx]
+    }
+  }
+  total / q^2
+}
+
+gammaEta1 <- sapply(0:lag_max, function(L) gamma_eta_at_lag(gammaZ1, L, q))
+gammaEta2 <- sapply(0:lag_max, function(L) gamma_eta_at_lag(gammaZ2, L, q))
+
+# theoretical smoothed noise covariances
+sigma1_sq_theory <- gammaEta1[1]
+sigma2_sq_theory <- gammaEta2[1]
+
+# compute theoritical lambda values
+lambda1_theory <- tau2_t_theory / sigma1_sq_theory
+lambda2_theory <- tau2_t_theory / sigma2_sq_theory
+
+# correlation 
+rho_t_theory <- sqrt((lambda1_theory * lambda2_theory) /
+                     ((1 + lambda1_theory) * (1 + lambda2_theory)))
+
+# full probability calculation 
+n_eff_theory <- h
+z_t_theory <- sqrt(n_eff_theory) * (x_thresh - rho_t_theory)
+p_t_theory <- pnorm(z_t_theory)
+
+
+# lambdas check 
+summary(lambda1_theory)
+summary(lambda2_theory)
+
+hist(lambda1_theory, 
+     main = "Lambda 1 Theory",
+     breaks = 50) 
+
+# shows higher lambda 2 values unlike data based approach
+hist(lambda2_theory, main = "lambda 2 Theory", 
+     breaks = 50)
+
+```
+
+
+# Approach 1 vs 2 Rho
+
+```{r}
+# higher correlations shown with theoretical values approach 2
+plot(rho_t_theory, type = "l")
+plot(rho_t, type = "l")
+```

@@ -7,15 +7,11 @@
 lomad_fit(
   x1 = NULL,
   x2 = NULL,
-  method = c("clt", "state"),
-  noise_override = NULL,
   h = NULL,
   s = NULL,
-  lag_max = 100L,
-  q = NULL,
-  alpha = 0.05,
-  rho0 = 0,
-  max_pq = 2
+  noise_method = c("ar1", "arma"),
+  noise_override = NULL,
+  lag_max = 100L
 )
 }
 \arguments{
@@ -23,44 +19,42 @@ lomad_fit(
 
 \item{x2}{Numeric vector. Second time series, same length as \code{x1}.}
 
-\item{method}{Character. \code{"clt"} (default, paper method) or \code{"state"}
-(legacy state-process pipeline).}
+\item{h}{Integer or NULL. Smoothing window half-bandwidth. Auto-selected
+if \code{NULL}.}
 
-\item{noise_override}{Optional list with elements \code{ar}, \code{ma}, \code{sigma2}
-(CLT only). If supplied, these noise parameters are used directly instead
-of being estimated from the data. Useful for oracle experiments where the
-true noise process is known. May also be a list of two such lists (one per
-series).}
-
-\item{h}{Integer or NULL. Smoothing window width. Auto-selected if \code{NULL}.}
-
-\item{s}{Integer or NULL. Rolling correlation window length (CLT only).
+\item{s}{Integer or NULL. Rolling correlation window length.
 Auto-selected if \code{NULL}.}
 
-\item{lag_max}{Integer. Lag truncation for autocovariance sums (CLT only).
+\item{noise_method}{Character. Noise estimation method: \code{"ar1"} (default)
+uses variogram-based AR(1); \code{"arma"} uses BIC-selected AR(p) via
+\code{\link[=estimate_arma_noise]{estimate_arma_noise()}}. Ignored when \code{noise_override} is supplied.}
+
+\item{noise_override}{Optional list with elements \code{ar}, \code{ma} (optional),
+\code{sigma2}. If supplied, these noise parameters are used directly instead
+of being estimated from the data. Useful for oracle experiments or when
+noise is estimated externally (e.g. via \code{\link[=estimate_arma_noise]{estimate_arma_noise()}}). May
+also be a list of two such lists (one per series).}
+
+\item{lag_max}{Integer. Lag truncation for autocovariance sums.
 Default 100.}
-
-\item{q}{Integer or NULL. MA trend window (state only). Auto-selected if
-\code{NULL}.}
-
-\item{alpha}{Numeric. FDR level (state only, default 0.05).}
-
-\item{rho0}{Numeric. Null correlation (state only, default 0).}
-
-\item{max_pq}{Integer. Maximum ARMA order (state only, default 2).}
 }
 \value{
-A named list whose contents depend on \code{method}. All fit objects
-include a \verb{$method} field (\code{"clt"} or \code{"state"}) used by \code{\link[=lomad_test]{lomad_test()}}
-for automatic dispatch. See the internal implementations for full details.
+A named list with elements:
+\describe{
+\item{method}{Character \code{"clt"}.}
+\item{trend}{Shared trend estimate.}
+\item{ma1, ma2}{MA-smoothed series.}
+\item{noise}{Per-series noise parameter estimates.}
+\item{tau_sq, rho, V, R}{CLT quantities for inference.}
+\item{valid_idx}{Integer indices of time points with valid test stats.}
+\item{inputs}{List of input parameters (n, h, s, lag_max).}
+}
 }
 \description{
 Estimates quantities needed for inference on the local correlation between
-two time series. The default \code{method = "clt"} runs the paper's pipeline:
-MA trend estimation, variogram-based AR(1) noise fitting, and rolling
-computation of \eqn{R_t}, \eqn{\rho_t}, and \eqn{V_t}. The legacy
-\code{method = "state"} fits a state-process model with ARMA noise and
-Fisher-z thresholding.
+two time series. Runs the CLT pipeline: MA trend estimation, noise
+fitting, and rolling computation of \eqn{R_t}, \eqn{\rho_t},
+and \eqn{V_t}.
 }
 \seealso{
 \code{\link[=lomad_test]{lomad_test()}}, \code{\link[=lomad]{lomad()}}, \code{\link[=lomad_plot]{lomad_plot()}}

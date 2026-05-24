@@ -86,7 +86,7 @@ This means you can update a simulation script without rebuilding the image. The 
 Before starting, make sure you have:
 
 -   [ ] `kubectl` installed and configured to talk to the Tide cluster
--   [ ] Access to the `cal-poly-lomad` namespace
+-   [ ] Access to the `cal-poly-ruiz` namespace
 
 The Nautilus/NRP cluster documentation lives at <https://nrp.ai/documentation/>. The pages linked below are the most relevant; refer to the full docs for troubleshooting and advanced topics.
 
@@ -116,9 +116,9 @@ Follow the [Nautilus Getting Started](https://nrp.ai/documentation/userdocs/star
 ``` bash
 kubectl version --client               # kubectl installed?
 kubectl get nodes                      # kubelogin working? (opens browser)
-kubectl get ns cal-poly-lomad          # namespace exists?
+kubectl get ns cal-poly-ruiz          # namespace exists?
 kubectl auth can-i create jobs \
-  -n cal-poly-lomad                    # permission to submit jobs?
+  -n cal-poly-ruiz                    # permission to submit jobs?
 ```
 
 ------------------------------------------------------------------------
@@ -147,13 +147,13 @@ You should see coverage rates near 95% for every `n`. If something is wrong, fix
 The PVC is shared storage where all jobs write their output. Each simulation study needs its own PVC (with a different name), but you only create it **once** — it persists on the cluster until you explicitly delete it.
 
 ``` bash
-kubectl apply -n cal-poly-lomad -f dev/sims/tide-example/tide/pvc.yaml
+kubectl apply -n cal-poly-ruiz -f dev/sims/tide-example/tide/pvc.yaml
 ```
 
 Verify it exists:
 
 ``` bash
-kubectl get pvc -n cal-poly-lomad mvn-example-results
+kubectl get pvc -n cal-poly-ruiz mvn-example-results
 ```
 
 We use `rook-cephfs-tide` (CephFS) because multiple jobs write to the PVC simultaneously, which requires `ReadWriteMany`. The default storage class (`rook-ceph-block`) is `ReadWriteOnce` and would fail when a second job tries to mount. See the [Nautilus storage docs](https://nrp.ai/documentation/userdocs/storage/ceph/) for all available storage classes.
@@ -177,13 +177,13 @@ This does two things:
 
 ``` bash
 # Check job status (look for "Complete" in the COMPLETIONS column)
-kubectl get jobs -n cal-poly-lomad -l app=mvn-example
+kubectl get jobs -n cal-poly-ruiz -l app=mvn-example
 
 # Watch a specific job's logs
-kubectl logs -n cal-poly-lomad job/mvn-example-n30
+kubectl logs -n cal-poly-ruiz job/mvn-example-n30
 
 # If something went wrong, describe the job for events and error details
-kubectl describe job -n cal-poly-lomad mvn-example-n30
+kubectl describe job -n cal-poly-ruiz mvn-example-n30
 ```
 
 Wait until all four jobs show `1/1` in the COMPLETIONS column.
@@ -222,10 +222,10 @@ When you're done, delete the jobs and (optionally) the PVC:
 
 ``` bash
 # Delete all jobs from this example
-kubectl delete jobs -n cal-poly-lomad -l app=mvn-example
+kubectl delete jobs -n cal-poly-ruiz -l app=mvn-example
 
 # Delete the PVC (removes the stored results from the cluster)
-kubectl delete -n cal-poly-lomad -f dev/sims/tide-example/tide/pvc.yaml
+kubectl delete -n cal-poly-ruiz -f dev/sims/tide-example/tide/pvc.yaml
 ```
 
 ------------------------------------------------------------------------
@@ -235,7 +235,7 @@ kubectl delete -n cal-poly-lomad -f dev/sims/tide-example/tide/pvc.yaml
 | Symptom | Likely cause | Fix |
 |-----------------------|---------------------------------|-----------------|
 | Job stuck in `Pending` | Image can't be pulled | Check image name in `submit_sweep.sh`; verify the ghcr.io package is public |
-| Job fails immediately | R error in `sim.R` | `kubectl logs -n cal-poly-lomad job/<name>` to see the error |
+| Job fails immediately | R error in `sim.R` | `kubectl logs -n cal-poly-ruiz job/<name>` to see the error |
 | `fetch.sh` times out | Accessor pod can't start | Check PVC name matches in `accessor.yaml` |
 | No `.rds` files after fetch | Jobs haven't finished yet | `kubectl get jobs` — wait for COMPLETIONS = 1/1 |
 | Coverage far from 95% | Bug in `run_rep()` | Run `template.R` locally to debug |

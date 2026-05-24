@@ -120,7 +120,7 @@ simulation infrastructure.
 ```
 lomad/
 ├── R/                     # Package source (themed: sim_*, estimate_*, lomad_*, utils-*)
-├── tests/testthat/        # Unit tests (150 tests, themed by module)
+├── tests/testthat/        # Unit tests (141 tests, themed by module)
 ├── man/                   # Auto-generated documentation
 ├── dev/
 │   ├── sims/              # Simulation studies + Tide HPC scaffolding

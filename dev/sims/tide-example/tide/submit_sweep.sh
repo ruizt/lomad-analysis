@@ -8,7 +8,7 @@
 # (e.g. n10.rds, n30.rds, n100.rds, n500.rds).
 # Collect after all jobs complete with tide/collect.R.
 
-NAMESPACE="cal-poly-lomad"
+NAMESPACE="cal-poly-ruiz"
 N_VALUES=(10 30 100 500)
 SIM_S=200
 SIM_SEED=7291

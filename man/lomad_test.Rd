@@ -4,51 +4,27 @@
 \alias{lomad_test}
 \title{Test for local correlation decoupling}
 \usage{
-lomad_test(
-  fit,
-  method = NULL,
-  alpha = 0.05,
-  B = 500,
-  seed = NULL,
-  ncores = 1L,
-  verbose = FALSE,
-  T_sim = NULL,
-  T_eff = NULL
-)
+lomad_test(fit, alpha = 0.05)
 }
 \arguments{
 \item{fit}{List returned by \code{\link[=lomad_fit]{lomad_fit()}}.}
 
-\item{method}{Character or NULL. Test method to use. If \code{NULL} (default),
-auto-dispatches based on \code{fit$method}: CLT fits use the pointwise Z-test;
-state fits default to \code{"boot"}. For state fits, can be \code{"boot"}, \code{"mc"},
-or \code{"analytic"}.}
-
-\item{alpha}{Numeric. FDR level for BY correction (CLT, default 0.05).}
-
-\item{B}{Integer. Bootstrap replicates (boot/mc, default 500).}
-
-\item{seed}{Integer or NULL. RNG seed (boot/mc).}
-
-\item{ncores}{Integer. Parallel cores for boot (default 1).}
-
-\item{verbose}{Logical. Progress bar for boot/mc (default FALSE).}
-
-\item{T_sim}{Integer or NULL. Simulated chain length (mc only).}
-
-\item{T_eff}{Integer or NULL. Effective chain length (analytic only).}
+\item{alpha}{Numeric. FDR level for BY correction (default 0.05).}
 }
 \value{
-A named list whose contents depend on the test method. See
-\code{.lomad_test_clt}, \code{.lomad_test_boot}, \code{.lomad_test_mc}, or
-\code{.lomad_test_analytic} for details.
+A named list with elements:
+\describe{
+\item{Z}{Numeric vector of Z-statistics (NA outside valid indices).}
+\item{p_values}{Raw p-values.}
+\item{p_adj}{BY-adjusted p-values.}
+\item{rejected}{Logical vector of rejections.}
+\item{alpha_eff}{Effective significance level after BY correction.}
+}
 }
 \description{
 Given the output of \code{\link[=lomad_fit]{lomad_fit()}}, tests whether the local sample
-correlation is significantly below the estimated population correlation.
-For CLT fits (the paper method), runs the BY-corrected pointwise Z-test
-automatically. For legacy state fits, dispatches to \code{"boot"}, \code{"mc"}, or
-\code{"analytic"} test methods.
+correlation is significantly below the estimated population correlation
+using the BY-corrected pointwise Z-test.
 }
 \seealso{
 \code{\link[=lomad_fit]{lomad_fit()}}, \code{\link[=lomad]{lomad()}}

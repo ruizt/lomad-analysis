@@ -21,7 +21,7 @@ set -euo pipefail
 LOCAL_DIR="${1:-dev/sims/calibration/results/raw}"
 ACCESSOR_YAML="dev/sims/calibration/tide/accessor.yaml"
 POD_NAME="lomad-fetch"
-NAMESPACE="cal-poly-lomad"
+NAMESPACE="cal-poly-ruiz"
 
 echo "=== lomad calibration: fetch results from PVC ==="
 echo "Destination: ${LOCAL_DIR}"
