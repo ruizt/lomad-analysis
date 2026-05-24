@@ -19,10 +19,16 @@ pick them up.
 
 ```
 dev/
-├── sims/             # Simulation studies (calibration, power, Tide HPC scaffolding)
-├── mb-analysis/      # Morro Bay field data analysis
-├── scripts/          # Standalone R scripts for prototyping and exploration
-└── legacy-sunset.md  # Record of legacy code removal (completed 2026-05-24)
+├── sims/                   # Simulation studies + Tide HPC scaffolding
+│   ├── calibration/        # CLT test calibration (type I error)
+│   ├── power/              # Power curves across trend structures
+│   ├── validation/         # Validation of CLT approximation
+│   └── tide-example/       # Minimal MVN example for learning the Tide workflow
+├── mb-analysis/            # Morro Bay field data analysis (CLT + ARMA noise)
+├── numerical-validation/   # End-to-end numerical validation scripts
+├── notebooks/              # Quarto notebooks for exploratory analysis
+├── scripts/                # Standalone R scripts for prototyping
+└── example-data/           # Example datasets
 ```
 
 See `dev/sims/README.md` for the simulation infrastructure and Tide workflow.
