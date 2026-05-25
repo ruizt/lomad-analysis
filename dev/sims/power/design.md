@@ -155,10 +155,13 @@ kubectl get jobs -n cal-poly-ruiz -l app=lomad-power
 # 4. Fetch results
 bash dev/sims/power/tide/fetch.sh
 
-# 5. Assemble summary and plot
+# 5. Assemble results from per-job files
 Rscript dev/sims/power/tide/collect.R
 
-# 6. Clean up
+# 6. Summarise and plot (local post-processing)
+Rscript dev/sims/power/postprocess.R
+
+# 7. Clean up
 kubectl delete jobs -n cal-poly-ruiz -l app=lomad-power
 kubectl delete -n cal-poly-ruiz -f dev/sims/power/tide/pvc.yaml
 ```
@@ -168,4 +171,5 @@ kubectl delete -n cal-poly-ruiz -f dev/sims/power/tide/pvc.yaml
 - Start with `SIM_S=20` to confirm everything works end-to-end.
 - Each parameter combination runs as a separate job. Jobs run in parallel on the cluster.
 - If you update `sim.R`, re-running `submit_sweep.sh` updates the ConfigMap automatically — no image rebuild needed.
-- Series files (`-series.rds`) are fetched alongside summary files but are not consumed by `collect.R`. Use them for localization analysis or threshold calibration.
+- `collect.R` assembles per-job `.rds` files into `results/results.rds`. `postprocess.R` reads that file, computes summaries, and writes power curve plots to `results/_img/`.
+- Series files (`-series.rds`) are fetched alongside summary files but are not consumed by either script. Use them for localization analysis or threshold calibration.

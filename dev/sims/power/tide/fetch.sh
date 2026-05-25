@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-LOCAL_DIR="${1:-dev/sims/power/results/raw}"
+LOCAL_DIR="${1:-dev/sims/power/results/_raw}"
 ACCESSOR_YAML="dev/sims/power/tide/accessor.yaml"
 POD_NAME="power-fetch"
 NAMESPACE="cal-poly-ruiz"
