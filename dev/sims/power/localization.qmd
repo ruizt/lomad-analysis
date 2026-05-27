@@ -1,0 +1,171 @@
+---
+title: "Localization Analysis"
+format: html
+execute:
+  root-dir: "../../../"
+---
+
+## Setup
+
+```{r}
+devtools::load_all("../../..")
+library(lomad)
+library(tidyverse)
+```
+
+## Load example data
+
+Favorable setting: high n, low phi, high SNR. Unfavorable setting: low n, low phi, low SNR.
+
+```{r}
+fav   <- readRDS("results/_simulations-power/_raw/smooth_d1-0_n600_snr1-5_phi0-3-series.rds")
+unfav <- readRDS("results/_simulations-power/_raw/smooth_d1-0_n200_snr0-5_phi0-3-series.rds")
+```
+
+## Inspect structure
+
+```{r}
+
+# Pull one replicate to prototype
+rep1 <- fav[[1]]
+
+h_win <- 5L
+n     <- length(fav[[1]]$w)
+
+pool_fav <- lapply(fav, function(rep) {
+  t_seq        <- rep$vi
+  window_max   <- sapply(t_seq, function(t) {
+    idx <- max(1, t - h_win):min(n, t + h_win)
+    max(abs(1 - rep$w[idx]))
+  })
+  data.frame(
+    window_max = window_max,
+    rejected   = rep$rejected[t_seq]
+  )
+}) |> dplyr::bind_rows()
+
+table(pool_fav$rejected)
+summary(pool_fav$window_max[pool_fav$rejected])
+summary(pool_fav$window_max[!pool_fav$rejected])
+```
+
+```{r}
+# FDR-like: distribution of window max by rejection status
+ggplot(pool_fav, aes(x = window_max, fill = rejected)) +
+  geom_density(alpha = 0.5) +
+  labs(x = "Window max |1 - w|", y = "Density",
+       title = "Ground truth by classification — favorable setting",
+       fill = "Rejected") +
+  theme_minimal()
+```
+
+```{r}
+# Sensitivity-like: P(rejected | max|1-w| > c) as a function of c
+c_grid <- seq(0, 1, by = 0.01)
+
+sens_curve <- sapply(c_grid, function(c) {
+  above <- pool_fav$window_max > c
+  if (sum(above) == 0) return(NA)
+  mean(pool_fav$rejected[above])
+})
+
+plot(c_grid, sens_curve, type = "l",
+     xlab = "Threshold c", ylab = "P(rejected | max|1-w| > c)",
+     main = "Sensitivity curve — favorable setting")
+abline(h = 0.05, lty = 2, col = "grey60")
+```
+
+```{r}
+n_unfav <- length(unfav[[1]]$w)
+
+pool_unfav <- lapply(unfav, function(rep) {
+  t_seq      <- rep$vi
+  window_max <- sapply(t_seq, function(t) {
+    idx <- max(1, t - h_win):min(n_unfav, t + h_win)
+    max(abs(1 - rep$w[idx]))
+  })
+  data.frame(window_max = window_max, rejected = rep$rejected[t_seq])
+}) |> dplyr::bind_rows()
+
+table(pool_unfav$rejected)
+```
+
+```{r}
+ggplot(pool_unfav, aes(x = window_max, fill = rejected)) +
+  geom_density(alpha = 0.5) +
+  labs(x = "Window max |1 - w|", y = "Density",
+       title = "Ground truth by classification — unfavorable setting",
+       fill = "Rejected") +
+  theme_minimal()
+```
+
+```{r}
+c_grid <- seq(0, 1, by = 0.01)
+
+sens_curve_unfav <- sapply(c_grid, function(c) {
+  above <- pool_unfav$window_max > c
+  if (sum(above) == 0) return(NA)
+  mean(pool_unfav$rejected[above])
+})
+
+plot(c_grid, sens_curve_unfav, type = "l",
+     xlab = "Threshold c", ylab = "P(rejected | max|1-w| > c)",
+     main = "Sensitivity curve — unfavorable setting")
+abline(h = 0.05, lty = 2, col = "grey60")
+```
+
+```{r}
+sens_df <- data.frame(
+  c       = rep(c_grid, 2),
+  p_reject = c(sens_curve, sens_curve_unfav),
+  setting = rep(c("Favorable (n=600, snr=1.5, phi=0.3)",
+                  "Unfavorable (n=200, snr=0.5, phi=0.3)"), each = length(c_grid))
+)
+
+ggplot(sens_df, aes(x = c, y = p_reject, colour = setting)) +
+  geom_line(linewidth = 0.9) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", colour = "grey60") +
+  scale_colour_manual(values = c("#0072B2", "#D55E00")) +
+  labs(x = "Threshold c", y = "P(rejected | max|1-w| > c)",
+       title = "Sensitivity curves — favorable vs unfavorable",
+       colour = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+null <- readRDS("results/_simulations-power/_raw/smooth_d0-0_n600_snr1-5_phi0-3-series.rds")
+
+pool_null <- lapply(null, function(rep) {
+  t_seq      <- rep$vi
+  window_max <- sapply(t_seq, function(t) {
+    idx <- max(1, t - h_win):min(n, t + h_win)
+    max(abs(1 - rep$w[idx]))
+  })
+  data.frame(window_max = window_max, rejected = rep$rejected[t_seq])
+}) |> dplyr::bind_rows()
+
+sens_curve_null <- sapply(c_grid, function(c) {
+  above <- pool_null$window_max > c
+  if (sum(above) == 0) return(NA)
+  mean(pool_null$rejected[above])
+})
+
+sens_df <- data.frame(
+  c        = rep(c_grid, 3),
+  p_reject = c(sens_curve, sens_curve_unfav, sens_curve_null),
+  setting  = rep(c("Favorable (n=600, snr=1.5, phi=0.3)",
+                   "Unfavorable (n=200, snr=0.5, phi=0.3)",
+                   "Null (d=0, n=600, snr=1.5, phi=0.3)"), each = length(c_grid))
+)
+
+ggplot(sens_df, aes(x = c, y = p_reject, colour = setting)) +
+  geom_line(linewidth = 0.9) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", colour = "grey60") +
+  scale_colour_manual(values = c("#0072B2", "#D55E00", "#009E73")) +
+  labs(x = "Threshold c", y = "P(rejected | max|1-w| > c)",
+       title = "Sensitivity curves",
+       colour = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
