@@ -18,8 +18,8 @@ library(tidyverse)
 Favorable setting: high n, low phi, high SNR. Unfavorable setting: low n, low phi, low SNR.
 
 ```{r}
-fav   <- readRDS("results/_simulations-power/_raw/smooth_d0-5_n600_snr1-5_phi0-3-series.rds")
-unfav <- readRDS("results/_simulations-power/_raw/smooth_d0-5_n600_snr0-5_phi0-3-series.rds")
+fav   <- readRDS("dev/sims/power/results/_raw/smooth_d0-5_n600_snr1-5_phi0-3-series.rds")
+unfav <- readRDS("dev/sims/power/results/_raw/smooth_d0-5_n600_snr0-5_phi0-3-series.rds")
 ```
 
 ## Inspect structure

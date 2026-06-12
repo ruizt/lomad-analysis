@@ -94,6 +94,7 @@ run_rep <- function(d, struct, seed) {
                          struct = struct, seed = seed,
                          detected = any(tst$rejected, na.rm = TRUE)),
     series = list(w = w,
+                  sep = abs(trends$x1 - trends$x2),
                   vi = fit$valid_idx,
                   p_raw = tst$p_values,
                   p_adj = tst$p_adj,
