@@ -92,7 +92,7 @@ Built by `simulations/simulation-figures.R`, not by this study, and written to
 ```         
 power/
 ├── design.md           ← you are here
-├── template.R          ← local illustration mirroring tide/sim.R; writes nothing
+├── simulation-template.R          ← local illustration mirroring tide/sim.R; writes nothing
 ├── explore-replicates.R ← four-panel walkthrough of one replicate per structure
 ├── collect-results.R           ← assembles fetched per-job files into compiled results + summary
 ├── localization-sweep.R ← threshold sweep over the -series.rds files (slow)
@@ -129,12 +129,12 @@ drift between the sweep and the smoke test.
 
 ### Local development
 
-Source `template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `collect-results.R` write into `results/`. See `explore-replicates.R` to watch the method work on a single replicate at each structure — the quickest way to build intuition before reading the grid results.
+Source `simulation-template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `collect-results.R` write into `results/`. See `explore-replicates.R` to watch the method work on a single replicate at each structure — the quickest way to build intuition before reading the grid results.
 
 To inspect a single replicate interactively:
 
 ``` r
-source("simulations/power/template.R")
+source("simulations/power/simulation-template.R")
 run_rep(d = 1.0, struct = "smooth", n = 500, phi = 0.5, snr = 1.5, seed = 12345)
 ```
 

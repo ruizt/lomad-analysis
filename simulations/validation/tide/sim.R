@@ -9,7 +9,7 @@
 ##     Rscript simulations/validation/tide/sim.R
 
 # In the container, lomad is pre-installed. For local testing, install it
-# first or use template.R with library(lomad) for development.
+# first or use simulation-template.R with library(lomad) for development.
 library(lomad)
 
 # ---- Parameters from environment ---------------------------------------------

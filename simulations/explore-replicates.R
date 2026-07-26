@@ -10,10 +10,10 @@
 ##
 ## Exploratory and interactive: writes nothing, produces no archived result,
 ## and nothing in the paper depends on it. Change the parameters and re-run.
-## For the study proper rather than one replicate, see template.R.
+## For the study proper rather than one replicate, see simulation-template.R.
 ##
 ## Usage (from repo root):
-##   source("simulations/power/explore-replicates.R")
+##   source("simulations/explore-replicates.R")
 ##   — or step through one structure at a time interactively.
 
 library(lomad)

@@ -11,8 +11,8 @@ This directory contains all simulation code for the lomad paper. Each study has 
 
 ## What to run
 
-Most people cloning this repository want `template.R` and, for the power study,
-`explore-replicates.R` — both run locally in seconds and need nothing but the
+Most people cloning this repository want `explore-replicates.R` and a study's
+`simulation-template.R` — both run locally in seconds and need nothing but the
 `lomad` package. The `tide/` machinery exists for internal reproducibility and
 public transparency: it documents exactly how the archived results were
 produced, but reproducing them requires cluster access and hours of compute.
@@ -76,10 +76,18 @@ package to Public under package Settings → Danger Zone → Change package
 visibility. Note `lomad-package` is currently private too, so a manual build
 also needs a PAT available to `pak` inside the container.
 
+## Layout
+
+Scripts that are not tied to one study live at this level:
+`explore-replicates.R` (see the method work on a single replicate) and
+`simulation-figures.R` (rebuild every paper figure). Everything study-specific
+— its design, its local template, its cluster machinery, its results — lives
+under `power/` or `validation/`.
+
 ## Per-study conventions
 
 -   **`design.md`** — prose description of the simulation design, parameter grid, estimands, and intended outputs.
--   **`template.R`** — a local illustration of the study at small scale. `tide/sim.R` is the source of truth for the simulation logic and is what produces the archived results; `template.R` mirrors its `run_rep()` so the illustration stays faithful. Change `sim.R` first, then mirror.
+-   **`simulation-template.R`** — a local illustration of the study at small scale. `tide/sim.R` is the source of truth for the simulation logic and is what produces the archived results; `simulation-template.R` mirrors its `run_rep()` so the illustration stays faithful. Change `sim.R` first, then mirror.
 -   **`explore-replicates.R`** (power only) — a four-panel visual walkthrough of one replicate per trend structure. Exploratory: writes nothing and nothing in the paper depends on it, but it is the quickest way to see what the method does.
 -   **`collect-results.R`** — assembles fetched per-job files into compiled results. Sits outside `tide/`, which holds only what talks to the cluster.
 -   **`results/`** — compiled `.rds` files are tracked; `_`-prefixed entries (`_raw/`, the zip) are gitignored and archived on Zenodo.

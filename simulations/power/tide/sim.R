@@ -38,7 +38,7 @@ seed0     <- as.integer(Sys.getenv("SIM_SEED",      "2847"))
 oracle    <- as.logical(Sys.getenv("SIM_ORACLE",    "FALSE"))
 out_dir   <- Sys.getenv("SIM_OUT_DIR", "/jobs/output")
 
-# ---- Fixed parameters (must match template.R) --------------------------------
+# ---- Fixed parameters (must match simulation-template.R) --------------------------------
 
 alpha <- 0.05
 
@@ -54,7 +54,7 @@ struct_params <- list(
 
 # ---- run_rep(): the authoritative simulation logic ---------------------------
 # This is what runs on the cluster and produces the archived results.
-# template.R mirrors it for local inspection; change this first, then mirror.
+# simulation-template.R mirrors it for local inspection; change this first, then mirror.
 
 run_rep <- function(d, struct, seed) {
   set.seed(seed)

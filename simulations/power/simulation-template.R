@@ -1,4 +1,4 @@
-## template.R — local illustration of the power study
+## simulation-template.R — local illustration of the power study
 ##
 ## Runs S replicates for each (structure, d, n, phi, snr) combination so the
 ## simulation can be inspected and reasoned about locally, at a scale that runs
@@ -14,7 +14,7 @@
 ## Writes nothing: only tide/sim.R and collect-results.R touch results/.
 ##
 ## Usage (from repo root):
-##   source("simulations/power/template.R")
+##   source("simulations/power/simulation-template.R")
 
 library(lomad)
 library(dplyr)
@@ -142,7 +142,7 @@ results_summary <- results |>
     .groups     = "drop"
   )
 
-# Nothing is written here by design: template.R is a local proof-of-concept for
+# Nothing is written here by design: simulation-template.R is a local proof-of-concept for
 # the simulation logic. Only tide/sim.R (on the cluster) and collect-results.R
 # write into results/.
 

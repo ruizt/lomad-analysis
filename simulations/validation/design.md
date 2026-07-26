@@ -145,7 +145,7 @@ Built by `simulations/simulation-figures.R`, not by this study, and written to
 ```
 validation/
 ├── design.md           ← you are here
-├── template.R          ← local proof-of-concept (defines run_rep_*())
+├── simulation-template.R          ← local proof-of-concept (defines run_rep_*())
 ├── table_params.tex    ← LaTeX source for the paper's design-parameter table
 ├── collect-results.R           ← assembles fetched per-job files into a compiled results object
 ├── results/
@@ -167,7 +167,7 @@ validation/
 
 ### Local development
 
-Source `template.R` in RStudio. It runs all experiments at small scale (reduced
+Source `simulation-template.R` in RStudio. It runs all experiments at small scale (reduced
 reps) and produces draft versions of all three figures. The `run_rep_*()`
 functions it defines are the same ones used in `tide/sim.R`.
 
