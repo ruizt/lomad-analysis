@@ -27,10 +27,13 @@
 ##   "conventional"         — sens/spec as defined above, conditioning on the
 ##                            truth instead.
 ##
-## Either way the trace is ROC-like, but the sweep variable is the definition
-## of decoupling rather than a decision threshold on the test, so the area
-## under the curve is NOT an AUC in the usual "probability a random positive
-## outranks a random negative" sense. No area is reported.
+## In the predictive orientation both axes are P(m_t > c | .) conditioned on
+## rejection and on non-rejection, so sweeping c traces a genuine ROC: the
+## true separation m_t is the score and rejection status is the class label.
+## Its area therefore carries the standard reading — the probability that a
+## randomly chosen rejected window has larger true separation than a randomly
+## chosen non-rejected one — a concordance measure of localization. The area
+## is not plotted here but follows directly from the saved sweep.
 ##
 ## Curves pool over separation d; they are separated by trend structure,
 ## AR(1) coefficient phi, SNR, and rolling-window size s (equivalently T).
@@ -56,7 +59,7 @@ ORIENT   <- "predictive"            # or "conventional"
 MMAX     <- 1.0                     # top of the separation grid
 NBIN     <- 1000L                   # separation-grid resolution
 C_MAX    <- 0.30                    # plot the sweep over c in [0, C_MAX]
-C_MARKS  <- c(0.02, 0.05, 0.10, 0.20)   # c values annotated on the curve
+C_MARKS  <- c(0.01, 0.02, 0.05, 0.10, 0.20)  # c values annotated on the curve
 MIN_N    <- 10000L    # drop sweep points with fewer than this many windows on
                       # either side of c: at large c the "separated" class
                       # empties out and the rates become pure noise
@@ -95,8 +98,11 @@ parse_meta <- function(f) {
 
 series_files <- list.files(RAW_DIR, pattern = "-series\\.rds$", full.names = TRUE)
 meta <- do.call(rbind, lapply(series_files, parse_meta))
-meta <- meta[!meta$oracle, ]
-message(sprintf("Series files (estimated noise): %d", nrow(meta)))
+## Exclude d = 0. Those series are null everywhere, so they contribute a large
+## mass of zero-separation windows that are almost never rejected; including
+## them drags P(m > c | not rejected) toward 0 and flatters the curves.
+meta <- meta[!meta$oracle & meta$d > 0, ]
+message(sprintf("Series files (estimated noise, d > 0): %d", nrow(meta)))
 
 ## For each cell, tally windows by binned m_t, split by the test's decision.
 ## Every sweep quantity follows from these two vectors by cumulative sums.
