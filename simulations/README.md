@@ -9,6 +9,16 @@ editor_options:
 
 This directory contains all simulation code for the lomad paper. Each study has its own subdirectory with a self-contained design document, R scripts, and Kubernetes submission materials.
 
+## What to run
+
+Most people cloning this repository want `template.R` and, for the power study,
+`explore-replicates.R` — both run locally in seconds and need nothing but the
+`lomad` package. The `tide/` machinery exists for internal reproducibility and
+public transparency: it documents exactly how the archived results were
+produced, but reproducing them requires cluster access and hours of compute.
+The compiled results are tracked here, so every figure can be rebuilt without
+running any of it.
+
 ## Studies
 
 | Directory | Purpose |
@@ -70,7 +80,7 @@ also needs a PAT available to `pak` inside the container.
 
 -   **`design.md`** — prose description of the simulation design, parameter grid, estimands, and intended outputs.
 -   **`template.R`** — a local illustration of the study at small scale. `tide/sim.R` is the source of truth for the simulation logic and is what produces the archived results; `template.R` mirrors its `run_rep()` so the illustration stays faithful. Change `sim.R` first, then mirror.
--   **`settings.R`** (if present) — visual walkthrough of single replicates.
+-   **`explore-replicates.R`** (power only) — a four-panel visual walkthrough of one replicate per trend structure. Exploratory: writes nothing and nothing in the paper depends on it, but it is the quickest way to see what the method does.
 -   **`collect-results.R`** — assembles fetched per-job files into compiled results. Sits outside `tide/`, which holds only what talks to the cluster.
 -   **`results/`** — compiled `.rds` files are tracked; `_`-prefixed entries (`_raw/`, the zip) are gitignored and archived on Zenodo.
 -   **`tide/`** — Kubernetes submission materials (see below).

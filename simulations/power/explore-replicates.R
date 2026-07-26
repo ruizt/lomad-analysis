@@ -1,13 +1,19 @@
-## settings.R — visual walkthrough of power study replicates
+## explore-replicates.R — see what the method does on a single replicate
 ##
-## One section per trend structure, each with d adjustable at the top.
-## For each structure, three panels are produced:
-##   1. Example dataset (observed series + true trends)
-##   2. Observed vs expected rolling correlation
-##   3. Z statistic with rejected points highlighted
+## The most direct way to get a feel for the study: one section per trend
+## structure, each with `d` adjustable at the top, producing four stacked
+## panels per structure:
+##   1. Observed series with the true trends underneath
+##   2. Observed rolling correlation R_t against its expected value rho_t
+##   3. The Z statistic, with rejected points highlighted
+##   4. The coupling weight w_t that generated the separation
+##
+## Exploratory and interactive: writes nothing, produces no archived result,
+## and nothing in the paper depends on it. Change the parameters and re-run.
+## For the study proper rather than one replicate, see template.R.
 ##
 ## Usage (from repo root):
-##   source("simulations/power/settings.R")
+##   source("simulations/power/explore-replicates.R")
 ##   — or step through one structure at a time interactively.
 
 library(lomad)
