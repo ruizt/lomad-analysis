@@ -1,4 +1,4 @@
-## localization-analysis.R — localization figure for the paper
+## localization-sweep.R — compute stage of the localization analysis
 ##
 ## Question: how well do the test's rejections align with genuine local trend
 ## separation, and at what magnitude of separation does that alignment hold?
@@ -38,8 +38,12 @@
 ## Curves pool over separation d; they are separated by trend structure,
 ## AR(1) coefficient phi, SNR, and rolling-window size s (equivalently T).
 ##
+## This is the expensive stage: it reads every -series.rds file in the power
+## study (~1.4 GB across 216 files) and takes several minutes. It is separated
+## from figure generation so that redrawing a figure never re-runs it.
+##
 ## Usage (from the repo root):
-##   Rscript simulations/power/localization-analysis.R
+##   Rscript simulations/localization-sweep.R
 ##
 ## Outputs:
 ##   simulations/power/results/_img/fig_localization.png
@@ -47,13 +51,10 @@
 
 suppressPackageStartupMessages({
   library(dplyr)
-  library(ggplot2)
-  library(ggh4x)
 })
 
 RAW_DIR <- "simulations/power/results/_raw"
-OUT_DIR <- "simulations/power/results"
-IMG_DIR <- file.path(OUT_DIR, "_img")
+OUT_DIR <- "simulations/_derived"
 
 ORIENT   <- "predictive"            # or "conventional"
 MMAX     <- 1.0                     # top of the separation grid
@@ -64,7 +65,7 @@ MIN_N    <- 10000L    # drop sweep points with fewer than this many windows on
                       # either side of c: at large c the "separated" class
                       # empties out and the rates become pure noise
 
-dir.create(IMG_DIR, showWarnings = FALSE, recursive = TRUE)
+dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 h_win_fcn <- function(n) max(5L, floor(n / 200L))
 s_win_fcn <- function(n) min(60L * h_win_fcn(n), floor(n / 4L))
@@ -163,65 +164,4 @@ sweep <- bind_rows(lapply(names(cells), function(key) {
 
 saveRDS(list(sweep = sweep, orient = ORIENT, corrupt = corrupt),
         file.path(OUT_DIR, "localization.rds"))
-
-if (ORIENT == "conventional") {
-  sweep$xx <- 1 - sweep$spec; sweep$yy <- sweep$sens
-  xlab <- "1 - specificity   P(rejected | separation <= c)"
-  ylab <- "Sensitivity   P(rejected | separation > c)"
-} else {
-  sweep$xx <- 1 - sweep$npv;  sweep$yy <- sweep$prec
-  xlab <- "1 - NPV   P(separation > c | not rejected)"
-  ylab <- "Precision   P(separation > c | rejected)"
-}
-
-cat(sprintf("\n== sweep at selected c (orientation: %s) ==\n", ORIENT))
-print(as.data.frame(
-  sweep |> filter(c %in% sapply(C_MARKS, function(z) edges[-1][which.min(abs(edges[-1] - z))])) |>
-    mutate(across(c(sens, spec, prec, npv), \(z) round(z, 3))) |>
-    select(struct, phi, snr, s_win, c, sens, spec, prec, npv) |>
-    arrange(struct, phi, snr, s_win, c)), row.names = FALSE)
-
-## ---- figure ---------------------------------------------------------------
-lab_struct <- c(smooth = "Smooth", cross = "Cross", rate = "Rate")
-pal <- c(Smooth = "#0072B2", Cross = "#D55E00", Rate = "#009E73")
-
-sw <- sweep |>
-  filter(c <= C_MAX, n_above >= MIN_N, n_below >= MIN_N) |>
-  mutate(Structure = factor(lab_struct[struct], levels = names(pal)))
-
-marks <- bind_rows(lapply(C_MARKS, function(z) {
-  sw |> group_by(struct, phi, snr, s_win) |>
-    slice_min(abs(c - z), n = 1, with_ties = FALSE) |>
-    ungroup() |> mutate(c_lab = z)
-}))
-
-p <- ggplot(sw, aes(xx, yy, colour = Structure)) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed",
-              colour = "grey70", linewidth = 0.3) +
-  geom_path(linewidth = 0.6) +
-  geom_point(data = marks, size = 1.4) +
-  facet_nested(phi ~ snr + s_win, labeller = labeller(
-    phi   = function(x) paste0("phi == ", x),
-    snr   = function(x) paste0("SNR == ", x),
-    s_win = function(x) paste0("s == ", x),
-    .default = label_parsed)) +
-  scale_colour_manual(values = pal) +
-  scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-  labs(x = xlab, y = ylab, colour = NULL,
-       caption = paste0(
-         "Each curve sweeps the separation threshold c defining a decoupled ",
-         "window (windowed maximum |nu_1 - nu_2|).\nPoints mark c = ",
-         paste(C_MARKS, collapse = ", "),
-         ". Curves pool over separation d.")) +
-  theme_bw(base_size = 11) +
-  theme(legend.position  = "bottom",
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(linewidth = 0.15, colour = "grey85"),
-        strip.background = element_rect(fill = "grey95", colour = NA),
-        axis.title       = element_text(size = 9),
-        plot.caption     = element_text(size = 7, hjust = 0, colour = "grey30"))
-
-ggsave(file.path(IMG_DIR, "fig_localization.png"), p,
-       width = 11, height = 6.5, dpi = 400)
-cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig_localization.png")))
+cat(sprintf("Wrote %s\n", file.path(OUT_DIR, "localization.rds")))

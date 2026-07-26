@@ -1,7 +1,10 @@
-## collect.R — assemble per-job .rds files into a single results data frame
+## collect.R — assemble per-job .rds files into compiled results + summary
 ##
-## Run this after fetch.sh has copied the per-job .rds files locally.
-## By default reads from results/raw/ (where fetch.sh writes).
+## Run this after fetch.sh has copied the per-job .rds files locally. Produces
+## the two compiled artifacts the figure stage consumes, so the batch pipeline
+## goes raw per-job files -> compiled results -> results summary in one step.
+## Deliberately does no plotting: figures are built by
+## simulations/simulation-figures.R.
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/power/tide/collect.R
@@ -27,6 +30,25 @@ results <- lapply(files, function(f) {
   readRDS(f)$results |> mutate(method = if (is_oracle) "oracle" else "estimated")
 }) |> bind_rows()
 
+# ---- Summarise ---------------------------------------------------------------
+
+alpha <- 0.05
+
+results_summary <- results |>
+  group_by(struct, d, n, snr, phi, method) |>
+  summarise(
+    S         = n(),
+    detection = mean(detected, na.rm = TRUE),
+    ci_lo     = qbeta(0.025, sum(detected), S - sum(detected) + 1),
+    ci_hi     = qbeta(0.975, sum(detected) + 1, S - sum(detected)),
+    .groups   = "drop"
+  )
+
 # ---- Save --------------------------------------------------------------------
 
-saveRDS(results, file.path(OUT_DIR, "results.rds"))
+dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
+saveRDS(results,         file.path(OUT_DIR, "_simulations-power-results.rds"))
+saveRDS(results_summary, file.path(OUT_DIR, "_simulations-power-summary.rds"))
+
+cat(sprintf("Wrote %d compiled rows and %d summary rows to %s\n",
+            nrow(results), nrow(results_summary), OUT_DIR))
