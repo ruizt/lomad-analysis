@@ -148,7 +148,7 @@ run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05) {
   y1 <- trend + z1
   y2 <- trend + z2
 
-  fit <- suppressMessages(lomad_fit(y1, y2, method = "clt", h = h_win, s = s))
+  fit <- suppressMessages(lomad_fit(y1, y2, h = h_win, s = s))
   tst <- suppressMessages(lomad_test(fit, alpha = alpha))
 
   data.frame(
