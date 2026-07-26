@@ -49,10 +49,11 @@ RAW_DIR <- "sims/power/results/_raw"
 OUT_DIR <- "sims/power/results"
 IMG_DIR <- file.path(OUT_DIR, "_img")
 
-ORIENT   <- "conventional"          # or "predictive"
+ORIENT   <- "predictive"            # or "conventional"
 MMAX     <- 1.0                     # top of the separation grid
 NBIN     <- 1000L                   # separation-grid resolution
-C_MARKS  <- c(0.01, 0.02, 0.05, 0.10, 0.20)   # c values annotated on the curve
+C_MAX    <- 0.30                    # plot the sweep over c in [0, C_MAX]
+C_MARKS  <- c(0.02, 0.05, 0.10, 0.20)   # c values annotated on the curve
 MIN_N    <- 10000L    # drop sweep points with fewer than this many windows on
                       # either side of c: at large c the "separated" class
                       # empties out and the rates become pure noise
@@ -175,7 +176,7 @@ lab_struct <- c(smooth = "Smooth", cross = "Cross", rate = "Rate")
 pal <- c(Smooth = "#0072B2", Cross = "#D55E00", Rate = "#009E73")
 
 sw <- sweep |>
-  filter(n_above >= MIN_N, n_below >= MIN_N) |>
+  filter(c <= C_MAX, n_above >= MIN_N, n_below >= MIN_N) |>
   mutate(Structure = factor(lab_struct[struct], levels = names(pal)))
 
 marks <- bind_rows(lapply(C_MARKS, function(z) {
@@ -185,18 +186,13 @@ marks <- bind_rows(lapply(C_MARKS, function(z) {
 }))
 
 p <- ggplot(sw, aes(xx, yy, colour = Structure)) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed",
-              colour = "grey75", linewidth = 0.3) +
-  geom_path(linewidth = 0.6) +
-  geom_point(data = marks, size = 1.3) +
+  geom_path(linewidth = 0.7) +
+  geom_point(data = marks, size = 1.4) +
   facet_grid(phi ~ snr, labeller = labeller(
     phi = function(x) paste0("phi == ", x),
     snr = function(x) paste0("SNR == ", x),
     .default = label_parsed)) +
   scale_colour_manual(values = pal) +
-  scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-  coord_equal() +
   labs(x = xlab, y = ylab, colour = NULL,
        caption = paste0(
          "Each curve sweeps the separation threshold c defining a decoupled ",
