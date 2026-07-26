@@ -3,7 +3,7 @@
 # Copies clean Morro Bay data files from the mb-qartod repository into
 # _mb-data/ in this repository. Re-run whenever mb-qartod data is updated.
 #
-# Assumes mb-qartod and lomad are siblings under the same parent directory.
+# Assumes mb-qartod and lomad-analysis are siblings under the same parent directory.
 
 mb_clean <- fs::path(here::here(), "../mb-qartod/_data/clean")
 
