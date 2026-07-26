@@ -37,7 +37,7 @@ lomad-analysis/
 │   ├── validation/         # Finite-sample accuracy of the CLT approximation
 │   └── trend_examples.R    # Trend-construction illustrations
 ├── mb-analysis/            # Morro Bay field data analysis (CLT + ARMA noise)
-└── numerical-validation/   # End-to-end numerical validation scripts
+└── numerical-checks/   # End-to-end numerical validation scripts
 ```
 
 See `simulations/README.md` for the simulation infrastructure and Tide workflow.

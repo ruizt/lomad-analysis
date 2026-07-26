@@ -130,5 +130,5 @@ p_qq <- ggplot(qq_df, aes(x = theoretical, y = z)) +
        title = sprintf("QQ plot: standardized R_t (s=%d, t=%d)", s_qq, t0)) +
   theme_minimal()
 
-ggsave("numerical-validation/clt-qq.png", p_qq, width = 5, height = 5)
-cat("\nQQ plot saved to numerical-validation/clt-qq.png\n")
+ggsave("numerical-checks/clt-qq.png", p_qq, width = 5, height = 5)
+cat("\nQQ plot saved to numerical-checks/clt-qq.png\n")

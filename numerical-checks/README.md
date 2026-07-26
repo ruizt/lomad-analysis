@@ -1,4 +1,4 @@
-# numerical-validation
+# numerical-checks
 
 Monte Carlo and numerical checks of the theoretical results in the paper. Each script targets one result.
 
@@ -21,7 +21,7 @@ Run from the package root:
 
 ```r
 library(lomad)
-source("numerical-validation/validate-clt.R")
+source("numerical-checks/validate-clt.R")
 # etc.
 ```
 

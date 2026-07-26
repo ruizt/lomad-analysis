@@ -47,8 +47,8 @@ results_summary <- results |>
 # ---- Save --------------------------------------------------------------------
 
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
-saveRDS(results,         file.path(OUT_DIR, "_simulations-power-results.rds"))
-saveRDS(results_summary, file.path(OUT_DIR, "_simulations-power-summary.rds"))
+saveRDS(results,         file.path(OUT_DIR, "simulations-power-results.rds"))
+saveRDS(results_summary, file.path(OUT_DIR, "simulations-power-summary.rds"))
 
 cat(sprintf("Wrote %d compiled rows and %d summary rows to %s\n",
             nrow(results), nrow(results_summary), OUT_DIR))

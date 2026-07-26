@@ -173,5 +173,5 @@ ggplot(qq_df, aes(x = theoretical, y = z, color = type)) +
   theme_minimal() +
   theme(legend.position = "bottom")
 
-ggsave("numerical-validation/end-to-end-qq.png", width = 6, height = 5)
-cat("\nQQ plot saved to numerical-validation/end-to-end-qq.png\n")
+ggsave("numerical-checks/end-to-end-qq.png", width = 6, height = 5)
+cat("\nQQ plot saved to numerical-checks/end-to-end-qq.png\n")

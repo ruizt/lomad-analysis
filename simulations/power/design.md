@@ -73,9 +73,9 @@ To isolate this as an estimation problem rather than a test problem, `sim.R` sup
 
 ### Aggregated (after `collect.R`)
 
-- `results/_simulations-power-results.rds` — all replicates, all parameter combinations
-- `results/_simulations-power-summary.rds` — detection rates with binomial CIs
-- `results/_simulations-power-localization.rds` — threshold sweep (from `localization-sweep.R`)
+- `results/simulations-power-results.rds` — all replicates, all parameter combinations
+- `results/simulations-power-summary.rds` — detection rates with binomial CIs
+- `results/simulations-power-localization.rds` — threshold sweep (from `localization-sweep.R`)
 - `results/results_summary.rds` — detection rate by (struct, d, n, phi, snr, method)
 - `results/power_curves_n{N}.png` — detection rate vs *d*, faceted by snr × phi
 
@@ -90,7 +90,7 @@ power/
 ├── settings.R          ← visual walkthrough of single replicates
 ├── run.R               ← legacy reference implementation
 ├── results/            ← output (gitignored)
-│   ├── _simulations-power-results.rds
+│   ├── simulations-power-results.rds
 │   ├── results_summary.rds
 │   ├── power_curves_n{N}.png
 │   └── raw/            ← per-job .rds + -series.rds files fetched from Tide
@@ -174,5 +174,5 @@ kubectl delete -n cal-poly-ruiz -f simulations/power/tide/pvc.yaml
 - Start with `SIM_S=20` to confirm everything works end-to-end.
 - Each parameter combination runs as a separate job. Jobs run in parallel on the cluster.
 - If you update `sim.R`, re-running `submit_sweep.sh` updates the ConfigMap automatically — no image rebuild needed.
-- `collect.R` assembles per-job `.rds` files into `results/_simulations-power-results.rds` and a detection summary. Figures are built separately by `simulations/simulation-figures.R`, which writes to `simulations/_img/`.
+- `collect.R` assembles per-job `.rds` files into `results/simulations-power-results.rds` and a detection summary. Figures are built separately by `simulations/simulation-figures.R`, which writes to `simulations/_img/`.
 - Series files (`-series.rds`) are fetched alongside the summary files and consumed by `localization-sweep.R`, which is kept separate from `collect.R` because it reads ~1.4 GB and takes minutes.

@@ -157,7 +157,7 @@ make_plot <- function(res, title) {
 p1 <- make_plot(res_sm, "Smooth coupling: R (grey) vs formula (red)")
 p2 <- make_plot(res_rt, "Rate coupling: R (grey) vs formula (red)")
 
-ggsave("numerical-validation/smooth-coupling.png", p1, width = 8, height = 4)
-ggsave("numerical-validation/rate-coupling.png", p2, width = 8, height = 4)
+ggsave("numerical-checks/smooth-coupling.png", p1, width = 8, height = 4)
+ggsave("numerical-checks/rate-coupling.png", p2, width = 8, height = 4)
 
-cat("\nPlots saved to numerical-validation/\n")
+cat("\nPlots saved to numerical-checks/\n")

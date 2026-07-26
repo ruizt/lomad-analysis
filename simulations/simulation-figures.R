@@ -7,9 +7,9 @@
 ## simulations/power/localization-sweep.R (the localization sweep).
 ##
 ## Inputs
-##   simulations/power/results/_simulations-power-summary.rds
-##   simulations/validation/results/_simulations-validation-results.rds
-##   simulations/power/results/_simulations-power-localization.rds
+##   simulations/power/results/simulations-power-summary.rds
+##   simulations/validation/results/simulations-validation-results.rds
+##   simulations/power/results/simulations-power-localization.rds
 ##   (the trend-construction figure needs no inputs; it simulates its own)
 ##
 ## Outputs -> simulations/_img/
@@ -181,7 +181,7 @@ ggsave(file.path(IMG_DIR, "fig_trend_construction.png"),
 # =============================================================================
 
 local({
-  results_summary <- readRDS("simulations/power/results/_simulations-power-summary.rds")
+  results_summary <- readRDS("simulations/power/results/simulations-power-summary.rds")
 
 library(ggh4x)
 
@@ -230,7 +230,7 @@ ggsave(file.path(IMG_DIR, "power_curves.png"),
 # =============================================================================
 
 local({
-  L      <- readRDS("simulations/power/results/_simulations-power-localization.rds")
+  L      <- readRDS("simulations/power/results/simulations-power-localization.rds")
   sweep  <- L$sweep
   ORIENT <- L$orient
   C_MAX   <- 0.30
@@ -300,7 +300,7 @@ cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig_localization.png")))
 # =============================================================================
 
 local({
-  results <- readRDS("simulations/validation/results/_simulations-validation-results.rds")
+  results <- readRDS("simulations/validation/results/simulations-validation-results.rds")
 # ---- Shared theme ------------------------------------------------------------
 
 base_theme <- theme_bw(base_size = 10) +

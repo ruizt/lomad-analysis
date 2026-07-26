@@ -94,5 +94,5 @@ p <- ggplot(df, aes(x = V_theory, y = V_emp)) +
        title = sprintf("V validation (s=%d, %d reps)", s, n_rep)) +
   theme_minimal()
 
-ggsave("numerical-validation/prop1-V.png", p, width = 5, height = 5)
-cat("Plot saved to numerical-validation/prop1-V.png\n")
+ggsave("numerical-checks/prop1-V.png", p, width = 5, height = 5)
+cat("Plot saved to numerical-checks/prop1-V.png\n")

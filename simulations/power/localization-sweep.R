@@ -163,6 +163,6 @@ sweep <- bind_rows(lapply(names(cells), function(key) {
 }))
 
 saveRDS(list(sweep = sweep, orient = ORIENT, corrupt = corrupt),
-        file.path(OUT_DIR, "_simulations-power-localization.rds"))
+        file.path(OUT_DIR, "simulations-power-localization.rds"))
 cat(sprintf("Wrote %s\n",
-            file.path(OUT_DIR, "_simulations-power-localization.rds")))
+            file.path(OUT_DIR, "simulations-power-localization.rds")))

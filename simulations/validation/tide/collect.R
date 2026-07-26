@@ -33,7 +33,7 @@ cat(sprintf("Loaded %d experiment files: %s\n",
 
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 saveRDS(results,
-        file.path(OUT_DIR, "_simulations-validation-results.rds"))
+        file.path(OUT_DIR, "simulations-validation-results.rds"))
 
 cat(sprintf("Wrote compiled results for %d experiments to %s\n",
             length(results), OUT_DIR))
