@@ -73,11 +73,17 @@ To isolate this as an estimation problem rather than a test problem, `sim.R` sup
 
 ### Aggregated (after `collect.R`)
 
-- `results/simulations-power-results.rds` — all replicates, all parameter combinations
-- `results/simulations-power-summary.rds` — detection rates with binomial CIs
-- `results/simulations-power-localization.rds` — threshold sweep (from `localization-sweep.R`)
-- `results/results_summary.rds` — detection rate by (struct, d, n, phi, snr, method)
-- `results/power_curves_n{N}.png` — detection rate vs *d*, faceted by snr × phi
+- `results/simulations-power-results.rds` — every replicate, every parameter combination
+- `results/simulations-power-summary.rds` — detection rate by (struct, d, n, phi, snr, method) with binomial CIs
+
+### After `localization-sweep.R`
+
+- `results/simulations-power-localization.rds` — threshold sweep relating rejections to true local separation
+
+### Figures
+
+Built by `simulations/simulation-figures.R`, not by this study, and written to
+`simulations/_img/`: `power_curves.png` and `fig_localization.png`.
 
 ------------------------------------------------------------------------
 
@@ -86,14 +92,15 @@ To isolate this as an estimation problem rather than a test problem, `sim.R` sup
 ```         
 power/
 ├── design.md           ← you are here
-├── template.R          ← local proof-of-concept (defines run_rep(), calibrate_threshold())
+├── template.R          ← local proof-of-concept (defines run_rep()); writes nothing
 ├── settings.R          ← visual walkthrough of single replicates
-├── run.R               ← legacy reference implementation
-├── results/            ← output (gitignored)
-│   ├── simulations-power-results.rds
-│   ├── results_summary.rds
-│   ├── power_curves_n{N}.png
-│   └── raw/            ← per-job .rds + -series.rds files fetched from Tide
+├── localization-sweep.R ← threshold sweep over the -series.rds files (slow)
+├── results/
+│   ├── simulations-power-results.rds       ← tracked
+│   ├── simulations-power-summary.rds       ← tracked
+│   ├── simulations-power-localization.rds  ← tracked
+│   ├── _simulations-power.zip              ← archive of _raw/, Zenodo only
+│   └── _raw/           ← per-job .rds + -series.rds fetched from Tide, Zenodo only
 └── tide/               ← Kubernetes scaffolding
     ├── sim.R           ← simulation script (mounted into container)
     ├── submit.sh       ← runs the full pipeline (PVC → jobs → wait → fetch)
@@ -105,13 +112,17 @@ power/
     └── collect.R       ← assembles per-job files into compiled results + summary
 ```
 
+`_`-prefixed entries are gitignored and archived on Zenodo; the compiled `.rds`
+files are small enough to track, so a fresh clone can rebuild every figure
+without downloading anything.
+
 ------------------------------------------------------------------------
 
 ## Workflow
 
 ### Local development
 
-Source `template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates, computes detection rates, and saves results to `results/`. See `settings.R` for a visual walkthrough of single replicates at each structure.
+Source `template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `tide/collect.R` write into `results/`. See `settings.R` for a visual walkthrough of single replicates at each structure.
 
 To inspect a single replicate interactively:
 
@@ -120,7 +131,7 @@ source("simulations/power/template.R")
 run_rep(d = 1.0, struct = "smooth", n = 500, phi = 0.5, snr = 1.5, seed = 12345)
 ```
 
-The `calibrate_threshold()` function in `template.R` supports post-hoc evaluation of sensitivity, specificity, and FDR at any *w* threshold from the stored series data.
+Post-hoc evaluation of the stored series data — how well rejections align with the true local separation, swept over the threshold that defines a decoupled window — is done by `localization-sweep.R`, whose output feeds the localization figure.
 
 ### Shared container image
 

@@ -65,7 +65,7 @@ Eval points:
 | `var-s150` | 2 (right) | 150 | 2000 | R_t at grid of eval points |
 | `e2e-s150` | 3 | 150 | 1000 | Oracle + pipeline quantities at 5 eval pts |
 
-## Composite figure (`validation-composite.png`)
+## Composite figure (`simulations/_img/validation-composite.png`)
 
 A single three-row figure saved as both PNG (300 dpi) and PDF.
 
@@ -120,16 +120,37 @@ somewhat conservative inference due to plug-in variance compression.
 
 ---
 
+## Expected outputs
+
+### Per job (Tide) or per experiment (local)
+
+- `{experiment}.rds` — one file per experiment in `results/_raw/`, named by the
+  `SIM_EXPERIMENT` label (`clt-s80`, `clt-s150`, `clt-s300`, `rho-s80`,
+  `rho-s150`, `rho-s250`, `var-s150`, `var-s200`, `e2e-s150`)
+
+### Aggregated (after `collect.R`)
+
+- `results/simulations-validation-results.rds` — named list of all experiment
+  objects, keyed by experiment label
+
+### Figures
+
+Built by `simulations/simulation-figures.R`, not by this study, and written to
+`simulations/_img/validation-composite.png`.
+
+------------------------------------------------------------------------
+
 ## File layout
 
 ```
 validation/
 ├── design.md           ← you are here
 ├── template.R          ← local proof-of-concept (defines run_rep_*())
-├── results/            ← output (gitignored)
-│   ├── raw/            ← per-job .rds files fetched from Tide
-│   ├── validation-composite.png
-│   └── validation-composite.pdf
+├── table_params.tex    ← LaTeX source for the paper's design-parameter table
+├── results/
+│   ├── simulations-validation-results.rds  ← tracked
+│   ├── _simulations-validation.zip         ← archive of _raw/, Zenodo only
+│   └── _raw/           ← per-job .rds files fetched from Tide, Zenodo only
 └── tide/               ← Kubernetes scaffolding
     ├── sim.R           ← container entrypoint (dispatches on SIM_EXPERIMENT)
     ├── submit.sh       ← full pipeline (PVC → jobs → wait → fetch)
@@ -199,7 +220,7 @@ kubectl get jobs -n cal-poly-ruiz -l app=lomad-valid
 # 4. Fetch results from PVC to local
 bash simulations/validation/tide/fetch.sh
 
-# 5. Assemble results and generate figures
+# 5. Assemble results, then build the figure
 Rscript simulations/validation/tide/collect.R   # compiled results
 Rscript simulations/simulation-figures.R       # composite figure
 
