@@ -26,26 +26,21 @@ clone `lomad-package` as a sibling directory and `devtools::load_all()` it
 instead.)
 
 Scripts and docs assume they are run **from the repository root** (e.g.
-`source("sims/power/template.R")`, `Rscript sims/calibration/tide/collect.R`).
+`source("simulations/power/template.R")`, `Rscript simulations/power/tide/collect.R`).
 
 ## Structure
 
 ```
 lomad-analysis/
-├── sims/                   # Simulation studies + Tide HPC scaffolding
-│   ├── calibration/        # CLT test calibration (type I error)
-│   ├── power/              # Power curves across trend structures
-│   ├── validation/         # Validation of CLT approximation
-│   ├── trends/             # Trend-construction examples
-│   └── tide-example/       # Minimal MVN example for learning the Tide workflow
+├── simulations/            # Simulation studies + Tide HPC scaffolding
+│   ├── power/              # Power curves and localization across trend structures
+│   ├── validation/         # Finite-sample accuracy of the CLT approximation
+│   └── trend_examples.R    # Trend-construction illustrations
 ├── mb-analysis/            # Morro Bay field data analysis (CLT + ARMA noise)
-├── numerical-validation/   # End-to-end numerical validation scripts
-├── notebooks/              # Quarto notebooks for exploratory analysis
-├── scripts/                # Standalone R scripts for prototyping
-└── example-data/           # Example datasets
+└── numerical-validation/   # End-to-end numerical validation scripts
 ```
 
-See `sims/README.md` for the simulation infrastructure and Tide workflow.
+See `simulations/README.md` for the simulation infrastructure and Tide workflow.
 
 ## Data
 

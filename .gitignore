@@ -52,6 +52,7 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 .posit/assistant
-sims/*/results/
-!sims/calibration/results
-!sims/power/results
+simulations/*/results/
+!simulations/power/results
+# ...but keep the _-prefix convention working inside it
+simulations/power/results/_*

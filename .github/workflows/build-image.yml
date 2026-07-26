@@ -1,7 +1,7 @@
 name: Build and push lomad-sims image
 
 # Rebuild the shared simulation image. Produces ghcr.io/ruizt/lomad-sims:latest
-# — used by all studies in sims/.
+# — used by all studies in simulations/.
 #
 # The lomad package source now lives in the companion lomad-package repo and is
 # installed from GitHub during the build, so changes to the package no longer
@@ -12,7 +12,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'sims/Dockerfile'
+      - 'simulations/Dockerfile'
   workflow_dispatch:
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: sims/Dockerfile
+          file: simulations/Dockerfile
           platforms: linux/amd64
           push: true
           tags: |

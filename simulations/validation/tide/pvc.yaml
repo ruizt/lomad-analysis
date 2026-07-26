@@ -1,0 +1,19 @@
+# pvc.yaml — shared storage for validation results
+#
+# Create once before submitting jobs:
+#   kubectl apply -n cal-poly-ruiz -f simulations/validation/tide/pvc.yaml
+#
+# Delete when done (removes stored results from the cluster):
+#   kubectl delete -n cal-poly-ruiz -f simulations/validation/tide/pvc.yaml
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lomad-valid-results
+  namespace: cal-poly-ruiz
+spec:
+  storageClassName: rook-cephfs-tide
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 2Gi
