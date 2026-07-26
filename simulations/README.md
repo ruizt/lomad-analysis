@@ -69,9 +69,9 @@ also needs a PAT available to `pak` inside the container.
 ## Per-study conventions
 
 -   **`design.md`** — prose description of the simulation design, parameter grid, estimands, and intended outputs.
--   **`template.R`** — defines a `run_rep()` function and runs a small local proof-of-concept. This is the source of truth for the simulation logic.
+-   **`template.R`** — a local illustration of the study at small scale. `tide/sim.R` is the source of truth for the simulation logic and is what produces the archived results; `template.R` mirrors its `run_rep()` so the illustration stays faithful. Change `sim.R` first, then mirror.
 -   **`settings.R`** (if present) — visual walkthrough of single replicates.
--   **`collect.R`** — assembles fetched per-job files into compiled results. Sits outside `tide/`, which holds only what talks to the cluster.
+-   **`collect-results.R`** — assembles fetched per-job files into compiled results. Sits outside `tide/`, which holds only what talks to the cluster.
 -   **`results/`** — compiled `.rds` files are tracked; `_`-prefixed entries (`_raw/`, the zip) are gitignored and archived on Zenodo.
 -   **`tide/`** — Kubernetes submission materials (see below).
 
@@ -105,7 +105,7 @@ kubectl get jobs -n cal-poly-ruiz -l app=<study-label>
 bash simulations/<study>/tide/fetch.sh
 
 # 5. Assemble
-Rscript simulations/<study>/collect.R
+Rscript simulations/<study>/collect-results.R
 
 # 6. Clean up
 kubectl delete jobs -n cal-poly-ruiz -l app=<study-label>

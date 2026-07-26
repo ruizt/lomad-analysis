@@ -62,7 +62,7 @@ At high autocorrelation (φ = 0.8), the MA smoother cannot fully track the trend
 
 To isolate this as an estimation problem rather than a test problem, `sim.R` supports an oracle mode (`SIM_ORACLE=TRUE`) that bypasses noise estimation and uses the true AR(1) parameters. The oracle sweep runs for φ = 0.8 only (30 jobs) and produces files with an `-oracle` suffix (e.g., `smooth_d1-0_n600_snr1-5_phi0-8-oracle.rds`).
 
-`collect.R` combines oracle and estimated results with a `method` column, and the power curves overlay both as solid (estimated) vs dashed (oracle) lines.
+`collect-results.R` combines oracle and estimated results with a `method` column, and the power curves overlay both as solid (estimated) vs dashed (oracle) lines.
 
 ## Expected outputs
 
@@ -71,7 +71,7 @@ To isolate this as an estimation problem rather than a test problem, `sim.R` sup
 - `{combo}.rds` — metadata + per-replicate summary data frame
 - `{combo}-series.rds` — list keyed by seed with series-level data
 
-### Aggregated (after `collect.R`)
+### Aggregated (after `collect-results.R`)
 
 - `results/simulations-power-results.rds` — every replicate, every parameter combination
 - `results/simulations-power-summary.rds` — detection rate by (struct, d, n, phi, snr, method) with binomial CIs
@@ -92,9 +92,9 @@ Built by `simulations/simulation-figures.R`, not by this study, and written to
 ```         
 power/
 ├── design.md           ← you are here
-├── template.R          ← local proof-of-concept (defines run_rep()); writes nothing
+├── template.R          ← local illustration mirroring tide/sim.R; writes nothing
 ├── settings.R          ← visual walkthrough of single replicates
-├── collect.R           ← assembles fetched per-job files into compiled results + summary
+├── collect-results.R           ← assembles fetched per-job files into compiled results + summary
 ├── localization-sweep.R ← threshold sweep over the -series.rds files (slow)
 ├── results/
 │   ├── simulations-power-results.rds       ← tracked
@@ -117,7 +117,7 @@ power/
 files are small enough to track, so a fresh clone can rebuild every figure
 without downloading anything.
 
-`tide/` holds everything that talks to the cluster. `collect.R` and
+`tide/` holds everything that talks to the cluster. `collect-results.R` and
 `localization-sweep.R` sit outside it because they only read local files.
 `job.yaml` is the one copy of the Job spec: `submit_sweep.sh` and
 `test_one_job.sh` fill its placeholders with `envsubst`, so the spec cannot
@@ -129,7 +129,7 @@ drift between the sweep and the smoke test.
 
 ### Local development
 
-Source `template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `collect.R` write into `results/`. See `settings.R` for a visual walkthrough of single replicates at each structure.
+Source `template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `collect-results.R` write into `results/`. See `settings.R` for a visual walkthrough of single replicates at each structure.
 
 To inspect a single replicate interactively:
 
@@ -176,7 +176,7 @@ kubectl get jobs -n cal-poly-ruiz -l app=lomad-power
 bash simulations/power/tide/fetch.sh
 
 # 5. Assemble results from per-job files
-Rscript simulations/power/collect.R
+Rscript simulations/power/collect-results.R
 
 # 6. Summarise and plot (local post-processing)
 Rscript simulations/power/localization-sweep.R   # optional: localization
@@ -192,5 +192,5 @@ kubectl delete -n cal-poly-ruiz -f simulations/power/tide/pvc.yaml
 - Start with `SIM_S=20` to confirm everything works end-to-end.
 - Each parameter combination runs as a separate job. Jobs run in parallel on the cluster.
 - If you update `sim.R`, re-running `submit_sweep.sh` updates the ConfigMap automatically — no image rebuild needed.
-- `collect.R` assembles per-job `.rds` files into `results/simulations-power-results.rds` and a detection summary. Figures are built separately by `simulations/simulation-figures.R`, which writes to `simulations/_img/`.
-- Series files (`-series.rds`) are fetched alongside the summary files and consumed by `localization-sweep.R`, which is kept separate from `collect.R` because it reads ~1.4 GB and takes minutes.
+- `collect-results.R` assembles per-job `.rds` files into `results/simulations-power-results.rds` and a detection summary. Figures are built separately by `simulations/simulation-figures.R`, which writes to `simulations/_img/`.
+- Series files (`-series.rds`) are fetched alongside the summary files and consumed by `localization-sweep.R`, which is kept separate from `collect-results.R` because it reads ~1.4 GB and takes minutes.

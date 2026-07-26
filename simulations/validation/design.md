@@ -128,7 +128,7 @@ somewhat conservative inference due to plug-in variance compression.
   `SIM_EXPERIMENT` label (`clt-s80`, `clt-s150`, `clt-s300`, `rho-s80`,
   `rho-s150`, `rho-s250`, `var-s150`, `var-s200`, `e2e-s150`)
 
-### Aggregated (after `collect.R`)
+### Aggregated (after `collect-results.R`)
 
 - `results/simulations-validation-results.rds` — named list of all experiment
   objects, keyed by experiment label
@@ -147,7 +147,7 @@ validation/
 ├── design.md           ← you are here
 ├── template.R          ← local proof-of-concept (defines run_rep_*())
 ├── table_params.tex    ← LaTeX source for the paper's design-parameter table
-├── collect.R           ← assembles fetched per-job files into a compiled results object
+├── collect-results.R           ← assembles fetched per-job files into a compiled results object
 ├── results/
 │   ├── simulations-validation-results.rds  ← tracked
 │   ├── _simulations-validation.zip         ← archive of _raw/, Zenodo only
@@ -221,7 +221,7 @@ kubectl get jobs -n cal-poly-ruiz -l app=lomad-valid
 bash simulations/validation/tide/fetch.sh
 
 # 5. Assemble results, then build the figure
-Rscript simulations/validation/collect.R   # compiled results
+Rscript simulations/validation/collect-results.R   # compiled results
 Rscript simulations/simulation-figures.R       # composite figure
 
 # 6. Clean up

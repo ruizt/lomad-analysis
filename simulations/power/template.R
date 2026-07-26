@@ -1,7 +1,17 @@
-## template.R — local proof-of-concept for power study
+## template.R — local illustration of the power study
 ##
-## Runs S replicates for each (structure, d, n, phi, snr) combination and reports
-## detection rates, sensitivity, and FDR for structured methods.
+## Runs S replicates for each (structure, d, n, phi, snr) combination so the
+## simulation can be inspected and reasoned about locally, at a scale that runs
+## in seconds rather than on the cluster.
+##
+## NOT the source of truth. tide/sim.R is what actually runs on Tide and
+## produces the archived results; run_rep() below deliberately mirrors it so
+## the illustration is faithful. If you change the simulation logic, change
+## tide/sim.R first, then mirror it here. The two differ only in how they take
+## parameters -- arguments here, environment variables there -- and in the loop
+## that drives them.
+##
+## Writes nothing: only tide/sim.R and collect-results.R touch results/.
 ##
 ## Usage (from repo root):
 ##   source("simulations/power/template.R")
@@ -38,55 +48,55 @@ struct_params <- list(
 
 # ---- Single-replicate function -----------------------------------------------
 
-run_rep <- function(d, struct, n, phi, snr, seed) {
+run_rep <- function(d, struct, n, phi, snr, seed, oracle = FALSE) {
   set.seed(seed)
-  
+
   # Generate trends
   trends <- do.call(sim_trends,
                     c(list(n = n, d = d, method = struct, seed = seed),
                       struct_params[[struct]]))
-  
+
   # Coupling weight (NULL for dist/unstructured)
   w <- if (!is.null(trends$w)) trends$w else NULL
-  
+
   # Add noise
   sim <- sim_noise_pair(trends, h = h_win, lambda_target = snr,
                         ar.coefs = phi, seed = seed + 1L)
-  
+
+  # Oracle: bypass noise estimation with the true AR params
+  noise_ov <- NULL
+  if (oracle) {
+    z1 <- sim$y1 - sim$x1
+    innov1 <- z1[-1] - phi * z1[-length(z1)]
+    noise_ov <- list(ar = phi, sigma2 = var(innov1))
+  }
+
   # Fit
   fit <- tryCatch(
-    lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win),
+    lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win, noise_override = noise_ov),
     error = function(e) NULL
   )
   if (is.null(fit)) {
     return(list(
-      summary = data.frame(d = d, 
-                           struct = struct, 
-                           n = n,
-                           phi = phi,
-                           snr = snr,
-                           seed = seed,
-                           detected = NA, 
-                           sensitivity = NA_real_, 
-                           fdr = NA_real_,
-                           n_flagged = NA_integer_),
+      summary = data.frame(d = d, struct = struct, n = n,
+                           phi = phi, snr = snr, seed = seed,
+                           detected = NA),
       series = NULL
     ))
   }
-  
+
   # Test
   tst <- lomad_test(fit, alpha = alpha)
-  
-  # Outputs
+
+  # Outputs. Schema matches tide/sim.R exactly: collect-results.R and
+  # localization-sweep.R both assume it. `sep` is the pointwise true trend
+  # separation and is what localization-sweep.R measures rejections against.
   list(
-    summary = data.frame(d = d, 
-                         n = n,
-                         phi = phi,
-                         snr = snr,
-                         struct = struct, 
-                         seed = seed,
+    summary = data.frame(d = d, n = n, phi = phi, snr = snr,
+                         struct = struct, seed = seed,
                          detected = any(tst$rejected, na.rm = TRUE)),
-    series = list(w = w, 
+    series = list(w = w,
+                  sep = abs(trends$x1 - trends$x2),
                   vi = fit$valid_idx,
                   p_raw = tst$p_values,
                   p_adj = tst$p_adj,
@@ -133,7 +143,7 @@ results_summary <- results |>
   )
 
 # Nothing is written here by design: template.R is a local proof-of-concept for
-# the simulation logic. Only tide/sim.R (on the cluster) and collect.R
+# the simulation logic. Only tide/sim.R (on the cluster) and collect-results.R
 # write into results/.
 
 #------ Plot -------------------------------------------------------------------

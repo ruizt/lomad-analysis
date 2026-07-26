@@ -52,7 +52,9 @@ struct_params <- list(
   rate   = list(rate = 0.01)
 )
 
-# ---- Copy run_rep() from template.R -----------------------------------------
+# ---- run_rep(): the authoritative simulation logic ---------------------------
+# This is what runs on the cluster and produces the archived results.
+# template.R mirrors it for local inspection; change this first, then mirror.
 
 run_rep <- function(d, struct, seed) {
   set.seed(seed)

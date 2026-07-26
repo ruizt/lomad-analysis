@@ -5,7 +5,7 @@
 #
 # Each Job runs SIM_S replicates for one parameter combination. Results land in
 # the lomad-power-results PVC as one .rds file per Job (plus a -series.rds).
-# Fetch with tide/fetch.sh, then assemble with collect.R.
+# Fetch with tide/fetch.sh, then assemble with collect-results.R.
 #
 # The Job spec lives in tide/job.yaml and is filled in here with envsubst, so
 # there is exactly one copy of it to keep in step with sim.R.

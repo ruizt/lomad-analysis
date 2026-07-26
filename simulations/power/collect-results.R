@@ -1,4 +1,4 @@
-## collect.R — assemble per-job .rds files into compiled results + summary
+## collect-results.R — assemble per-job .rds files into compiled results + summary
 ##
 ## Run this after fetch.sh has copied the per-job .rds files locally. Produces
 ## the two compiled artifacts the figure stage consumes, so the batch pipeline
@@ -7,7 +7,7 @@
 ## simulations/simulation-figures.R.
 ##
 ## Usage (from the repo root):
-##   Rscript simulations/power/collect.R
+##   Rscript simulations/power/collect-results.R
 
 library(dplyr)
 

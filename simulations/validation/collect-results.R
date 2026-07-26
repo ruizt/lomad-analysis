@@ -1,14 +1,14 @@
-## collect.R — assemble per-job .rds files into a compiled results object
+## collect-results.R — assemble per-job .rds files into a compiled results object
 ##
 ## Run after fetch.sh has copied per-job .rds files locally. Deliberately does
 ## no plotting: the composite figure is built by
 ## simulations/simulation-figures.R from the object written here.
 ##
 ## Usage (from the repo root):
-##   Rscript simulations/validation/collect.R
+##   Rscript simulations/validation/collect-results.R
 ##
 ## Override the source directory:
-##   RAW_DIR=/some/other/path Rscript simulations/validation/collect.R
+##   RAW_DIR=/some/other/path Rscript simulations/validation/collect-results.R
 
 
 RAW_DIR <- Sys.getenv("RAW_DIR", "simulations/validation/results/raw")
