@@ -51,7 +51,7 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
-.positai
+.posit/assistant
 sims/*/results/
 !sims/calibration/results
 !sims/power/results
