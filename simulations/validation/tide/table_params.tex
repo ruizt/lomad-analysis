@@ -1,0 +1,68 @@
+% Table 1: Simulation design parameters (DGP parameters only).
+% sigma^2_eta is the MA-filtered noise variance entering the CLT.
+\begin{table}[ht]
+\centering
+\caption{Simulation design parameters. $T = 2000$ and smoothing bandwidth
+  $h = 20$ for all experiments. The parameters $\phi_k, \theta_k, \sigma_k^2$ denote the AR coefficient, MA coefficient, and innovation variance, respectively, for each noise process; $\sigma^2_{\eta_k}$ is the corresponding smoothed noise variance that enters into the CLT.}
+\label{tab:sim-params}
+\begin{tabular}{llcccc}
+  \toprule
+  Experiment & Series $k$ & $\phi_k$ & $\theta_k$ & $\sigma^2_k$ & $\sigma^2_{\eta_k}$ \\
+  \midrule
+  \multirow{2}{*}{Oracle}
+    & 1 & $0.6$ & $\phantom{-}0.3$  & $0.64$ & $0.305$ \\
+    & 2 & $0.4$ & $-0.2$ & $1.00$ & $0.086$ \\
+  \midrule
+  \multirow{2}{*}{End-to-end}
+    & 1 & $0.5$ & $-$ & $0.64$ & $0.119$ \\
+    & 2 & $0.3$ & $-$ & $0.64$ & $0.063$ \\
+  \bottomrule
+\end{tabular}
+\end{table}
+
+
+% Table 2: Oracle quantities at evaluation points.
+% Panel A: Oracle, t = 600, s varies.
+% Panel B: End-to-end, s = 150, t varies.
+% lambda_k = tau^2_t / sigma^2_{eta,k} (signal-to-noise ratio for series k).
+\begin{table}[ht]
+\centering
+\caption{Oracle quantities at evaluation points. $\lambda_k = \tau^2_t /
+  \sigma^2_{\eta_k}$ is the signal-to-noise ratio for series $k$; $\rho_t$
+  and $V_t$ are the theoretical rolling correlation and its asymptotic
+  variance.}
+\label{tab:oracle-quantities}
+
+% --- Panel A ------------------------------------------------------------------
+\textit{(A) Oracle, $t = 600$}
+
+\smallskip
+\begin{tabular}{cccccccc}
+  \toprule
+  $s$ & $t$ & $\tau^2_t$ & $\lambda_1$ & $\lambda_2$ & $\rho_t$ & $V_t$ \\
+  \midrule
+   80 & 600 & $0.0550$ & $0.180$ & $0.640$ & $0.244$ & $14.151$ \\
+  150 & 600 & $0.0950$ & $0.312$ & $1.106$ & $0.353$ & $11.837$ \\
+  300 & 600 & $0.0761$ & $0.250$ & $0.886$ & $0.306$ & $12.920$ \\
+  \bottomrule
+\end{tabular}
+
+\bigskip
+
+% --- Panel B ------------------------------------------------------------------
+\textit{(B) End-to-end, $s = 150$}
+
+\smallskip
+\begin{tabular}{cccccccc}
+  \toprule
+  $s$ & $t$ & $\tau^2_t$ & $\lambda_1$ & $\lambda_2$ & $\rho_t$ & $V_t$ \\
+  \midrule
+  150 &  500 & $0.0014$ & $0.012$ & $0.022$ & $0.016$ & $14.725$ \\
+  150 &  850 & $0.1039$ & $0.870$ & $1.645$ & $0.538$ & $ 6.407$ \\
+  150 & 1000 & $0.0224$ & $0.188$ & $0.356$ & $0.204$ & $14.070$ \\
+  150 & 1400 & $0.1778$ & $1.488$ & $2.816$ & $0.664$ & $ 3.526$ \\
+  150 & 1600 & $0.1321$ & $1.106$ & $2.091$ & $0.596$ & $ 5.014$ \\
+  \bottomrule
+\end{tabular}
+
+\end{table}

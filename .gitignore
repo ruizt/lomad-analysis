@@ -1,3 +1,6 @@
+# Everything derived or bulky is _-prefixed and stays out of git: simulation
+# results (archived on Zenodo instead), figures in simulations/_img/, computed
+# intermediates in simulations/_derived/, and any _-prefixed scratch file.
 _*
 scratch/
 .DS_Store
@@ -52,7 +55,3 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 .posit/assistant
-simulations/*/results/
-!simulations/power/results
-# ...but keep the _-prefix convention working inside it
-simulations/power/results/_*
