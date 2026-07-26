@@ -26,7 +26,7 @@ clone `lomad-package` as a sibling directory and `devtools::load_all()` it
 instead.)
 
 Scripts and docs assume they are run **from the repository root** (e.g.
-`source("simulations/power/template.R")`, `Rscript simulations/power/tide/collect.R`).
+`source("simulations/power/template.R")`, `Rscript simulations/power/collect.R`).
 
 ## Structure
 

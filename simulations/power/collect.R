@@ -7,7 +7,7 @@
 ## simulations/simulation-figures.R.
 ##
 ## Usage (from the repo root):
-##   Rscript simulations/power/tide/collect.R
+##   Rscript simulations/power/collect.R
 
 library(dplyr)
 

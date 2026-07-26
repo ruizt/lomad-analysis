@@ -133,7 +133,7 @@ results_summary <- results |>
   )
 
 # Nothing is written here by design: template.R is a local proof-of-concept for
-# the simulation logic. Only tide/sim.R (on the cluster) and tide/collect.R
+# the simulation logic. Only tide/sim.R (on the cluster) and collect.R
 # write into results/.
 
 #------ Plot -------------------------------------------------------------------

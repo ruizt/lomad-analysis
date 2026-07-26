@@ -8,7 +8,7 @@
 #   bash simulations/validation/tide/fetch.sh /tmp/my-results
 #
 # After this completes, assemble the results in R:
-#   Rscript simulations/validation/tide/collect.R
+#   Rscript simulations/validation/collect.R
 
 set -euo pipefail
 
@@ -45,4 +45,4 @@ echo ""
 echo "Results are in: ${LOCAL_DIR}"
 echo ""
 echo "Next step — assemble results and generate figures:"
-echo "  Rscript simulations/validation/tide/collect.R"
+echo "  Rscript simulations/validation/collect.R"

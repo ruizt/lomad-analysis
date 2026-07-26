@@ -3,7 +3,7 @@
 ## This is the cheap stage of the pipeline. It reads only compiled summaries
 ## and precomputed intermediates, never the raw per-job files, so it runs in
 ## seconds and can be re-run freely while drafting. The expensive stages are
-## simulations/<study>/tide/collect.R (assemble + summarise) and
+## simulations/<study>/collect.R (assemble + summarise) and
 ## simulations/power/localization-sweep.R (the localization sweep).
 ##
 ## Inputs

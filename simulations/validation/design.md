@@ -147,6 +147,7 @@ validation/
 ├── design.md           ← you are here
 ├── template.R          ← local proof-of-concept (defines run_rep_*())
 ├── table_params.tex    ← LaTeX source for the paper's design-parameter table
+├── collect.R           ← assembles fetched per-job files into a compiled results object
 ├── results/
 │   ├── simulations-validation-results.rds  ← tracked
 │   ├── _simulations-validation.zip         ← archive of _raw/, Zenodo only
@@ -157,8 +158,7 @@ validation/
     ├── submit_sweep.sh ← submits one Job per experiment
     ├── pvc.yaml        ← shared storage (create once)
     ├── accessor.yaml   ← lightweight pod for file retrieval
-    ├── fetch.sh        ← copies results from PVC to local machine
-    └── collect.R       ← assembles per-job files into a compiled results object
+    └── fetch.sh        ← copies results from PVC to local machine
 ```
 
 ---
@@ -221,7 +221,7 @@ kubectl get jobs -n cal-poly-ruiz -l app=lomad-valid
 bash simulations/validation/tide/fetch.sh
 
 # 5. Assemble results, then build the figure
-Rscript simulations/validation/tide/collect.R   # compiled results
+Rscript simulations/validation/collect.R   # compiled results
 Rscript simulations/simulation-figures.R       # composite figure
 
 # 6. Clean up

@@ -1,17 +1,31 @@
-# job.yaml — Kubernetes Job template for one power study run
+# job.yaml — Kubernetes Job template for one power-study run.
 #
-# Used as a reference by submit_sweep.sh (not submitted directly).
+# This is the single source of truth for the Job spec. It is never applied
+# directly: submit_sweep.sh and test_one_job.sh fill the ${...} placeholders
+# with envsubst and pipe the result to kubectl, so the Job spec is referenced
+# from one file the way pvc.yaml and accessor.yaml already are.
 #
-# Submit the full sweep:
-#   bash simulations/power/tide/submit_sweep.sh
+# Required variables:
+#   JOB_NAME NAMESPACE IMAGE CONFIGMAP
+#   SIM_D SIM_STRUCTURE SIM_N SIM_SNR SIM_PHI SIM_S SIM_SEED SIM_ORACLE
+#
+# SIM_ORACLE is "TRUE" or "FALSE"; sim.R reads it with as.logical(), and it
+# doubles as the `oracle` label so the two sweeps can be told apart with
+#   kubectl get jobs -n cal-poly-ruiz -l oracle=TRUE
 
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: lomad-power-JOBNAME
-  namespace: cal-poly-ruiz
+  name: ${JOB_NAME}
+  namespace: ${NAMESPACE}
   labels:
     app: lomad-power
+    structure: "${SIM_STRUCTURE}"
+    d: "${SIM_D}"
+    n: "${SIM_N}"
+    snr: "${SIM_SNR}"
+    phi: "${SIM_PHI}"
+    oracle: "${SIM_ORACLE}"
 spec:
   backoffLimit: 1
   template:
@@ -19,7 +33,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: lomad-power
-          image: ghcr.io/ruizt/lomad-sims:latest
+          image: ${IMAGE}
           imagePullPolicy: Always
           resources:
             requests:
@@ -30,13 +44,21 @@ spec:
               memory: "1Gi"
           env:
             - name: SIM_D
-              value: "SIMVAL_D"
+              value: "${SIM_D}"
             - name: SIM_STRUCTURE
-              value: "SIMVAL_STRUCTURE"
+              value: "${SIM_STRUCTURE}"
+            - name: SIM_N
+              value: "${SIM_N}"
+            - name: SIM_SNR
+              value: "${SIM_SNR}"
+            - name: SIM_PHI
+              value: "${SIM_PHI}"
             - name: SIM_S
-              value: "200"
+              value: "${SIM_S}"
             - name: SIM_SEED
-              value: "2847"
+              value: "${SIM_SEED}"
+            - name: SIM_ORACLE
+              value: "${SIM_ORACLE}"
             - name: SIM_OUT_DIR
               value: "/jobs/output"
           volumeMounts:
@@ -47,7 +69,7 @@ spec:
       volumes:
         - name: script
           configMap:
-            name: lomad-power-script
+            name: ${CONFIGMAP}
         - name: output
           persistentVolumeClaim:
             claimName: lomad-power-results

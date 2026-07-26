@@ -1,104 +1,76 @@
 #!/bin/bash
-# submit_sweep.sh — submit one Kubernetes job per (structure, d, n, snr) combination
+# submit_sweep.sh — submit one Kubernetes Job per (structure, d, n, snr, phi)
 #
 # Usage: bash simulations/power/tide/submit_sweep.sh
 #
-# Each job runs SIM_S replicates for one parameter combination.
-# Results land in the lomad-power-results PVC as one .rds file per job
-# (e.g. smooth_d0-5_n500_snr1-5.rds).
-# Collect after all jobs complete with tide/collect.R.
+# Each Job runs SIM_S replicates for one parameter combination. Results land in
+# the lomad-power-results PVC as one .rds file per Job (plus a -series.rds).
+# Fetch with tide/fetch.sh, then assemble with collect.R.
+#
+# The Job spec lives in tide/job.yaml and is filled in here with envsubst, so
+# there is exactly one copy of it to keep in step with sim.R.
 
-NAMESPACE="cal-poly-ruiz"
+set -euo pipefail
+
+command -v envsubst >/dev/null 2>&1 || {
+  echo "error: envsubst not found (part of gettext)." >&2
+  echo "       install with: brew install gettext" >&2
+  exit 1
+}
+
+TIDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JOB_TEMPLATE="${TIDE_DIR}/job.yaml"
+
+export NAMESPACE="cal-poly-ruiz"
+export IMAGE="ghcr.io/ruizt/lomad-sims:latest"
+export CONFIGMAP="lomad-power-script"
+export SIM_S=500
+export SIM_SEED=2847
+
 D_VALUES=(0 0.5 1.0 1.5 2.0)
 STRUCTURES=(smooth cross rate)
 SAMPLE_SIZES=(200 400 600)
 SNR_VALUES=(0.5 1.5)
 PHI_VALUES=(0.3 0.5 0.8)
-SIM_S=500
-SIM_SEED=2847
-IMAGE="ghcr.io/ruizt/lomad-sims:latest"
-CONFIGMAP="lomad-power-script"
 
-# Create/update the ConfigMap from the local sim.R
+# ---- ConfigMap ---------------------------------------------------------------
+
 echo "Creating ConfigMap '${CONFIGMAP}' ..."
-kubectl create configmap ${CONFIGMAP} \
-  -n ${NAMESPACE} \
-  --from-file=sim.R=simulations/power/tide/sim.R \
+kubectl create configmap "${CONFIGMAP}" \
+  -n "${NAMESPACE}" \
+  --from-file=sim.R="${TIDE_DIR}/sim.R" \
   --dry-run=client -o yaml | kubectl apply -f -
 echo ""
 
-for structure in "${STRUCTURES[@]}"; do
-  for d in "${D_VALUES[@]}"; do
-    for n in "${SAMPLE_SIZES[@]}"; do
-      for snr in "${SNR_VALUES[@]}"; do
-        for phi in "${PHI_VALUES[@]}"; do
-          d_label=$(echo $d | tr '.' '-')
-          snr_label=$(echo $snr | tr '.' '-')
-          phi_label=$(echo $phi | tr '.' '-')
-          job_name="lomad-power-${structure}-d${d_label}-n${n}-snr${snr_label}-phi${phi_label}"
+# ---- Submit one Job from the template ----------------------------------------
+# Expects SIM_STRUCTURE, SIM_D, SIM_N, SIM_SNR, SIM_PHI, SIM_ORACLE exported.
 
-          echo "Submitting ${job_name} ..."
+submit_job() {
+  local label_d label_snr label_phi suffix
+  label_d=${SIM_D//./-}
+  label_snr=${SIM_SNR//./-}
+  label_phi=${SIM_PHI//./-}
+  suffix=""
+  [ "${SIM_ORACLE}" = "TRUE" ] && suffix="-oracle"
 
-          kubectl apply -n ${NAMESPACE} -f - <<EOF
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: ${job_name}
-  namespace: ${NAMESPACE}
-  labels:
-    app: lomad-power
-    structure: "${structure}"
-    d: "${d}"
-    n: "${n}"
-    snr: "${snr}"
-    phi: "${phi}"
-spec:
-  backoffLimit: 1
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: lomad-power
-          image: ${IMAGE}
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: "1"
-              memory: "1Gi"
-            limits:
-              cpu: "1"
-              memory: "1Gi"
-          env:
-            - name: SIM_D
-              value: "${d}"
-            - name: SIM_STRUCTURE
-              value: "${structure}"
-            - name: SIM_N
-              value: "${n}"
-            - name: SIM_SNR
-              value: "${snr}"
-            - name: SIM_PHI
-              value: "${phi}"
-            - name: SIM_S
-              value: "${SIM_S}"
-            - name: SIM_SEED
-              value: "${SIM_SEED}"
-            - name: SIM_OUT_DIR
-              value: "/jobs/output"
-          volumeMounts:
-            - name: script
-              mountPath: /scripts
-            - name: output
-              mountPath: /jobs/output
-      volumes:
-        - name: script
-          configMap:
-            name: ${CONFIGMAP}
-        - name: output
-          persistentVolumeClaim:
-            claimName: lomad-power-results
-EOF
+  export JOB_NAME="lomad-power-${SIM_STRUCTURE}-d${label_d}-n${SIM_N}-snr${label_snr}-phi${label_phi}${suffix}"
 
+  echo "Submitting ${JOB_NAME} ..."
+  envsubst '${JOB_NAME} ${NAMESPACE} ${IMAGE} ${CONFIGMAP} ${SIM_D} ${SIM_STRUCTURE} ${SIM_N} ${SIM_SNR} ${SIM_PHI} ${SIM_S} ${SIM_SEED} ${SIM_ORACLE}' \
+    < "${JOB_TEMPLATE}" | kubectl apply -n "${NAMESPACE}" -f -
+}
+
+# ---- Main sweep (estimated noise) --------------------------------------------
+
+export SIM_ORACLE="FALSE"
+
+for SIM_STRUCTURE in "${STRUCTURES[@]}"; do
+  for SIM_D in "${D_VALUES[@]}"; do
+    for SIM_N in "${SAMPLE_SIZES[@]}"; do
+      for SIM_SNR in "${SNR_VALUES[@]}"; do
+        for SIM_PHI in "${PHI_VALUES[@]}"; do
+          export SIM_STRUCTURE SIM_D SIM_N SIM_SNR SIM_PHI
+          submit_job
         done
       done
     done
@@ -106,83 +78,21 @@ EOF
 done
 
 # ---- Oracle sweep (phi = 0.8 only) -------------------------------------------
+# Isolates estimation error from test behaviour: sim.R bypasses noise
+# estimation and uses the true AR(1) parameters. See design.md.
 
 echo ""
 echo "Submitting oracle jobs (phi = 0.8 only) ..."
 
-for structure in "${STRUCTURES[@]}"; do
-  for d in "${D_VALUES[@]}"; do
-    for n in "${SAMPLE_SIZES[@]}"; do
-      for snr in "${SNR_VALUES[@]}"; do
-        d_label=$(echo $d | tr '.' '-')
-        snr_label=$(echo $snr | tr '.' '-')
-        job_name="lomad-power-${structure}-d${d_label}-n${n}-snr${snr_label}-phi0-8-oracle"
+export SIM_ORACLE="TRUE"
+export SIM_PHI="0.8"
 
-        echo "Submitting ${job_name} ..."
-
-        kubectl apply -n ${NAMESPACE} -f - <<EOF
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: ${job_name}
-  namespace: ${NAMESPACE}
-  labels:
-    app: lomad-power
-    structure: "${structure}"
-    d: "${d}"
-    n: "${n}"
-    snr: "${snr}"
-    phi: "0.8"
-    oracle: "true"
-spec:
-  backoffLimit: 1
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: lomad-power
-          image: ${IMAGE}
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: "1"
-              memory: "1Gi"
-            limits:
-              cpu: "1"
-              memory: "1Gi"
-          env:
-            - name: SIM_D
-              value: "${d}"
-            - name: SIM_STRUCTURE
-              value: "${structure}"
-            - name: SIM_N
-              value: "${n}"
-            - name: SIM_SNR
-              value: "${snr}"
-            - name: SIM_PHI
-              value: "0.8"
-            - name: SIM_S
-              value: "${SIM_S}"
-            - name: SIM_SEED
-              value: "${SIM_SEED}"
-            - name: SIM_ORACLE
-              value: "TRUE"
-            - name: SIM_OUT_DIR
-              value: "/jobs/output"
-          volumeMounts:
-            - name: script
-              mountPath: /scripts
-            - name: output
-              mountPath: /jobs/output
-      volumes:
-        - name: script
-          configMap:
-            name: ${CONFIGMAP}
-        - name: output
-          persistentVolumeClaim:
-            claimName: lomad-power-results
-EOF
-
+for SIM_STRUCTURE in "${STRUCTURES[@]}"; do
+  for SIM_D in "${D_VALUES[@]}"; do
+    for SIM_N in "${SAMPLE_SIZES[@]}"; do
+      for SIM_SNR in "${SNR_VALUES[@]}"; do
+        export SIM_STRUCTURE SIM_D SIM_N SIM_SNR
+        submit_job
       done
     done
   done
@@ -191,4 +101,5 @@ done
 echo ""
 echo "All jobs submitted. Monitor with:"
 echo "  kubectl get jobs -n ${NAMESPACE} -l app=lomad-power"
+echo "  kubectl get jobs -n ${NAMESPACE} -l oracle=TRUE      # oracle arm only"
 echo "  kubectl logs -n ${NAMESPACE} job/<job-name>"

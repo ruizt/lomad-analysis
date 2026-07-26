@@ -71,7 +71,8 @@ also needs a PAT available to `pak` inside the container.
 -   **`design.md`** — prose description of the simulation design, parameter grid, estimands, and intended outputs.
 -   **`template.R`** — defines a `run_rep()` function and runs a small local proof-of-concept. This is the source of truth for the simulation logic.
 -   **`settings.R`** (if present) — visual walkthrough of single replicates.
--   **`results/`** — gitignored. Populated by local runs and Tide results.
+-   **`collect.R`** — assembles fetched per-job files into compiled results. Sits outside `tide/`, which holds only what talks to the cluster.
+-   **`results/`** — compiled `.rds` files are tracked; `_`-prefixed entries (`_raw/`, the zip) are gitignored and archived on Zenodo.
 -   **`tide/`** — Kubernetes submission materials (see below).
 
 ## Running on Tide (Kubernetes)
@@ -83,10 +84,10 @@ Each study's `tide/` directory contains:
 | `sim.R` | Simulation script (mounted into the container via ConfigMap) |
 | `pvc.yaml` | Persistent Volume Claim for results (create once per study) |
 | `submit_sweep.sh` | Creates ConfigMap from `sim.R`, submits one Job per parameter value |
-| `job.yaml` | Reference Job template (not submitted directly) |
+| `job.yaml` | Job spec template; `submit_sweep.sh` fills it with `envsubst` |
 | `accessor.yaml` | Lightweight pod for copying files off the PVC |
-| `fetch.sh` | Copies `.rds` results from PVC to local `results/raw/` |
-| `collect.R` | Assembles per-job files into summary results and plots |
+| `fetch.sh` | Copies `.rds` results from PVC to local `results/_raw/` |
+| `test_one_job.sh` | Submits one small job to smoke-test `sim.R` (power only) |
 
 ### Workflow
 
@@ -104,7 +105,7 @@ kubectl get jobs -n cal-poly-ruiz -l app=<study-label>
 bash simulations/<study>/tide/fetch.sh
 
 # 5. Assemble
-Rscript simulations/<study>/tide/collect.R
+Rscript simulations/<study>/collect.R
 
 # 6. Clean up
 kubectl delete jobs -n cal-poly-ruiz -l app=<study-label>

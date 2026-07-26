@@ -94,6 +94,7 @@ power/
 ├── design.md           ← you are here
 ├── template.R          ← local proof-of-concept (defines run_rep()); writes nothing
 ├── settings.R          ← visual walkthrough of single replicates
+├── collect.R           ← assembles fetched per-job files into compiled results + summary
 ├── localization-sweep.R ← threshold sweep over the -series.rds files (slow)
 ├── results/
 │   ├── simulations-power-results.rds       ← tracked
@@ -106,15 +107,21 @@ power/
     ├── submit.sh       ← runs the full pipeline (PVC → jobs → wait → fetch)
     ├── submit_sweep.sh ← submits one Job per (struct, d, n, phi, snr)
     ├── pvc.yaml        ← shared storage (create once)
-    ├── job.yaml        ← Job template (reference only)
+    ├── job.yaml        ← Job spec template, filled by envsubst (single source of truth)
     ├── accessor.yaml   ← lightweight pod for file retrieval
     ├── fetch.sh        ← copies results from PVC to local machine
-    └── collect.R       ← assembles per-job files into compiled results + summary
+    └── test_one_job.sh ← submits one small job to smoke-test sim.R
 ```
 
 `_`-prefixed entries are gitignored and archived on Zenodo; the compiled `.rds`
 files are small enough to track, so a fresh clone can rebuild every figure
 without downloading anything.
+
+`tide/` holds everything that talks to the cluster. `collect.R` and
+`localization-sweep.R` sit outside it because they only read local files.
+`job.yaml` is the one copy of the Job spec: `submit_sweep.sh` and
+`test_one_job.sh` fill its placeholders with `envsubst`, so the spec cannot
+drift between the sweep and the smoke test.
 
 ------------------------------------------------------------------------
 
@@ -122,7 +129,7 @@ without downloading anything.
 
 ### Local development
 
-Source `template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `tide/collect.R` write into `results/`. See `settings.R` for a visual walkthrough of single replicates at each structure.
+Source `template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `collect.R` write into `results/`. See `settings.R` for a visual walkthrough of single replicates at each structure.
 
 To inspect a single replicate interactively:
 
@@ -169,7 +176,7 @@ kubectl get jobs -n cal-poly-ruiz -l app=lomad-power
 bash simulations/power/tide/fetch.sh
 
 # 5. Assemble results from per-job files
-Rscript simulations/power/tide/collect.R
+Rscript simulations/power/collect.R
 
 # 6. Summarise and plot (local post-processing)
 Rscript simulations/power/localization-sweep.R   # optional: localization

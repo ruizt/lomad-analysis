@@ -5,10 +5,10 @@
 ## simulations/simulation-figures.R from the object written here.
 ##
 ## Usage (from the repo root):
-##   Rscript simulations/validation/tide/collect.R
+##   Rscript simulations/validation/collect.R
 ##
 ## Override the source directory:
-##   RAW_DIR=/some/other/path Rscript simulations/validation/tide/collect.R
+##   RAW_DIR=/some/other/path Rscript simulations/validation/collect.R
 
 
 RAW_DIR <- Sys.getenv("RAW_DIR", "simulations/validation/results/raw")
