@@ -16,22 +16,24 @@
 ##   spec(c) = P(!rejected | m_t <= c)     "of the windows separated by less
 ##                                          than c, how many did we pass?"
 ##
-## The plot is sens against 1 - spec, giving an ROC-like trace. Note the sweep
-## variable is the definition of decoupling, not a decision threshold on the
-## test, so the curve is a localization diagnostic and the area under it is
-## NOT an AUC in the usual "probability a random positive outranks a random
-## negative" sense. No area is reported.
-##
 ## ORIENTATION. Set ORIENT below:
-##   "conventional" (default) — sens/spec as above, conditioning on the truth.
-##   "predictive"            — precision P(m_t > c | rejected) against
-##                             1 - NPV, i.e. conditioning on the test's
-##                             decision. This is the orientation used in
-##                             postprocess_roc.qmd, where the two quantities
-##                             were labelled sens/spec.
+##   "predictive" (default) — precision P(m_t > c | rejected) against 1 - NPV,
+##                            conditioning on the test's decision. Because the
+##                            sweep asks how well the rejections line up with
+##                            separation of at least magnitude c, conditioning
+##                            on the flags is the natural choice. This is the
+##                            orientation used in postprocess_roc.qmd (where
+##                            the two quantities were labelled sens/spec).
+##   "conventional"         — sens/spec as defined above, conditioning on the
+##                            truth instead.
 ##
-## Curves pool over separation d and series length T; they are separated by
-## trend structure, AR(1) coefficient phi, and SNR.
+## Either way the trace is ROC-like, but the sweep variable is the definition
+## of decoupling rather than a decision threshold on the test, so the area
+## under the curve is NOT an AUC in the usual "probability a random positive
+## outranks a random negative" sense. No area is reported.
+##
+## Curves pool over separation d; they are separated by trend structure,
+## AR(1) coefficient phi, SNR, and rolling-window size s (equivalently T).
 ##
 ## Usage (from the repo root):
 ##   Rscript sims/power/localization-analysis.R
@@ -43,6 +45,7 @@
 suppressPackageStartupMessages({
   library(dplyr)
   library(ggplot2)
+  library(ggh4x)
 })
 
 RAW_DIR <- "sims/power/results/_raw"
@@ -106,7 +109,7 @@ for (i in seq_len(nrow(meta))) {
   if (is.null(x)) { corrupt <- c(corrupt, basename(m$file)); next }
 
   s_win <- s_win_fcn(m$n)
-  key <- paste(m$struct, m$phi, m$snr, sep = "|")
+  key <- paste(m$struct, m$phi, m$snr, s_win, sep = "|")
   if (is.null(cells[[key]]))
     cells[[key]] <- list(rej = numeric(NBIN), non = numeric(NBIN))
   cl <- cells[[key]]
@@ -141,6 +144,7 @@ sweep <- bind_rows(lapply(names(cells), function(key) {
   A <- tot_rej - B; C <- tot_non - D
   data.frame(
     struct = k[1], phi = as.numeric(k[2]), snr = as.numeric(k[3]),
+    s_win = as.integer(k[4]),
     c = edges[-1],
     sens = A / pmax(1, A + C),          # P(rejected  | m > c)
     spec = D / pmax(1, D + B),          # P(!rejected | m <= c)
@@ -168,8 +172,8 @@ cat(sprintf("\n== sweep at selected c (orientation: %s) ==\n", ORIENT))
 print(as.data.frame(
   sweep |> filter(c %in% sapply(C_MARKS, function(z) edges[-1][which.min(abs(edges[-1] - z))])) |>
     mutate(across(c(sens, spec, prec, npv), \(z) round(z, 3))) |>
-    select(struct, phi, snr, c, sens, spec, prec, npv) |>
-    arrange(struct, phi, snr, c)), row.names = FALSE)
+    select(struct, phi, snr, s_win, c, sens, spec, prec, npv) |>
+    arrange(struct, phi, snr, s_win, c)), row.names = FALSE)
 
 ## ---- figure ---------------------------------------------------------------
 lab_struct <- c(smooth = "Smooth", cross = "Cross", rate = "Rate")
@@ -180,25 +184,30 @@ sw <- sweep |>
   mutate(Structure = factor(lab_struct[struct], levels = names(pal)))
 
 marks <- bind_rows(lapply(C_MARKS, function(z) {
-  sw |> group_by(struct, phi, snr) |>
+  sw |> group_by(struct, phi, snr, s_win) |>
     slice_min(abs(c - z), n = 1, with_ties = FALSE) |>
     ungroup() |> mutate(c_lab = z)
 }))
 
 p <- ggplot(sw, aes(xx, yy, colour = Structure)) +
-  geom_path(linewidth = 0.7) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed",
+              colour = "grey70", linewidth = 0.3) +
+  geom_path(linewidth = 0.6) +
   geom_point(data = marks, size = 1.4) +
-  facet_grid(phi ~ snr, labeller = labeller(
-    phi = function(x) paste0("phi == ", x),
-    snr = function(x) paste0("SNR == ", x),
+  facet_nested(phi ~ snr + s_win, labeller = labeller(
+    phi   = function(x) paste0("phi == ", x),
+    snr   = function(x) paste0("SNR == ", x),
+    s_win = function(x) paste0("s == ", x),
     .default = label_parsed)) +
   scale_colour_manual(values = pal) +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
   labs(x = xlab, y = ylab, colour = NULL,
        caption = paste0(
          "Each curve sweeps the separation threshold c defining a decoupled ",
          "window (windowed maximum |nu_1 - nu_2|).\nPoints mark c = ",
          paste(C_MARKS, collapse = ", "),
-         ". Curves pool over separation d and series length T.")) +
+         ". Curves pool over separation d.")) +
   theme_bw(base_size = 11) +
   theme(legend.position  = "bottom",
         panel.grid.minor = element_blank(),
@@ -208,5 +217,5 @@ p <- ggplot(sw, aes(xx, yy, colour = Structure)) +
         plot.caption     = element_text(size = 7, hjust = 0, colour = "grey30"))
 
 ggsave(file.path(IMG_DIR, "fig_localization.png"), p,
-       width = 7.5, height = 6.8, dpi = 400)
+       width = 11, height = 6.5, dpi = 400)
 cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig_localization.png")))
