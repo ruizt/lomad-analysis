@@ -34,23 +34,37 @@ This means:
 
 -   **Script changes don't require an image rebuild.** Just re-run `submit_sweep.sh` and the updated ConfigMap is applied.
 -   **The image only needs rebuilding** when a new `lomad` version (in the `lomad-package` repo) or a new runtime dependency is needed. Rebuild manually via the `Build and push lomad-sims image` workflow (`workflow_dispatch`), optionally passing a `LOMAD_REF`.
--   **The same image works for all studies** — the MVN example, the calibration study, and any future studies.
+-   **The same image works for all studies.**
 
 ### Rebuilding the image
 
-Build and push from the repo root:
+Normally use the `Build and push lomad-sims image` workflow
+(`workflow_dispatch`). To build by hand you need Docker running and a GitHub
+PAT with `write:packages`; authenticate once per machine with
 
 ``` bash
-# From the repo root:
+echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u USERNAME --password-stdin
+```
+
+then build and push from the repo root:
+
+``` bash
 docker buildx build --platform linux/amd64 \
   -f simulations/Dockerfile \
   -t ghcr.io/ruizt/lomad-sims:latest --push .
 ```
 
-The image installs the `lomad` package from the `lomad-package` GitHub repo
-(see the `LOMAD_REF` build arg in the Dockerfile to pin a version); it does not
-copy this repository's contents. The `.dockerignore` at the repo root simply
-keeps the build context small.
+`--platform linux/amd64` is required for the cluster even when building on
+Apple Silicon; `--build-arg LOMAD_REF=<branch|tag|sha>` pins the `lomad`
+version. Build time is ~4 minutes from scratch. The image installs `lomad`
+from the `lomad-package` repo rather than from the build context, so the
+`.dockerignore` at the repo root only serves to keep that context small.
+
+**Image visibility.** New ghcr.io packages default to *private*, and the
+cluster cannot pull a private image without an image pull secret. Set the
+package to Public under package Settings → Danger Zone → Change package
+visibility. Note `lomad-package` is currently private too, so a manual build
+also needs a PAT available to `pak` inside the container.
 
 ## Per-study conventions
 
