@@ -108,24 +108,28 @@ changing the simulation needs no image rebuild. The Job spec lives once in
 `tide/job.yaml` and is filled with `envsubst`; `power/tide/test_one_job.sh`
 submits a single small job from the same template as a smoke test.
 
-The image (`ghcr.io/ruizt/lomad-sims`) is built locally, after
+The image (`ghcr.io/ruizt/lomad-sims`) is built with, after
 `docker login ghcr.io`:
 
 ```bash
-bash simulations/build-image.sh              # build and push
+bash simulations/build-image.sh              # lomad from GitHub, push
+bash simulations/build-image.sh --local      # lomad from ../lomad-package
 bash simulations/build-image.sh --no-push    # build only
 ```
 
-It builds `lomad` from the sibling `lomad-package` checkout and installs that
-source tree into the image, rather than pulling from GitHub — `lomad-package`
-is private, so `pak` inside the container cannot authenticate. It also means
-the image always matches your working tree, which is what you want when
-re-running simulations against an unreleased change. The image is labelled
-with the package version and commit it was built from.
+By default `lomad` is installed from GitHub at `LOMAD_REF` (default `main`),
+which **requires `ruizt/lomad-package` to be public** — `pak` inside the
+container has no credentials, so while the repo is private this fails and
+`--local` is the working route.
 
-The GitHub Actions build is disabled for the same reason: the runner has no
-access to the private package. Once `lomad-package` is public, reverting the
-Dockerfile to the remote install (the commented block in it) restores it.
+`--local` builds `lomad` from the sibling checkout and installs that source
+tree. Worth using even after the repo is public whenever the image should
+match your working tree rather than a branch — as when re-running simulations
+against a change that is not yet released. Either way the image is labelled
+with the package version and commit it came from.
+
+The GitHub Actions build is manual-only for the same reason; re-add its push
+trigger once the package repo is public.
 
 The ghcr package must be **public** or the cluster cannot pull it without an
 image pull secret.
