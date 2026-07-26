@@ -28,17 +28,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install remotes and non-lomad runtime dependencies used by sim scripts
-RUN Rscript -e "install.packages( \
-    c('remotes', 'dplyr'), \
+# Install pak, the fast dependency resolver used to install everything below
+RUN Rscript -e "install.packages('pak', \
     repos = 'https://packagemanager.posit.co/cran/latest')"
 
-# Install the lomad package (with its Imports) from GitHub. The package source
-# lives in the companion lomad-package repo. Override the ref at build time
-# with --build-arg LOMAD_REF=<branch|tag|sha> for a reproducible pin.
+# Install the lomad package (with its Imports) from GitHub, plus non-lomad
+# runtime dependencies used by sim scripts. pak resolves and installs all
+# dependencies automatically. The package source lives in the companion
+# lomad-package repo. Override the ref at build time with
+# --build-arg LOMAD_REF=<branch|tag|sha> for a reproducible pin.
 ARG LOMAD_REF=main
-RUN Rscript -e "remotes::install_github('ruizt/lomad-package@${LOMAD_REF}', \
-    dependencies = NA, upgrade = 'never')"
+RUN Rscript -e "pak::pkg_install(c('dplyr', 'ruizt/lomad-package@${LOMAD_REF}'))"
 
 # Default: run whatever script is mounted at /scripts/sim.R
 CMD ["Rscript", "/scripts/sim.R"]

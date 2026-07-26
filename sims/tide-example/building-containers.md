@@ -60,7 +60,8 @@ The shared `Dockerfile` (`sims/Dockerfile`) produces an image with:
 
 - **Base**: `rocker/r-ver:4.5.0` (Debian + R 4.5)
 - **System libraries**: libcurl, libssl, libxml2
-- **R packages**: mvtnorm, dplyr, remotes, plus the lomad package
+- **R packages**: pak, dplyr, plus the lomad package (which pulls in its own
+  dependencies such as mvtnorm, fda, and roll)
   (Imports only — Suggests like ggplot2 are excluded to keep the image lean)
   (installed from source)
 - **No simulation scripts** — scripts are mounted at runtime via Kubernetes
@@ -108,13 +109,11 @@ own username and PAT before pushing.
 
 ### Adding a new R package
 
-1. Edit `sims/Dockerfile` and add the package to the `install.packages()`
+1. Edit `sims/Dockerfile` and add the package to the `pak::pkg_install()`
    call:
 
    ```dockerfile
-   RUN Rscript -e "install.packages( \
-       c('mvtnorm', 'dplyr', 'remotes', 'NEW_PACKAGE'), \
-       repos = 'https://packagemanager.posit.co/cran/latest')"
+   RUN Rscript -e "pak::pkg_install(c('dplyr', 'NEW_PACKAGE', 'ruizt/lomad-package@${LOMAD_REF}'))"
    ```
 
 2. Rebuild and push:
