@@ -146,7 +146,6 @@ Built by `simulations/simulation-figures.R`, not by this study, and written to
 validation/
 ├── design.md           ← you are here
 ├── simulation-template.R          ← local proof-of-concept (defines run_rep_*())
-├── table_params.tex    ← LaTeX source for the paper's design-parameter table
 ├── collect-results.R           ← assembles fetched per-job files into a compiled results object
 ├── results/
 │   ├── simulations-validation-results.rds  ← tracked

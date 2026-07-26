@@ -93,7 +93,6 @@ Built by `simulations/simulation-figures.R`, not by this study, and written to
 power/
 ├── design.md           ← you are here
 ├── simulation-template.R          ← local illustration mirroring tide/sim.R; writes nothing
-├── explore-replicates.R ← four-panel walkthrough of one replicate per structure
 ├── collect-results.R           ← assembles fetched per-job files into compiled results + summary
 ├── localization-sweep.R ← threshold sweep over the -series.rds files (slow)
 ├── results/
@@ -129,7 +128,7 @@ drift between the sweep and the smoke test.
 
 ### Local development
 
-Source `simulation-template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `collect-results.R` write into `results/`. See `explore-replicates.R` to watch the method work on a single replicate at each structure — the quickest way to build intuition before reading the grid results.
+Source `simulation-template.R` in RStudio. It loops over all (struct, d, n, phi, snr) combinations with *S* = 20 replicates and computes detection rates in memory. It deliberately writes nothing — only `tide/sim.R` (on the cluster) and `collect-results.R` write into `results/`. To watch the method work on a single replicate under each trend structure, see the *Simulating your own scenarios* section of the package vignette (`vignette("lomad")`), which is where that walkthrough now lives.
 
 To inspect a single replicate interactively:
 
