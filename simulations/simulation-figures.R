@@ -4,12 +4,12 @@
 ## and precomputed intermediates, never the raw per-job files, so it runs in
 ## seconds and can be re-run freely while drafting. The expensive stages are
 ## simulations/<study>/tide/collect.R (assemble + summarise) and
-## simulations/localization-sweep.R (the localization sweep).
+## simulations/power/localization-sweep.R (the localization sweep).
 ##
 ## Inputs
 ##   simulations/power/results/_simulations-power-summary.rds
 ##   simulations/validation/results/_simulations-validation-results.rds
-##   simulations/_derived/localization.rds
+##   simulations/power/results/_simulations-power-localization.rds
 ##   (the trend-construction figure needs no inputs; it simulates its own)
 ##
 ## Outputs -> simulations/_img/
@@ -230,7 +230,7 @@ ggsave(file.path(IMG_DIR, "power_curves.png"),
 # =============================================================================
 
 local({
-  L      <- readRDS("simulations/_derived/localization.rds")
+  L      <- readRDS("simulations/power/results/_simulations-power-localization.rds")
   sweep  <- L$sweep
   ORIENT <- L$orient
   C_MAX   <- 0.30

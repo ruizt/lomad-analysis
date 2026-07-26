@@ -43,7 +43,7 @@
 ## from figure generation so that redrawing a figure never re-runs it.
 ##
 ## Usage (from the repo root):
-##   Rscript simulations/localization-sweep.R
+##   Rscript simulations/power/localization-sweep.R
 ##
 ## Outputs:
 ##   simulations/power/results/_img/fig_localization.png
@@ -54,7 +54,7 @@ suppressPackageStartupMessages({
 })
 
 RAW_DIR <- "simulations/power/results/_raw"
-OUT_DIR <- "simulations/_derived"
+OUT_DIR <- "simulations/power/results"
 
 ORIENT   <- "predictive"            # or "conventional"
 MMAX     <- 1.0                     # top of the separation grid
@@ -163,5 +163,6 @@ sweep <- bind_rows(lapply(names(cells), function(key) {
 }))
 
 saveRDS(list(sweep = sweep, orient = ORIENT, corrupt = corrupt),
-        file.path(OUT_DIR, "localization.rds"))
-cat(sprintf("Wrote %s\n", file.path(OUT_DIR, "localization.rds")))
+        file.path(OUT_DIR, "_simulations-power-localization.rds"))
+cat(sprintf("Wrote %s\n",
+            file.path(OUT_DIR, "_simulations-power-localization.rds")))

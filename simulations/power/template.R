@@ -106,8 +106,6 @@ run_rep(d=0.5, struct='rate', n=500, phi=0.5, snr=1.5, seed=123)$series |>
 set.seed(2847)
 all_seeds <- sample.int(1e6, S)
 
-# series_dir <- "simulations/power/results/_local/series"
-# dir.create(series_dir, recursive = TRUE, showWarnings = FALSE)
 
 results <- lapply(structs, function(struct) {
   lapply(d_vals, function(d) {
@@ -115,11 +113,6 @@ results <- lapply(structs, function(struct) {
       lapply(phi_vals, function(phi) {
         lapply(snr_vals, function(snr) {
           reps <- lapply(all_seeds, function(s) run_rep(d, struct, n, phi, snr, s))
-          
-          # # Write series to disk, keyed by seed
-          # series <- setNames(lapply(reps, `[[`, "series"), all_seeds)
-          # saveRDS(series, file.path(series_dir,
-          #   sprintf("%s_d%s_n%d_phi%s_snr%s.rds", struct, d, n, phi, snr)))
           
           bind_rows(lapply(reps, `[[`, "summary"))
         }) |> bind_rows()
@@ -139,10 +132,9 @@ results_summary <- results |>
     .groups     = "drop"
   )
 
-# # ---- Save --------------------------------------------------------------------
-# 
-# saveRDS(results, "simulations/power/results/results.rds")
-# saveRDS(results_summary, "simulations/power/results/results_summary.rds")
+# Nothing is written here by design: template.R is a local proof-of-concept for
+# the simulation logic. Only tide/sim.R (on the cluster) and tide/collect.R
+# write into results/.
 
 #------ Plot -------------------------------------------------------------------
 

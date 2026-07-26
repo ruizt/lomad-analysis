@@ -137,7 +137,7 @@ validation/
     ├── pvc.yaml        ← shared storage (create once)
     ├── accessor.yaml   ← lightweight pod for file retrieval
     ├── fetch.sh        ← copies results from PVC to local machine
-    └── collect.R       ← assembles per-job files + generates figures
+    └── collect.R       ← assembles per-job files into a compiled results object
 ```
 
 ---
@@ -157,7 +157,7 @@ number of replicates:
 
 ```bash
 SIM_EXPERIMENT=clt-s80 SIM_S=5 SIM_SEED=7291 \
-  SIM_OUT_DIR=simulations/validation/results/raw \
+  SIM_OUT_DIR=simulations/validation/results/_raw \
   Rscript simulations/validation/tide/sim.R
 ```
 
@@ -182,7 +182,7 @@ bash simulations/validation/tide/submit.sh
 ```
 
 Creates the PVC, submits one job per experiment (6 jobs), polls until all
-complete, and fetches results to `results/raw/`.
+complete, and fetches results to `results/_raw/`.
 
 #### Step-by-step
 
@@ -200,7 +200,8 @@ kubectl get jobs -n cal-poly-ruiz -l app=lomad-valid
 bash simulations/validation/tide/fetch.sh
 
 # 5. Assemble results and generate figures
-Rscript simulations/validation/tide/collect.R
+Rscript simulations/validation/tide/collect.R   # compiled results
+Rscript simulations/simulation-figures.R       # composite figure
 
 # 6. Clean up
 kubectl delete jobs -n cal-poly-ruiz -l app=lomad-valid
