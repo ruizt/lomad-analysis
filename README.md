@@ -1,135 +1,61 @@
-# lomad
+# lomad-analysis
 
-**Lo**cal **M**oving **A**verage **D**ecoupling — an R package for detecting
-and characterizing periods of decoupling between two correlated time series.
+Analysis, simulation studies, and HPC scaffolding for the **lomad** method
+(**Lo**cal **M**oving **A**verage **D**ecoupling) — detecting periods of
+decoupling between two correlated time series.
 
-## Overview
+The R package itself lives in the companion repository
+[`lomad-package`](https://github.com/ruizt/lomad-package). This repository
+contains everything built *on top of* that package: the paper's simulation
+studies, the Morro Bay field-data analysis, numerical validation of the theory,
+and exploratory notebooks and scripts.
 
-`lomad` provides a statistical framework for detecting time windows in which
-two previously correlated series exhibit locally low correlation. Given paired
-series following a signal-plus-noise model, the method:
+## Setup
 
-1. Smooths each series with a moving average filter to isolate trends.
-2. Computes rolling window correlations on the smoothed series.
-3. Tests pointwise whether observed correlations fall below their expected
-   values under a shared-trend null, using a CLT-based test statistic with
-   Benjamini–Yekutieli FDR correction.
-
-Noise parameters (AR/ARMA) are estimated via a variogram-based approach that
-is robust to trend contamination. The asymptotic variance of the local
-correlation accounts for autocorrelation in the smoothed noise.
-
-### Core workflow
-
-| Function | Role |
-|---|---|
-| `lomad_fit()` | Fit the null model (estimate noise, compute expected correlations and asymptotic variance) |
-| `lomad_test()` | Pointwise test for local decoupling with FDR correction |
-| `lomad()` | Convenience wrapper: `lomad_fit()` → `lomad_test()` |
-
-### Supporting functions
-
-| Function | Role |
-|---|---|
-| `lomad_test_identity()` | Global test of exact trend identity (H₀: d = 0) |
-| `lomad_plot()` | Visualise fit and test results |
-| `estimate_trends()` | Extract trends via moving average |
-| `estimate_ar1_noise()` | Estimate AR(1) noise parameters via variogram |
-| `estimate_arma_noise()` | Estimate ARMA noise parameters via long-AR approximation |
-| `sim_trends()` | Generate synthetic trend pairs at controlled L² separation |
-| `sim_noise_pair()` | Add calibrated ARMA noise to trend pairs |
-
-## Installation
-
-### Development version (from source)
-
-Clone the repository and install with `devtools`:
-
-```bash
-git clone <repo-url>
-cd lomad
-```
+Install the package from GitHub, then load it at the top of any script or
+notebook:
 
 ```r
-devtools::install_deps()
-devtools::install()
-```
-
-Or build and install from the command line:
-
-```bash
-R CMD build .
-R CMD INSTALL lomad_*.tar.gz
-```
-
-To load the package in-place during development:
-
-```r
-devtools::load_all()
-```
-
-## Quickstart
-
-```r
+remotes::install_github("ruizt/lomad-package")
 library(lomad)
-
-# Simulate paired trends with controlled L² separation
-trends <- sim_trends(n = 500, d = 2, method = "smooth", bw = 50, seed = 1)
-
-# Add calibrated AR(1) noise at target SNR
-sim <- sim_noise_pair(trends, h = 10, lambda_target = 1.5,
-                      ar.coefs = 0.5, seed = 2)
-
-# Fit null model and test for decoupling
-fit <- lomad_fit(sim$y1, sim$y2, h = 10, s = 50)
-tst <- lomad_test(fit, alpha = 0.05)
-
-# Which time points show significant decoupling?
-which(tst$rejected)
-
-# Visualise
-lomad_plot(fit, tst)
 ```
 
-### Convenience wrapper
+Re-run `remotes::install_github("ruizt/lomad-package")` to pick up upstream
+changes to the package. (To iterate on the package and this analysis together,
+clone `lomad-package` as a sibling directory and `devtools::load_all()` it
+instead.)
 
-```r
-out <- lomad(sim$y1, sim$y2, h = 10, s = 50, alpha = 0.05)
-out$fit   # lomad_fit output
-out$test  # lomad_test output
-```
+Scripts and docs assume they are run **from the repository root** (e.g.
+`source("sims/power/template.R")`, `Rscript sims/calibration/tide/collect.R`).
 
-## For contributors
-
-Clone the repo and open `lomad.Rproj` in RStudio. Load all package functions
-with `devtools::load_all()`.
-
-Development files live in `dev/`:
-
-| Directory | Contents |
-|-----------|----------|
-| `dev/sims/` | Simulation studies (calibration, power, Tide HPC example) |
-| `dev/mb-analysis/` | Morro Bay field data analysis |
-| `dev/scripts/` | Exploratory R scripts |
-
-See `AGENTS.md` for source conventions and `dev/sims/README.md` for the
-simulation infrastructure.
-
-## Project structure
+## Structure
 
 ```
-lomad/
-├── R/                     # Package source (themed: sim_*, estimate_*, lomad_*, utils-*)
-├── tests/testthat/        # Unit tests (141 tests, themed by module)
-├── man/                   # Auto-generated documentation
-├── dev/
-│   ├── sims/              # Simulation studies + Tide HPC scaffolding
-│   │   ├── calibration/   # CLT test calibration study
-│   │   ├── power/         # Power curves across trend structures
-│   │   └── tide-example/  # Minimal MVN example to learn the Tide workflow
-│   ├── mb-analysis/       # Morro Bay field data analysis
-│   └── scripts/           # Exploratory scripts
-├── DESCRIPTION
-├── NAMESPACE
-└── AGENTS.md              # Source conventions for developers and AI agents
+lomad-analysis/
+├── sims/                   # Simulation studies + Tide HPC scaffolding
+│   ├── calibration/        # CLT test calibration (type I error)
+│   ├── power/              # Power curves across trend structures
+│   ├── validation/         # Validation of CLT approximation
+│   ├── trends/             # Trend-construction examples
+│   └── tide-example/       # Minimal MVN example for learning the Tide workflow
+├── mb-analysis/            # Morro Bay field data analysis (CLT + ARMA noise)
+├── numerical-validation/   # End-to-end numerical validation scripts
+├── notebooks/              # Quarto notebooks for exploratory analysis
+├── scripts/                # Standalone R scripts for prototyping
+└── example-data/           # Example datasets
 ```
+
+See `sims/README.md` for the simulation infrastructure and Tide workflow.
+
+## Data
+
+`mb-analysis/import_mb_data.R` copies cleaned Morro Bay data from the sibling
+[`mb-qartod`](https://github.com/ruizt/mb-qartod) repository into `_mb-data/`
+(gitignored). Keep `mb-qartod` checked out as a sibling of this repo.
+
+## Keeping files out of version control
+
+Two options, both covered by `.gitignore`:
+
+- **Prefix with `_`** — for individual files alongside tracked ones (e.g. `_my_scratch.R`)
+- **`scratch/` folder** — drop anything in `scratch/` and it won't be tracked

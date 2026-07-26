@@ -1,0 +1,33 @@
+# accessor.yaml — lightweight pod for copying files out of the PVC
+#
+# Used by fetch.sh. Not a Job — just a sleep pod that mounts the PVC
+# so kubectl cp can reach the files.
+#
+# Usage (via fetch.sh — don't apply this directly):
+#   bash sims/tide-example/tide/fetch.sh
+#
+# If you need to inspect the PVC interactively:
+#   kubectl apply -n cal-poly-ruiz -f sims/tide-example/tide/accessor.yaml
+#   kubectl exec -n cal-poly-ruiz -it mvn-fetch -- sh
+#   kubectl delete -n cal-poly-ruiz pod mvn-fetch
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mvn-fetch
+  namespace: cal-poly-ruiz
+  labels:
+    app: mvn-fetch
+spec:
+  restartPolicy: Never
+  containers:
+    - name: fetch
+      image: busybox
+      command: ["sleep", "300"]
+      volumeMounts:
+        - name: output
+          mountPath: /jobs/output
+  volumes:
+    - name: output
+      persistentVolumeClaim:
+        claimName: mvn-example-results

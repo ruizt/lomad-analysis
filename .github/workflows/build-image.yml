@@ -1,15 +1,19 @@
 name: Build and push lomad-sims image
 
-# Rebuild whenever the shared simulation image or the R package source changes.
-# Produces ghcr.io/ruizt/lomad-sims:latest — used by all studies in dev/sims/.
+# Rebuild the shared simulation image. Produces ghcr.io/ruizt/lomad-sims:latest
+# — used by all studies in sims/.
+#
+# The lomad package source now lives in the companion lomad-package repo and is
+# installed from GitHub during the build, so changes to the package no longer
+# trigger a rebuild here automatically. Trigger a rebuild manually
+# (workflow_dispatch) after releasing a new package version — optionally pass a
+# ref via the Dockerfile LOMAD_REF build arg.
 on:
   push:
     branches: [main]
     paths:
-      - 'dev/sims/Dockerfile'
-      - 'R/**'
-      - 'DESCRIPTION'
-      - 'NAMESPACE'
+      - 'sims/Dockerfile'
+  workflow_dispatch:
 
 jobs:
   build-and-push:
@@ -37,7 +41,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: dev/sims/Dockerfile
+          file: sims/Dockerfile
           platforms: linux/amd64
           push: true
           tags: |

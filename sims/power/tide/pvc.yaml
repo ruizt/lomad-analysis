@@ -1,0 +1,19 @@
+# pvc.yaml — shared storage for power study results
+#
+# Create once before submitting jobs:
+#   kubectl apply -n cal-poly-ruiz -f sims/power/tide/pvc.yaml
+#
+# Delete when done (removes stored results from the cluster):
+#   kubectl delete -n cal-poly-ruiz -f sims/power/tide/pvc.yaml
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lomad-power-results
+  namespace: cal-poly-ruiz
+spec:
+  storageClassName: rook-cephfs-tide
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 2Gi

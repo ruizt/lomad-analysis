@@ -1,3 +1,7 @@
+# The sims/Dockerfile installs the lomad package from GitHub and does NOT copy
+# the build context, so nothing here is strictly required for the image. These
+# rules simply keep the build context small and fast to send to the builder.
+
 # Version control
 .git
 .gitignore
@@ -12,19 +16,16 @@
 .positai
 .claude
 
-# Build artifacts
-*.tar.gz
-*.Rcheck
-
-# Dev files not needed in the image
-dev/
+# Simulation results and large data (never needed in the image)
+_*
+**/results/
 _img/
 _mb-data/
 scratch/
+
+# Docs and notebooks
 docs/
-vignettes/
-AGENTS.md
-README.md
+**/*.qmd
 
 # OS junk
 .DS_Store

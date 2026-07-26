@@ -1,0 +1,19 @@
+# pvc.yaml — shared storage for MVN example results
+#
+# Create once before submitting jobs:
+#   kubectl apply -n cal-poly-ruiz -f sims/tide-example/tide/pvc.yaml
+#
+# Delete when done (removes stored results from the cluster):
+#   kubectl delete -n cal-poly-ruiz -f sims/tide-example/tide/pvc.yaml
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mvn-example-results
+  namespace: cal-poly-ruiz
+spec:
+  storageClassName: rook-cephfs-tide
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 1Gi
