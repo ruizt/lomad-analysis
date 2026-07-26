@@ -1,6 +1,6 @@
-# The sims/Dockerfile installs the lomad package from GitHub and does NOT copy
-# the build context, so nothing here is strictly required for the image. These
-# rules simply keep the build context small and fast to send to the builder.
+# Keeps the build context small. The only thing the image actually needs from
+# the context is simulations/_build/lomad.tar.gz, which is explicitly kept
+# below -- everything else here is exclusion.
 
 # Version control
 .git
@@ -17,11 +17,13 @@
 .claude
 
 # Simulation results and large data (never needed in the image)
-_*
+**/_*
 **/results/
-_img/
-_mb-data/
 scratch/
+
+# ...except the locally built package source, which is the whole point
+!simulations/_build
+!simulations/_build/**
 
 # Docs and notebooks
 docs/

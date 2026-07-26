@@ -108,19 +108,27 @@ changing the simulation needs no image rebuild. The Job spec lives once in
 `tide/job.yaml` and is filled with `envsubst`; `power/tide/test_one_job.sh`
 submits a single small job from the same template as a smoke test.
 
-The image (`ghcr.io/ruizt/lomad-sims`) installs `lomad` from GitHub at build
-time. Rebuild it via the *Build and push lomad-sims image* workflow, or by hand
-after `docker login ghcr.io`:
+The image (`ghcr.io/ruizt/lomad-sims`) is built locally, after
+`docker login ghcr.io`:
 
 ```bash
-docker buildx build --platform linux/amd64 \
-  -f simulations/Dockerfile \
-  -t ghcr.io/ruizt/lomad-sims:latest --push .
+bash simulations/build-image.sh              # build and push
+bash simulations/build-image.sh --no-push    # build only
 ```
 
-`--platform linux/amd64` is required for the cluster even on Apple Silicon, and
-`--build-arg LOMAD_REF=<ref>` pins the package version. The ghcr package must
-be **public** or the cluster cannot pull it without an image pull secret.
+It builds `lomad` from the sibling `lomad-package` checkout and installs that
+source tree into the image, rather than pulling from GitHub — `lomad-package`
+is private, so `pak` inside the container cannot authenticate. It also means
+the image always matches your working tree, which is what you want when
+re-running simulations against an unreleased change. The image is labelled
+with the package version and commit it was built from.
+
+The GitHub Actions build is disabled for the same reason: the runner has no
+access to the private package. Once `lomad-package` is public, reverting the
+Dockerfile to the remote install (the commented block in it) restores it.
+
+The ghcr package must be **public** or the cluster cannot pull it without an
+image pull secret.
 
 ## Numerical checks
 

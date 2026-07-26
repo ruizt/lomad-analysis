@@ -8,11 +8,13 @@ name: Build and push lomad-sims image
 # trigger a rebuild here automatically. Trigger a rebuild manually
 # (workflow_dispatch) after releasing a new package version — optionally pass a
 # ref via the Dockerfile LOMAD_REF build arg.
+# DISABLED while lomad-package is private. The Dockerfile now installs lomad
+# from a source tree that simulations/build-image.sh produces from a local
+# checkout, which this runner does not have. Build locally with
+#   bash simulations/build-image.sh
+# To restore CI once lomad-package is public: revert the Dockerfile to the
+# remote pak install (the commented block in it) and re-enable the triggers.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'simulations/Dockerfile'
   workflow_dispatch:
 
 jobs:

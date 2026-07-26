@@ -4,10 +4,9 @@
 ## dplyr). Scripts are NOT baked in — mount them at /scripts/sim.R
 ## via a Kubernetes ConfigMap or a Docker volume.
 ##
-## Build and push from the repo root:
-##   docker buildx build --platform linux/amd64 \
-##     -f simulations/Dockerfile \
-##     -t ghcr.io/ruizt/lomad-sims:latest --push .
+## Build and push with simulations/build-image.sh, which builds the lomad
+## tarball from the sibling lomad-package checkout first. Building this
+## Dockerfile directly will fail unless that tarball is already in place.
 ##
 ## Run locally (mount a script + output directory):
 ##   docker run --rm \
@@ -32,13 +31,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN Rscript -e "install.packages('pak', \
     repos = 'https://packagemanager.posit.co/cran/latest')"
 
-# Install the lomad package (with its Imports) from GitHub, plus non-lomad
-# runtime dependencies used by sim scripts. pak resolves and installs all
-# dependencies automatically. The package source lives in the companion
-# lomad-package repo. Override the ref at build time with
-# --build-arg LOMAD_REF=<branch|tag|sha> for a reproducible pin.
-ARG LOMAD_REF=main
-RUN Rscript -e "pak::pkg_install(c('dplyr', 'ruizt/lomad-package@${LOMAD_REF}'))"
+# Install lomad from a locally built source tarball, plus the non-lomad
+# runtime dependencies used by the sim scripts. pak resolves dependencies for
+# both. build-image.sh builds the tarball from the sibling lomad-package
+# checkout, unpacks it, and drops the source tree at the path below.
+#
+# Local rather than from GitHub because lomad-package is private: pak inside
+# the container has no credentials. Once the repo is public this can go back
+# to a one-line remote install:
+#   ARG LOMAD_REF=main
+#   RUN Rscript -e "pak::pkg_install(c('dplyr', 'ruizt/lomad-package@${LOMAD_REF}'))"
+# pak's local:: ref wants a package directory, not an archive, so
+# build-image.sh unpacks the tarball it builds.
+COPY simulations/_build/lomad /tmp/lomad
+RUN Rscript -e "pak::pkg_install(c('dplyr', 'local::/tmp/lomad'))" \
+    && rm -rf /tmp/lomad
 
 # Default: run whatever script is mounted at /scripts/sim.R
 CMD ["Rscript", "/scripts/sim.R"]
