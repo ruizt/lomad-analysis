@@ -1,41 +1,44 @@
 ## localization-analysis.R — localization figure for the paper
 ##
-## Question: how much *local* trend separation does the pointwise test need
-## before it flags a window, and does it stay calibrated where the trends are
-## genuinely identical?
+## Question: how well do the test's rejections align with genuine local trend
+## separation, and at what magnitude of separation does that alignment hold?
 ##
-## TRUTH.  At each time t the local RMS separation over the test's own window
-## W_t = {t - s + 1, ..., t} is
-##       delta_t = sqrt( mean_{u in W_t} |nu_1u - nu_2u|^2 ),
-## the paper's local RMS separation. This is computed from the true simulated
-## trends, so it is exact.
+## DESIGN (threshold sweep). For each window W_t = {t - s + 1, ..., t} the
+## true local separation is summarised by the windowed maximum
+##       m_t = max_{u in W_t} |nu_1u - nu_2u| ,
+## computed from the true simulated trends. A window counts as decoupled when
+## m_t > c. Sweeping c traces a curve: at small c almost every window counts
+## as decoupled, at large c almost none, and the two error rates trade off
+## against each other in between. Each point on the curve is one value of c.
 ##
-## PRIMARY OUTPUT: the detection profile — empirical rejection rate as a
-## function of delta_t. It is cutoff-free and reads directly:
-##   * the delta_t = 0 bin (trends exactly identical) gives the pointwise
-##     false positive rate, which should sit at or below alpha;
-##   * the rise across delta_t > 0 gives the resolution of the procedure, i.e.
-##     how small a local separation it reliably detects.
+##   sens(c) = P(rejected  | m_t >  c)     "of the windows separated by at
+##                                          least c, how many did we flag?"
+##   spec(c) = P(!rejected | m_t <= c)     "of the windows separated by less
+##                                          than c, how many did we pass?"
 ##
-## WHY NOT AN ROC.  An ROC needs a binary truth, which forces a cutoff c on
-## delta_t. Because separation is continuous and mostly small, any moderate c
-## labels genuinely separated windows as negatives and understates the method
-## badly (at c = 0.05 the apparent AUC is ~0.74, while the profile below shows
-## near-perfect detection by delta_t = 0.03). The ROC is still computed and
-## saved for reference, but the profile is the honest summary.
+## The plot is sens against 1 - spec, giving an ROC-like trace. Note the sweep
+## variable is the definition of decoupling, not a decision threshold on the
+## test, so the curve is a localization diagnostic and the area under it is
+## NOT an AUC in the usual "probability a random positive outranks a random
+## negative" sense. No area is reported.
 ##
-## Profiles pool over separation d and series length T; they are separated by
+## ORIENTATION. Set ORIENT below:
+##   "conventional" (default) — sens/spec as above, conditioning on the truth.
+##   "predictive"            — precision P(m_t > c | rejected) against
+##                             1 - NPV, i.e. conditioning on the test's
+##                             decision. This is the orientation used in
+##                             postprocess_roc.qmd, where the two quantities
+##                             were labelled sens/spec.
+##
+## Curves pool over separation d and series length T; they are separated by
 ## trend structure, AR(1) coefficient phi, and SNR.
-##
-## Memory note: ~40M pointwise records, so results are accumulated as binned
-## counts rather than materialized as rows.
 ##
 ## Usage (from the repo root):
 ##   Rscript sims/power/localization-analysis.R
 ##
 ## Outputs:
 ##   sims/power/results/_img/fig_localization.png
-##   sims/power/results/localization.rds   (profile, ROC, AUC, operating points)
+##   sims/power/results/localization.rds  (both orientations + profile)
 
 suppressPackageStartupMessages({
   library(dplyr)
@@ -46,21 +49,32 @@ RAW_DIR <- "sims/power/results/_raw"
 OUT_DIR <- "sims/power/results"
 IMG_DIR <- file.path(OUT_DIR, "_img")
 
-ALPHA  <- 0.05            # nominal FDR level used in the simulations
-C_ROC  <- 0.05            # truth cutoff, reference ROC only
-NBINS  <- 500L            # p-value grid for the reference ROC
-
-## delta_t bins: an exact-zero class, then increasing separation
-DBRK <- c(-1e-9, 1e-9, 0.005, 0.01, 0.02, 0.03, 0.05, 0.08, 0.12, Inf)
-DLAB <- c("0", "(0,.005]", "(.005,.01]", "(.01,.02]", "(.02,.03]",
-          "(.03,.05]", "(.05,.08]", "(.08,.12]", ">.12")
-DMID <- c(0, 0.0025, 0.0075, 0.015, 0.025, 0.04, 0.065, 0.10, 0.15)
-nb   <- length(DLAB)
+ORIENT   <- "conventional"          # or "predictive"
+MMAX     <- 1.0                     # top of the separation grid
+NBIN     <- 1000L                   # separation-grid resolution
+C_MARKS  <- c(0.01, 0.02, 0.05, 0.10, 0.20)   # c values annotated on the curve
+MIN_N    <- 10000L    # drop sweep points with fewer than this many windows on
+                      # either side of c: at large c the "separated" class
+                      # empties out and the rates become pure noise
 
 dir.create(IMG_DIR, showWarnings = FALSE, recursive = TRUE)
 
 h_win_fcn <- function(n) max(5L, floor(n / 200L))
 s_win_fcn <- function(n) min(60L * h_win_fcn(n), floor(n / 4L))
+
+## Trailing rolling maximum, van Herk / Gil-Werman (O(n), verified against
+## a brute-force implementation).
+runmax_trailing <- function(x, s) {
+  n <- length(x); if (s <= 1L) return(x)
+  m  <- ceiling(n / s) * s
+  xp <- c(x, rep(-Inf, m - n))
+  M  <- matrix(xp, nrow = s)
+  Fw <- as.vector(matrixStats::colCummaxs(M))
+  Bw <- as.vector(matrixStats::colCummaxs(M[s:1, , drop = FALSE])[s:1, , drop = FALSE])
+  out <- rep(NA_real_, n); idx <- s:n
+  out[idx] <- pmax(Bw[idx - s + 1L], Fw[idx])
+  out
+}
 
 parse_meta <- function(f) {
   bn <- sub("-series\\.rds$", "", basename(f))
@@ -80,43 +94,33 @@ meta <- do.call(rbind, lapply(series_files, parse_meta))
 meta <- meta[!meta$oracle, ]
 message(sprintf("Series files (estimated noise): %d", nrow(meta)))
 
-new_cell <- function() list(
-  n_tot = numeric(nb), n_rej = numeric(nb),          # detection profile
-  dec = numeric(NBINS), sim = numeric(NBINS)         # reference ROC
-)
+## For each cell, tally windows by binned m_t, split by the test's decision.
+## Every sweep quantity follows from these two vectors by cumulative sums.
 cells <- list(); corrupt <- character(0)
+edges <- seq(0, MMAX, length.out = NBIN + 1L)
 
 for (i in seq_len(nrow(meta))) {
   m <- meta[i, ]
   x <- tryCatch(readRDS(m$file), error = function(e) NULL)
   if (is.null(x)) { corrupt <- c(corrupt, basename(m$file)); next }
 
-  s_win <- s_win_fcn(m$n); kern <- rep(1 / s_win, s_win)
+  s_win <- s_win_fcn(m$n)
   key <- paste(m$struct, m$phi, m$snr, sep = "|")
-  if (is.null(cells[[key]])) cells[[key]] <- new_cell()
+  if (is.null(cells[[key]]))
+    cells[[key]] <- list(rej = numeric(NBIN), non = numeric(NBIN))
   cl <- cells[[key]]
 
   for (rep in x) {
     if (is.null(rep)) next
     vi <- rep$vi; if (!length(vi)) next
-    rms <- sqrt(pmax(0, as.numeric(
-      stats::filter(rep$sep^2, kern, sides = 1))))[vi]
-    rj <- rep$rejected[vi]; p <- rep$p_raw[vi]
-    ok <- is.finite(rms) & !is.na(rj)
+    mx <- runmax_trailing(rep$sep, s_win)[vi]
+    rj <- rep$rejected[vi]
+    ok <- is.finite(mx) & !is.na(rj)
     if (!any(ok)) next
-    rms <- rms[ok]; rj <- rj[ok]; p <- p[ok]
-
-    db <- as.integer(cut(rms, DBRK, labels = FALSE))
-    cl$n_tot <- cl$n_tot + tabulate(db, nbins = nb)
-    if (any(rj)) cl$n_rej <- cl$n_rej + tabulate(db[rj], nbins = nb)
-
-    fin <- is.finite(p)
-    if (any(fin)) {
-      pb <- pmin(floor(p[fin] * NBINS) + 1L, NBINS)
-      isd <- rms[fin] > C_ROC
-      if (any(isd))  cl$dec <- cl$dec + tabulate(pb[isd],  nbins = NBINS)
-      if (any(!isd)) cl$sim <- cl$sim + tabulate(pb[!isd], nbins = NBINS)
-    }
+    mx <- mx[ok]; rj <- rj[ok]
+    b  <- pmin(pmax(findInterval(mx, edges, rightmost.closed = TRUE), 1L), NBIN)
+    if (any(rj))  cl$rej <- cl$rej + tabulate(b[rj],  nbins = NBIN)
+    if (any(!rj)) cl$non <- cl$non + tabulate(b[!rj], nbins = NBIN)
   }
   cells[[key]] <- cl
   if (i %% 25L == 0L) message(sprintf("  ... %d / %d files", i, nrow(meta)))
@@ -124,82 +128,89 @@ for (i in seq_len(nrow(meta))) {
 if (length(corrupt))
   warning("Skipped unreadable file(s): ", paste(corrupt, collapse = ", "))
 
-kk <- function(key) strsplit(key, "|", fixed = TRUE)[[1]]
-
-profile <- bind_rows(lapply(names(cells), function(key) {
-  cl <- cells[[key]]; k <- kk(key)
-  data.frame(struct = k[1], phi = as.numeric(k[2]), snr = as.numeric(k[3]),
-             bin = factor(DLAB, levels = DLAB), delta = DMID,
-             n = cl$n_tot, n_rej = cl$n_rej,
-             rate = ifelse(cl$n_tot > 0, cl$n_rej / cl$n_tot, NA_real_),
-             stringsAsFactors = FALSE)
+## ---- sweep ---------------------------------------------------------------
+## At threshold c = edges[k+1]: bins 1..k are "m_t <= c", bins k+1..NBIN are
+## "m_t > c".  A = rejected & above, B = rejected & below,
+##             C = passed   & above, D = passed   & below.
+sweep <- bind_rows(lapply(names(cells), function(key) {
+  cl <- cells[[key]]; k <- strsplit(key, "|", fixed = TRUE)[[1]]
+  cum_rej <- cumsum(cl$rej); cum_non <- cumsum(cl$non)
+  tot_rej <- sum(cl$rej);    tot_non <- sum(cl$non)
+  B <- cum_rej; D <- cum_non
+  A <- tot_rej - B; C <- tot_non - D
+  data.frame(
+    struct = k[1], phi = as.numeric(k[2]), snr = as.numeric(k[3]),
+    c = edges[-1],
+    sens = A / pmax(1, A + C),          # P(rejected  | m > c)
+    spec = D / pmax(1, D + B),          # P(!rejected | m <= c)
+    prec = A / pmax(1, A + B),          # P(m > c | rejected)
+    npv  = D / pmax(1, D + C),          # P(m <= c | !rejected)
+    n_above = A + C, n_below = B + D,
+    stringsAsFactors = FALSE
+  )
 }))
 
-trapz_auc <- function(fpr, tpr) {
-  o <- order(fpr, tpr); x <- c(0, fpr[o], 1); y <- c(0, tpr[o], 1)
-  sum(diff(x) * (utils::head(y, -1) + utils::tail(y, -1)) / 2)
-}
-roc <- bind_rows(lapply(names(cells), function(key) {
-  cl <- cells[[key]]; k <- kk(key)
-  nd <- sum(cl$dec); ns <- sum(cl$sim); if (nd == 0 || ns == 0) return(NULL)
-  data.frame(struct = k[1], phi = as.numeric(k[2]), snr = as.numeric(k[3]),
-             alpha = seq_len(NBINS) / NBINS,
-             tpr = cumsum(cl$dec) / nd, fpr = cumsum(cl$sim) / ns,
-             stringsAsFactors = FALSE)
-}))
-auc_tab <- roc |> group_by(struct, phi, snr) |>
-  summarise(auc = trapz_auc(fpr, tpr), .groups = "drop")
-
-saveRDS(list(profile = profile, roc = roc, auc = auc_tab,
-             alpha = ALPHA, c_roc = C_ROC, corrupt = corrupt),
+saveRDS(list(sweep = sweep, orient = ORIENT, corrupt = corrupt),
         file.path(OUT_DIR, "localization.rds"))
 
-cat("\n== False positive rate where trends are exactly identical (delta_t = 0) ==\n")
-print(as.data.frame(profile |> filter(bin == "0") |>
-        mutate(fpr = round(rate, 4)) |> select(struct, phi, snr, fpr, n) |>
-        arrange(struct, phi, snr)), row.names = FALSE)
+if (ORIENT == "conventional") {
+  sweep$xx <- 1 - sweep$spec; sweep$yy <- sweep$sens
+  xlab <- "1 - specificity   P(rejected | separation <= c)"
+  ylab <- "Sensitivity   P(rejected | separation > c)"
+} else {
+  sweep$xx <- 1 - sweep$npv;  sweep$yy <- sweep$prec
+  xlab <- "1 - NPV   P(separation > c | not rejected)"
+  ylab <- "Precision   P(separation > c | rejected)"
+}
 
-cat("\n== Detection profile pooled over cells ==\n")
-print(as.data.frame(profile |> group_by(bin) |>
-        summarise(rate = round(sum(n_rej) / sum(n), 3), n = sum(n),
-                  .groups = "drop")), row.names = FALSE)
+cat(sprintf("\n== sweep at selected c (orientation: %s) ==\n", ORIENT))
+print(as.data.frame(
+  sweep |> filter(c %in% sapply(C_MARKS, function(z) edges[-1][which.min(abs(edges[-1] - z))])) |>
+    mutate(across(c(sens, spec, prec, npv), \(z) round(z, 3))) |>
+    select(struct, phi, snr, c, sens, spec, prec, npv) |>
+    arrange(struct, phi, snr, c)), row.names = FALSE)
 
-cat(sprintf("\n== Reference ROC AUC (truth cutoff %.2f; see header caveat) ==\n", C_ROC))
-print(as.data.frame(auc_tab |> mutate(auc = round(auc, 3)) |>
-        arrange(struct, phi, snr)), row.names = FALSE)
-
-## ---- figure -------------------------------------------------------------------
+## ---- figure ---------------------------------------------------------------
 lab_struct <- c(smooth = "Smooth", cross = "Cross", rate = "Rate")
 pal <- c(Smooth = "#0072B2", Cross = "#D55E00", Rate = "#009E73")
 
-pdat <- profile |> filter(!is.na(rate), n >= 500) |>
+sw <- sweep |>
+  filter(n_above >= MIN_N, n_below >= MIN_N) |>
   mutate(Structure = factor(lab_struct[struct], levels = names(pal)))
 
-p <- ggplot(pdat, aes(delta, rate, colour = Structure)) +
-  geom_hline(yintercept = ALPHA, linetype = "dashed",
-             colour = "grey60", linewidth = 0.3) +
-  geom_line(linewidth = 0.6) +
-  geom_point(size = 1.1) +
+marks <- bind_rows(lapply(C_MARKS, function(z) {
+  sw |> group_by(struct, phi, snr) |>
+    slice_min(abs(c - z), n = 1, with_ties = FALSE) |>
+    ungroup() |> mutate(c_lab = z)
+}))
+
+p <- ggplot(sw, aes(xx, yy, colour = Structure)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed",
+              colour = "grey75", linewidth = 0.3) +
+  geom_path(linewidth = 0.6) +
+  geom_point(data = marks, size = 1.3) +
   facet_grid(phi ~ snr, labeller = labeller(
     phi = function(x) paste0("phi == ", x),
     snr = function(x) paste0("SNR == ", x),
     .default = label_parsed)) +
   scale_colour_manual(values = pal) +
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, ALPHA, 0.5, 1),
-                     labels = c("0", ".05", ".5", "1")) +
-  labs(x = expression("Local RMS trend separation " * delta[t]),
-       y = "Rejection rate", colour = NULL,
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
+  coord_equal() +
+  labs(x = xlab, y = ylab, colour = NULL,
        caption = paste0(
-         "Leftmost point (delta_t = 0) is the false positive rate where the ",
-         "trends are exactly identical; dashed line marks alpha = 0.05.\n",
-         "Profiles pool over separation d and series length T.")) +
+         "Each curve sweeps the separation threshold c defining a decoupled ",
+         "window (windowed maximum |nu_1 - nu_2|).\nPoints mark c = ",
+         paste(C_MARKS, collapse = ", "),
+         ". Curves pool over separation d and series length T.")) +
   theme_bw(base_size = 11) +
   theme(legend.position  = "bottom",
         panel.grid.minor = element_blank(),
         panel.grid.major = element_line(linewidth = 0.15, colour = "grey85"),
         strip.background = element_rect(fill = "grey95", colour = NA),
+        axis.title       = element_text(size = 9),
         plot.caption     = element_text(size = 7, hjust = 0, colour = "grey30"))
 
 ggsave(file.path(IMG_DIR, "fig_localization.png"), p,
-       width = 7.5, height = 5.5, dpi = 400)
+       width = 7.5, height = 6.8, dpi = 400)
 cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig_localization.png")))
