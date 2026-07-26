@@ -186,7 +186,7 @@ SIM_EXPERIMENT=clt-s80 SIM_S=5 SIM_SEED=7291 \
 All studies share a single Docker image:
 
 ```
-ghcr.io/ruizt/lomad-sims:latest
+ghcr.io/ruizt/lomad-simulations:latest
 ```
 
 The image contains R and all packages (including lomad) but no simulation

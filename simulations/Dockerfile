@@ -12,10 +12,10 @@
 ##     -e SIM_N=30 -e SIM_S=5 \
 ##     -v $(pwd)/simulations/power/tide/sim.R:/scripts/sim.R \
 ##     -v $(pwd)/simulations/power/results:/jobs/output \
-##     ghcr.io/ruizt/lomad-sims:latest
+##     ghcr.io/ruizt/lomad-simulations:latest
 ##
 ## Interactive R session:
-##   docker run --rm -it ghcr.io/ruizt/lomad-sims:latest R
+##   docker run --rm -it ghcr.io/ruizt/lomad-simulations:latest R
 
 FROM rocker/r-ver:4.5.0
 

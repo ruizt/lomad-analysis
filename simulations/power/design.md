@@ -144,7 +144,7 @@ Post-hoc evaluation of the stored series data — how well rejections align with
 All studies share a single Docker image that is pre-built and publicly available:
 
 ```         
-ghcr.io/ruizt/lomad-sims:latest
+ghcr.io/ruizt/lomad-simulations:latest
 ```
 
 The image contains R and all packages (including lomad) but no simulation scripts — `sim.R` is mounted into the container via a Kubernetes ConfigMap. See `../README.md` for build/update instructions.

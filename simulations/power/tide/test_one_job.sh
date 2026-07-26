@@ -19,7 +19,7 @@ TIDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JOB_TEMPLATE="${TIDE_DIR}/job.yaml"
 
 export NAMESPACE="cal-poly-ruiz"
-export IMAGE="ghcr.io/ruizt/lomad-sims:latest"
+export IMAGE="ghcr.io/ruizt/lomad-simulations:latest"
 export CONFIGMAP="lomad-power-script"
 
 # ---- The cell to test --------------------------------------------------------

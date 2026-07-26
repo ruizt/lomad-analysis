@@ -108,7 +108,7 @@ changing the simulation needs no image rebuild. The Job spec lives once in
 `tide/job.yaml` and is filled with `envsubst`; `power/tide/test_one_job.sh`
 submits a single small job from the same template as a smoke test.
 
-The image (`ghcr.io/ruizt/lomad-sims`) is built with, after
+The image (`ghcr.io/ruizt/lomad-simulations`) is built with, after
 `docker login ghcr.io`:
 
 ```bash

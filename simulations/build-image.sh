@@ -21,7 +21,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PKG_DIR="${LOMAD_PKG_DIR:-${REPO_ROOT}/../lomad-package}"
 BUILD_DIR="${REPO_ROOT}/simulations/_build"
-IMAGE="${IMAGE:-ghcr.io/ruizt/lomad-sims:latest}"
+IMAGE="${IMAGE:-ghcr.io/ruizt/lomad-simulations:latest}"
 
 PUSH="--push"
 SOURCE="remote"

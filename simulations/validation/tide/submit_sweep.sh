@@ -11,7 +11,7 @@
 
 NAMESPACE="cal-poly-ruiz"
 SIM_SEED=7291
-IMAGE="ghcr.io/ruizt/lomad-sims:latest"
+IMAGE="ghcr.io/ruizt/lomad-simulations:latest"
 CONFIGMAP="lomad-valid-script"
 
 # Create/update the ConfigMap from the local sim.R
