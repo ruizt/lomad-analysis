@@ -3,7 +3,7 @@ library(lomad)
 source('mb-analysis/utils.R')   # presmooth_tidal()
 
 # output directory for figures
-img_out <- '_img'
+img_out <- 'mb-analysis/_img'
 fs::dir_create(img_out)
 
 # ggplot theming

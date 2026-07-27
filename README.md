@@ -189,7 +189,21 @@ themselves.
 
 ## Morro Bay data
 
-`mb-analysis/import_mb_data.R` copies cleaned data from the sibling
+`mb-analysis/process_blocks.R` copies `wp_data.parquet` — the
+quality-controlled sensor record — from the sibling
 [`mb-qartod`](https://github.com/ruizt/mb-qartod) repository into `_mb-data/`
-(gitignored), so keep `mb-qartod` checked out alongside this repo. The two
-blocks used in the paper also ship with the package as `morro_bay`.
+(gitignored) and builds the analysis blocks from it, so keep `mb-qartod`
+checked out alongside this repo. Block construction lives here rather than
+upstream because every choice in it is an analysis decision: hourly binning, a
+24-hour gap threshold, a 5-day minimum, and global standardization of pH and
+dissolved oxygen. Tide and pressure are carried through but excluded from the
+block definition, so their missingness cannot move block boundaries.
+
+`mb-analysis/full_analysis.R` then presmooths (spectral notch at the tidal
+bands, downsample to 6-hourly), fits each block, pools the raw p-values across
+all blocks for a single Benjamini--Yekutieli correction, and writes figures to
+`mb-analysis/_img/`. Presmoothing stays in the analysis script rather than the
+processing script so that both the raw and presmoothed series are available for
+figures.
+
+The two blocks used in the paper also ship with the package as `morro_bay`.
