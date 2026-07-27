@@ -42,26 +42,41 @@ loc_results <- lapply(names(location_data), function(loc) {
 })
 names(loc_results) <- names(location_data)
 
-# --- Fit CLT model with ARMA noise ------------------------------------------
+# --- Fit per block, test globally --------------------------------------------
+# Two stages. Stage 1 fits every block at both locations and computes raw
+# pointwise p-values. Stage 2 pools the raw p-values across ALL blocks and
+# applies one Benjamini-Yekutieli step-up correction to the pooled family, so
+# FDR is controlled over every window tested in the study, not per block.
+# Decisions map back to each block through the realized threshold p_star:
+# for a step-up procedure the rejection set is exactly {p_raw <= p_star} with
+# p_star = alpha * k / (M * c(M)), which keeps lomad_plot()'s tolerance band
+# consistent with the flags.
 
 h_win <- 4
 s_win <- 60
 alpha <- 0.05
 
+# Minimum length: m >= 2s, i.e. n >= 3s + h. The bare fitting minimum
+# (n >= 2h + s) admits blocks whose every window overlaps every other one --
+# roughly one effective look -- and per-block BY then hands the weakest
+# evidence the laxest threshold. Requiring two window-lengths of valid test
+# points drops those.
+min_len <- 3L * s_win + h_win
+
 for (loc in names(loc_results)) {
   blocks_presm <- loc_results[[loc]]$blocks_presm
   blocks <- lapply(blocks_presm, \(b) list(x1 = b$o2, x2 = b$ph))
 
-  # Drop blocks too short for the window parameters
-  min_len <- 2L * h_win + s_win
   too_short <- vapply(blocks, \(b) length(b$x1) < min_len, logical(1))
   if (any(too_short))
-    cat(sprintf('  Dropping %d blocks shorter than %d observations\n',
-                sum(too_short), min_len))
+    cat(sprintf('  %s: dropping %d blocks shorter than %d observations (m < 2s)\n',
+                loc, sum(too_short), min_len))
   blocks       <- blocks[!too_short]
   blocks_presm <- blocks_presm[!too_short]
 
-  # Fit each block (variogram-based AR(1) noise), then test
+  # Fit each block (variogram-based AR(1) noise); per-block lomad_test() is
+  # only a container for the raw p-values here -- its decisions are
+  # overwritten by the global stage below.
   block_fits <- lapply(names(blocks), \(nm) {
     b <- blocks[[nm]]
     tryCatch({
@@ -73,17 +88,57 @@ for (loc in names(loc_results)) {
   names(block_fits) <- names(blocks)
   block_fits <- Filter(Negate(is.null), block_fits)
 
-  if (length(block_fits) == 0) {
-    cat('\n===', loc, '=== No blocks fit successfully\n')
-    next
+  cat(sprintf('=== %s === %d / %d blocks fit\n', loc, length(block_fits), length(blocks)))
+
+  loc_results[[loc]]$blocks       <- blocks
+  loc_results[[loc]]$blocks_presm <- blocks_presm
+  loc_results[[loc]]$block_fits   <- block_fits
+}
+
+# --- Global BY across all blocks ---------------------------------------------
+
+pooled <- bind_rows(lapply(names(loc_results), function(loc) {
+  bf <- loc_results[[loc]]$block_fits
+  if (is.null(bf) || length(bf) == 0) return(NULL)
+  bind_rows(lapply(names(bf), function(nm) {
+    fit <- bf[[nm]]$fit; tst <- bf[[nm]]$tst
+    tibble(loc = loc, blk = nm, idx = fit$valid_idx,
+           p = tst$p_values[fit$valid_idx])
+  }))
+}))
+
+M      <- nrow(pooled)
+p_adj  <- p.adjust(pooled$p, method = 'BY')
+k      <- sum(p_adj <= alpha)
+c_M    <- sum(1 / seq_len(M))
+p_star <- alpha * max(k, 1L) / (M * c_M)
+
+cat(sprintf('\nGlobal BY: M = %d pooled tests over %d blocks; %d rejected (p_star = %.3g)\n',
+            M, n_distinct(paste(pooled$loc, pooled$blk)), k, p_star))
+
+# Map global decisions back into each block's tst so every downstream
+# consumer (plots, summaries) reflects the global correction.
+pooled$p_adj <- p_adj
+for (loc in names(loc_results)) {
+  bf <- loc_results[[loc]]$block_fits
+  for (nm in names(bf)) {
+    fit <- bf[[nm]]$fit
+    rows <- pooled$loc == loc & pooled$blk == nm
+    stopifnot(sum(rows) == length(fit$valid_idx))
+    tst <- bf[[nm]]$tst
+    tst$p_adj[fit$valid_idx]    <- pooled$p_adj[rows]
+    tst$rejected[fit$valid_idx] <- pooled$p[rows] <= p_star
+    tst$alpha_eff               <- p_star
+    loc_results[[loc]]$block_fits[[nm]]$tst <- tst
   }
+}
 
-  cat('\n===', loc, '===\n')
-  cat(sprintf('  %d / %d blocks fit successfully\n',
-              length(block_fits), length(blocks)))
+# --- Base R block plots ------------------------------------------------------
 
-  # --- Base R block plots ---------------------------------------------------
-
+for (loc in names(loc_results)) {
+  block_fits   <- loc_results[[loc]]$block_fits
+  blocks_presm <- loc_results[[loc]]$blocks_presm
+  if (is.null(block_fits) || length(block_fits) == 0) next
   tryCatch({
     pdf(paste0(img_out, '/', loc, '-blocks-fit.pdf'), width = 5, height = 4)
     for (nm in names(block_fits)) {
@@ -93,10 +148,6 @@ for (loc in names(loc_results)) {
       title(main = paste(loc, 'block', nm), line = 0.5)
     }
   }, finally = dev.off())
-
-  # Store results
-  loc_results[[loc]]$blocks     <- blocks
-  loc_results[[loc]]$block_fits <- block_fits
 }
 
 # --- Rejection summary by location ------------------------------------------
@@ -242,7 +293,7 @@ make_lomad_ggplot <- function(pd, title_str) {
 for (loc in names(loc_results)) {
   if (is.null(loc_results[[loc]]$block_fits)) next
   pd  <- make_lomad_plot_data(loc, loc_results)
-  plt <- make_lomad_ggplot(pd, paste0(loc, ' - lomad fit (CLT, ARMA noise)'))
+  plt <- make_lomad_ggplot(pd, paste0(loc, ' - lomad fit (AR(1) noise, global BY)'))
   ggsave(paste0(img_out, '/', loc, '-lomad-fit.png'), plt, width = 12, height = 3)
   print(plt)
 }
