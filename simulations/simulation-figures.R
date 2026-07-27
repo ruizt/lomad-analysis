@@ -352,9 +352,6 @@ auc <- sweep |>
     sum(diff(x[o]) * (y[o][-1] + head(y[o], -1)) / 2, na.rm = TRUE)
   }, .groups = "drop")
 
-saveRDS(auc, "simulations/power/results/simulations-power-auc.rds")
-cat(sprintf("Wrote %s\n", "simulations/power/results/simulations-power-auc.rds"))
-
 cat("\nLocalization concordance AUC:\n")
 print(as.data.frame(auc |>
   mutate(auc = sprintf("%.3f", auc)) |>
