@@ -2,7 +2,7 @@
 ##
 ## Run after fetch.sh has copied per-job .rds files locally. Deliberately does
 ## no plotting: the composite figure is built by
-## simulations/simulation-figures.R from the object written here.
+## simulations/simulation-results.R from the object written here.
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/validation/collect-results.R

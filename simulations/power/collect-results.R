@@ -4,7 +4,7 @@
 ## the two compiled artifacts the figure stage consumes, so the batch pipeline
 ## goes raw per-job files -> compiled results -> results summary in one step.
 ## Deliberately does no plotting: figures are built by
-## simulations/simulation-figures.R.
+## simulations/simulation-results.R.
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/power/collect-results.R

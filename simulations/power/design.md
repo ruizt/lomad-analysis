@@ -82,7 +82,7 @@ To isolate this as an estimation problem rather than a test problem, `sim.R` sup
 
 ### Figures
 
-Built by `simulations/simulation-figures.R`, not by this study, and written to
+Built by `simulations/simulation-results.R`, not by this study, and written to
 `simulations/_img/`: `fig-power.png` and `fig-localization.png`.
 
 ------------------------------------------------------------------------
@@ -179,7 +179,7 @@ Rscript simulations/power/collect-results.R
 
 # 6. Summarise and plot (local post-processing)
 Rscript simulations/power/localization-sweep.R   # optional: localization
-Rscript simulations/simulation-figures.R        # all paper figures
+Rscript simulations/simulation-results.R        # all paper figures
 
 # 7. Clean up
 kubectl delete jobs -n cal-poly-ruiz -l app=lomad-power
@@ -191,5 +191,5 @@ kubectl delete -n cal-poly-ruiz -f simulations/power/tide/pvc.yaml
 - Start with `SIM_S=20` to confirm everything works end-to-end.
 - Each parameter combination runs as a separate job. Jobs run in parallel on the cluster.
 - If you update `sim.R`, re-running `submit_sweep.sh` updates the ConfigMap automatically — no image rebuild needed.
-- `collect-results.R` assembles per-job `.rds` files into `results/simulations-power-results.rds` and a detection summary. Figures are built separately by `simulations/simulation-figures.R`, which writes to `simulations/_img/`.
+- `collect-results.R` assembles per-job `.rds` files into `results/simulations-power-results.rds` and a detection summary. Figures are built separately by `simulations/simulation-results.R`, which writes to `simulations/_img/`.
 - Series files (`-series.rds`) are fetched alongside the summary files and consumed by `localization-sweep.R`, which is kept separate from `collect-results.R` because it reads ~1.4 GB and takes minutes.

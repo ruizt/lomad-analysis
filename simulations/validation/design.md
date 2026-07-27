@@ -135,7 +135,7 @@ somewhat conservative inference due to plug-in variance compression.
 
 ### Figures
 
-Built by `simulations/simulation-figures.R`, not by this study, and written to
+Built by `simulations/simulation-results.R`, not by this study, and written to
 `simulations/_img/fig-validation.png`.
 
 ------------------------------------------------------------------------
@@ -221,7 +221,7 @@ bash simulations/validation/tide/fetch.sh
 
 # 5. Assemble results, then build the figure
 Rscript simulations/validation/collect-results.R   # compiled results
-Rscript simulations/simulation-figures.R       # composite figure
+Rscript simulations/simulation-results.R       # composite figure
 
 # 6. Clean up
 kubectl delete jobs -n cal-poly-ruiz -l app=lomad-valid

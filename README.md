@@ -22,7 +22,7 @@ Everything you need to reproduce the paper's figures is in the repository — no
 downloads required:
 
 ```bash
-Rscript simulations/simulation-figures.R    # rebuilds all four paper figures
+Rscript simulations/simulation-results.R    # rebuilds all paper figures and tables
 ```
 
 To see a study at work locally, at a scale that runs in seconds rather than on
@@ -69,7 +69,7 @@ results are in this repository, so none of that has to be re-run to use them.
 ```
 lomad-analysis/
 ├── simulations/
-│   ├── simulation-figures.R    # all paper figures, from compiled results
+│   ├── simulation-results.R    # all paper figures + tables, from compiled results
 │   ├── Dockerfile              # shared image for the cluster jobs
 │   ├── power/                  # power curves and localization vs separation d
 │   └── validation/             # finite-sample accuracy of the CLT
@@ -92,7 +92,7 @@ computation:
 | Simulate | `<study>/tide/sim.R` (cluster) | hours |
 | Assemble | `<study>/collect-results.R` | seconds |
 | Analyse | `power/localization-sweep.R` | minutes (reads ~1.4 GB) |
-| Draw | `simulations/simulation-figures.R` | seconds |
+| Draw | `simulations/simulation-results.R` | seconds |
 
 `tide/` holds only what talks to the cluster. `collect-results.R` and
 `localization-sweep.R` read local files, so they sit outside it.

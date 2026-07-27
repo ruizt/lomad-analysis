@@ -1,4 +1,5 @@
-## simulation-figures.R — every figure in the paper, from compiled results
+## simulation-results.R — every figure and table in the paper, from compiled
+## results
 ##
 ## This is the cheap stage of the pipeline. It reads only compiled summaries
 ## and precomputed intermediates, never the raw per-job files, so it runs in
@@ -16,10 +17,17 @@
 ##   fig-trends.png                methods of simulating trend separation
 ##   fig-power.png                 detection rate vs separation d
 ##   fig-localization.png          localization threshold sweep
+##   fig-profile.png               rejection probability vs true separation
 ##   fig-validation.png            finite-sample accuracy of the CLT
 ##
+## Outputs -> simulations/_tbl/
+##   tbl-localization-auc.csv      concordance AUC per design cell
+##
+## Both output directories are _-prefixed and therefore untracked: everything
+## here is regenerable in seconds from the compiled results, which are tracked.
+##
 ## Usage (from the repo root):
-##   Rscript simulations/simulation-figures.R
+##   Rscript simulations/simulation-results.R
 
 suppressPackageStartupMessages({
   library(lomad)
@@ -33,8 +41,10 @@ suppressPackageStartupMessages({
 })
 
 IMG_DIR <- "simulations/_img"
+TBL_DIR <- "simulations/_tbl"
 alpha   <- 0.05
 dir.create(IMG_DIR, showWarnings = FALSE, recursive = TRUE)
+dir.create(TBL_DIR, showWarnings = FALSE, recursive = TRUE)
 
 # ---- Shared structure naming/colour convention (all figures) ---------------
 # Internal codes (as stored in the data) map to the same display name,
@@ -352,12 +362,106 @@ auc <- sweep |>
     sum(diff(x[o]) * (y[o][-1] + head(y[o], -1)) / 2, na.rm = TRUE)
   }, .groups = "drop")
 
+write.csv(auc, file.path(TBL_DIR, "tbl-localization-auc.csv"), row.names = FALSE)
+cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
+
 cat("\nLocalization concordance AUC:\n")
 print(as.data.frame(auc |>
   mutate(auc = sprintf("%.3f", auc)) |>
   tidyr::pivot_wider(names_from = s_win, values_from = auc,
                      names_prefix = "s=") |>
   arrange(method, struct, snr, phi)), row.names = FALSE)
+
+})
+
+
+# =============================================================================
+# Localization profile
+# Rejection probability as a function of the true windowed separation: how much
+# decoupling has to be present before the test fires, and how sharply it
+# switches on. The AUC above is a rank measure and so is invariant to any
+# monotone transform of separation -- it certifies that flags concentrate where
+# separation is larger while saying nothing about the magnitude required. This
+# supplies the magnitude.
+# =============================================================================
+
+local({
+  sweep <- readRDS("simulations/power/results/simulations-power-localization.rds")$sweep
+
+  BW    <- 0.01               # separation bin width
+  C_MAX <- 0.30               # matches the localization panel's plotted range
+  EDGES <- seq(BW, C_MAX, by = BW)
+
+  # sens(c) * n_above(c) is the count of rejected windows above the cut, so
+  # differencing adjacent cuts gives exact within-bin counts. No numerical
+  # differentiation and no second pass over the series files.
+  prof <- sweep |>
+    mutate(A = sens * n_above) |>
+    filter(c %in% round(EDGES, 3)) |>
+    group_by(struct, phi, snr, s_win, method) |>
+    arrange(c, .by_group = TRUE) |>
+    reframe(lo    = head(c, -1),
+            n_bin = head(n_above, -1) - tail(n_above, -1),
+            n_rej = head(A, -1)       - tail(A, -1)) |>
+    mutate(mid = lo + BW / 2, rate = n_rej / n_bin) |>
+    mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
+           method    = factor(method, levels = c("estimated", "oracle")))
+
+  # No error bars by design. Rolling windows within a replicate overlap almost
+  # completely (at s = 150 neighbours share 149 points), so effective sample
+  # size is far below the bin counts and a binomial interval would be badly
+  # overconfident.
+  oracle_note_prof <- data.frame(phi = 0.8, snr = 0.5, s_win = 50,
+                                 mid = C_MAX, rate = 0.95,
+                                 label = "dashed = oracle")
+
+  p <- ggplot(prof, aes(mid, rate, colour = Structure, linetype = method,
+                        group = interaction(struct, method))) +
+    geom_hline(yintercept = 0.5, linetype = "dotted", colour = "grey70",
+               linewidth = 0.3) +
+    geom_line(linewidth = 0.6, alpha = 0.9) +
+    geom_text(data = oracle_note_prof, aes(x = mid, y = rate, label = label),
+              inherit.aes = FALSE, hjust = 1, size = 2.8, colour = "grey30") +
+    facet_nested(phi ~ snr + s_win, labeller = labeller(
+      phi   = function(x) paste0("phi == ", x),
+      snr   = function(x) paste0("SNR == ", x),
+      s_win = function(x) paste0("s[T] == ", x),
+      .default = label_parsed)) +
+    scale_colour_manual(values = STRUCT_PAL) +
+    scale_linetype_manual(values = ESTIMATION_LTY) +
+    guides(linetype = guide_none()) +
+    scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
+    labs(x = "Windowed maximum separation", y = "Rejection probability",
+         colour = "Structure") +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "right",
+          axis.text = element_text(size = 8),
+          panel.grid.minor = element_blank(),
+          panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
+
+  ggsave(file.path(IMG_DIR, "fig-profile.png"), p,
+         width = 9, height = 4, dpi = 450)
+  cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig-profile.png")))
+
+  # Separation at which the test becomes more likely than not to fire, and at
+  # which it becomes near-certain -- the headline numbers from this figure.
+  res <- prof |>
+    group_by(struct, phi, snr, s_win, method) |>
+    summarise(sep_50 = if (any(rate >= 0.50)) mid[which(rate >= 0.50)[1]] else NA_real_,
+              sep_95 = if (any(rate >= 0.95)) mid[which(rate >= 0.95)[1]] else NA_real_,
+              .groups = "drop")
+
+  write.csv(res, file.path(TBL_DIR, "tbl-localization-resolution.csv"),
+            row.names = FALSE)
+  cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-resolution.csv")))
+
+  cat("\nSeparation at which rejection probability reaches 0.50 (NA: not within",
+      C_MAX, "):\n")
+  print(as.data.frame(res |> filter(method == "estimated") |>
+    mutate(sep_50 = ifelse(is.na(sep_50), "--", sprintf("%.3f", sep_50))) |>
+    tidyr::pivot_wider(names_from = s_win, values_from = sep_50,
+                       names_prefix = "s=", id_cols = c(struct, snr, phi)) |>
+    arrange(struct, snr, phi)), row.names = FALSE)
 
 })
 
