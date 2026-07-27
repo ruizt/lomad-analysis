@@ -21,6 +21,7 @@
 ##
 ## Outputs -> simulations/_tbl/
 ##   tbl-localization-auc.csv      concordance AUC per design cell
+##   tbl-localization-auc.tex      the same, as a LaTeX table for the paper
 ##   tbl-localization-resolution.csv  separation at which rejection hits .50/.95
 ##
 ## Both output directories are _-prefixed and therefore untracked: everything
@@ -376,30 +377,68 @@ auc <- sweep |>
 # differ by up to 0.06, because pooling counts cross-structure pairs -- a window
 # from one data-generating process ranked against a window from another, which
 # is not a comparison that means anything.
-auc_avg <- auc |>
+# Oracle is excluded from the table but kept in both figures. It was only run
+# at phi = 0.8, so in a table it is either two orphan rows hanging under six or
+# a parenthetical present in a third of the cells and blank elsewhere; the
+# figures carry it without that asymmetry showing.
+auc_avg_all <- auc |>
   filter(!(phi == 0.8 & struct == "rate")) |>
   group_by(snr, phi, s_win, method) |>
+  summarise(auc = mean(auc), .groups = "drop")
+
+auc_avg <- auc |>
+  filter(!(phi == 0.8 & struct == "rate"), method == "estimated") |>
+  group_by(snr, phi, s_win) |>
   summarise(spread = max(auc) - min(auc), n_struct = n(), auc = mean(auc),
             .groups = "drop") |>
-  arrange(method, snr, phi, s_win)
+  arrange(snr, phi, s_win)
 
 write.csv(auc_avg, file.path(TBL_DIR, "tbl-localization-auc.csv"),
           row.names = FALSE)
 cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
 
 cat("\nLocalization concordance AUC, averaged over structures",
-    "(FR excluded at phi = 0.8):\n")
-for (m in c("estimated", "oracle")) {
-  d <- auc_avg |> filter(method == m)
-  if (!nrow(d)) next
-  cat(sprintf("\n  %s noise:\n", m))
-  print(as.data.frame(d |>
-    mutate(auc = sprintf("%.3f", auc)) |>
-    tidyr::pivot_wider(names_from = s_win, values_from = auc,
-                       names_prefix = "s=", id_cols = c(snr, phi)) |>
-    arrange(snr, phi) |>
-    relocate(snr, phi)), row.names = FALSE)
-}
+    "(FR excluded at phi = 0.8; oracle omitted, see figures):\n")
+print(as.data.frame(auc_avg |>
+  mutate(auc = sprintf("%.3f", auc)) |>
+  tidyr::pivot_wider(names_from = s_win, values_from = auc,
+                     names_prefix = "s=", id_cols = c(snr, phi)) |>
+  arrange(snr, phi)), row.names = FALSE)
+
+# LaTeX for the manuscript. Emitted here so the numbers and the structure
+# handling cannot drift from what the figures beside it show.
+local({
+  rows <- paste0(sprintf("  %.1f & %.1f & %.3f & %.3f & %.3f \\\\",
+                         auc_avg$snr[auc_avg$s_win == 50],
+                         auc_avg$phi[auc_avg$s_win == 50],
+                         auc_avg$auc[auc_avg$s_win == 50],
+                         auc_avg$auc[auc_avg$s_win == 100],
+                         auc_avg$auc[auc_avg$s_win == 150]), collapse = "\n")
+  tex <- c(
+    "\\begin{table}[!htbp]", "\\centering",
+    "\\caption{DRAFT. Concordance between rejections and true separation: the",
+    "  probability that a randomly chosen rejected window carries larger true",
+    "  windowed separation $m_t$ than a randomly chosen unrejected one, by",
+    "  signal-to-noise ratio $\\lambda$, AR(1) coefficient $\\phi$, and test",
+    "  window $s_T$. A value of $0.5$ indicates that rejections carry no",
+    "  information about where the trends separate. Values are averaged over",
+    sprintf("  the three structured separation methods, which differ by at most $%.2f$;",
+            max(auc_avg$spread)),
+    "  the fixed-rate method is excluded at $\\phi = 0.8$, where its",
+    "  localization degrades to near chance. Oracle values at $\\phi = 0.8$",
+    sprintf("  range from $%.2f$ to $%.2f$ and are shown in Figures",
+            min(auc_avg_all$auc[auc_avg_all$method == "oracle"]),
+            max(auc_avg_all$auc[auc_avg_all$method == "oracle"])),
+    "  \\ref{fig:localization} and \\ref{fig:profile}.}",
+    "\\label{tab:localization-auc}",
+    "\\begin{tabular}{llccc}", "  \\toprule",
+    "  & & \\multicolumn{3}{c}{$s_T$} \\\\", "  \\cmidrule(lr){3-5}",
+    "  $\\lambda$ & $\\phi$ & 50 & 100 & 150 \\\\", "  \\midrule",
+    rows, "  \\bottomrule", "\\end{tabular}", "\\end{table}")
+  writeLines(tex, file.path(TBL_DIR, "tbl-localization-auc.tex"))
+  cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.tex")))
+})
+
 cat(sprintf("\n  largest spread among the averaged structures: %.3f\n",
             max(auc_avg$spread)))
 
