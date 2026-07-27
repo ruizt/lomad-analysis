@@ -55,3 +55,6 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 .posit/assistant
+
+# stray device output from Rscript
+Rplots.pdf
