@@ -288,11 +288,12 @@ local({
   ORIENT <- L$orient
   C_MAX   <- 0.30
   MIN_N   <- 10000L
-  # The rolling-max estimator's localization collapses to near-chance only for
-  # "FR" in the two hardest cells (phi = 0.8, SNR = 1.5, s_T = 100 and 150) —
-  # dropped there and only there; FR is kept everywhere else.
-  DROP_STRUCT <- "rate"; DROP_PHI <- 0.8; DROP_SNR <- 1.5
-  DROP_S_WIN  <- c(100L, 150L)
+  # No structures are dropped. The filter that used to remove "FR" from the two
+  # hardest cells was there because the fixed-rate structure's gamma pulse drove
+  # its concordance to 0.353 — an anomaly that swamped the panel. With the
+  # gaussian pulse the worst cell is 0.464 and s_T = 100 is 0.625, which is a
+  # visible limitation rather than an outlier, and hiding it would defeat the
+  # purpose of keeping a sharp-event structure in the design at all.
 
   # Axis pair depends on the orientation recorded by localization-sweep.R.
   if (ORIENT == "conventional") {
@@ -306,8 +307,6 @@ local({
   }
 sw <- sweep |>
   filter(c <= C_MAX, n_above >= MIN_N, n_below >= MIN_N) |>
-  filter(!(struct == DROP_STRUCT & phi == DROP_PHI & snr == DROP_SNR &
-             s_win %in% DROP_S_WIN)) |>
   mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
          method = factor(method, levels = c("estimated", "oracle")))
 
