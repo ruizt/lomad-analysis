@@ -35,6 +35,35 @@ That is how the archived results were produced, and it is here for transparency
 and for us — it needs cluster access and hours of compute, and you do not need
 it to rebuild any figure.
 
+## The simulation studies
+
+Two studies, each with its own `design.md` giving the parameter grid,
+estimands, and acceptance criteria. In brief:
+
+**`simulations/power/` — can the test find a separation, and where?**
+Trends are simulated at a controlled $L^2$ separation $d$ and the test is run
+on the resulting series. The question is how detection depends on $d$, and on
+the conditions that make it harder: how the separation is distributed over
+time (three *trend structures* — evenly spaced events, irregular episodes, or
+episodes where the trends cross), the series length, the signal-to-noise
+ratio, and the autocorrelation of the noise. An **oracle arm** re-runs the
+hardest cells with the true noise parameters supplied, which separates the
+method's limits from the noise estimator's. Two figures come out: power curves
+against $d$, and a localization sweep asking whether rejections land where the
+trends actually separate.
+
+**`simulations/validation/` — does the asymptotic theory hold at finite $n$?**
+Everything here runs under $H_0$ with a single shared trend, so any rejection
+is an error. Three things are checked: that the standardized statistic $Z_t$
+is approximately standard normal, at three window sizes; that the
+Proposition 1 expressions for $\rho_t$ and $V_t$ match their empirical
+counterparts; and that the approximation survives replacing those quantities
+with plug-in estimates. The composite figure is the paper's validation figure.
+
+Both are run on a Kubernetes cluster because the grids are large — the power
+study alone is 360 parameter combinations at 500 replicates. The compiled
+results are in this repository, so none of that has to be re-run to use them.
+
 ## Layout
 
 ```
@@ -136,9 +165,15 @@ image pull secret.
 
 ## Numerical checks
 
-Monte Carlo and numerical verification of the paper's theoretical results, one
-script per result. Run from the repository root; scripts that plot save `.png`
-files alongside themselves.
+Verification of the *derivations*, as distinct from `simulations/validation/`,
+which measures the finite-sample behavior of the method. These check algebra
+and analysis — that an analytic gradient matches finite differences, that
+Wick's-theorem covariance entries match Monte Carlo, that a stated bound holds
+— and they run locally in seconds. Nothing in the paper's figures depends on
+them.
+
+Run from the repository root; scripts that plot save `.png` files alongside
+themselves.
 
 | Script | Paper result | What it checks |
 |---|---|---|
