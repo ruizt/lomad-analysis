@@ -172,19 +172,20 @@ Wick's-theorem covariance entries match Monte Carlo, that a stated bound holds
 — and they run locally in seconds. Nothing in the paper's figures depends on
 them.
 
+The CLT approximation, the Proposition 1 moments, and the end-to-end pipeline
+are *not* checked here — `simulations/validation/` measures all three at a
+scale these scripts could not match, and duplicating them locally only
+produced copies that drifted out of step.
+
 Run from the repository root; scripts that plot save `.png` files alongside
 themselves.
 
 | Script | Paper result | What it checks |
 |---|---|---|
-| `validate-clt.R` | Theorems 1 & 2 | Sampling distribution of $R_t$ against the CLT approximation — QQ, Shapiro–Wilk, and interval coverage at several window sizes |
-| `validate-prop1-rho.R` | Proposition 1 ($\rho$) | Theoretical $\rho_t$ against mean empirical $R_t$, and convergence as $s$ grows |
-| `validate-prop1-V.R` | Proposition 1 ($V$) | Theoretical $V_t$ against $s \cdot \mathrm{Var}(R_t)$ |
 | `validate-perturbation.R` | Perturbation bound | Under near-common trends, $\rho$ is a perturbation of the common-trend expression with remainder $O(\varepsilon\tau)$ |
 | `validate-gradient.R` | Gradient remark (Thm 2) | Analytic $\nabla g(\theta)$ against finite differences; also that the full $5\times5$ $V$ equals the reduced $3\times3$ |
 | `validate-sigma-matrix.R` | $\Sigma_{(3,4,5)}$ | Wick's-theorem entries against empirical covariances, for white and ARMA noise |
 | `validate-rho-formula.R` | Appendix ($\rho_t$) | The general $\rho_t$ formula against empirical $R_t$ under smooth and rate coupling |
-| `validate-end-to-end.R` | Full pipeline | `lomad_fit()` + `lomad_test()` on known parameters: $\hat\rho$, $\hat V$, and coverage against oracle values |
 
 ## Morro Bay data
 
