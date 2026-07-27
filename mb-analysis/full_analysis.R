@@ -32,7 +32,7 @@ loc_results <- lapply(names(location_data), function(loc) {
 
   blocks_presm <- loc_dat |>
     group_split(block_id) |>
-    lapply(presmooth_tidal, cols = c('o2', 'ph'), cycle_len = 25, step = '6 hours')
+    lapply(presmooth_tidal, cols = c('o2', 'ph'), step = '6 hours')
 
   names(blocks_presm) <- vapply(
     blocks_presm, \(b) as.character(b$block_id[[1]]), character(1)

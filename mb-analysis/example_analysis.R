@@ -46,7 +46,6 @@ source('mb-analysis/utils.R')
 
 example_block_presm <- presmooth_tidal(example_block,
                                         cols = c('o2', 'ph'),
-                                        cycle_len = 25,
                                         step = '6 hours')
 
 # plot presmoothed

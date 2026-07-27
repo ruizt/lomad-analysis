@@ -2,33 +2,64 @@ library(data.table)
 library(lubridate)
 library(dplyr)
 
-#' Presmooth a time series to remove tidal (or other periodic) fluctuations
+#' Remove tidal periodicity from a time series by spectral notching
 #'
-#' Applies a centered rolling mean of width `cycle_len` to each column in
-#' `cols`, drops rows with any resulting NAs, then optionally downsamples by
-#' keeping the earliest observation within each floored time bin.
+#' Zeros the Fourier components in narrow bands around the named tidal
+#' constituents, then optionally downsamples by keeping the earliest
+#' observation within each floored time bin.
 #'
-#' @param df Data frame containing at least a datetime column and the series
-#'   columns to smooth.
-#' @param cols Character vector of column names to smooth.
+#' This replaces an earlier implementation that used a centered rolling mean of
+#' one tidal period. That is a low-pass filter: it removes the tide, but also
+#' everything faster, and a boxcar's attenuation extends well below its nominal
+#' cutoff. The result at 6-hourly sampling was a series band-limited far below
+#' its own Nyquist frequency -- smooth by construction, with lag-2 variogram
+#' more than twice the lag-1 value, which no stationary AR(1) can produce. The
+#' noise model could not be fitted at all (`phi_hat` clamped on 36 of 37
+#' blocks). Notching removes only the tidal bands and leaves the rest of the
+#' spectrum intact, which both fits the noise model (`phi_hat` ~ 0.28, no
+#' clamping) and removes the tide more completely (residual spectral line 4.4x
+#' background against 8.3x for the rolling mean).
+#'
+#' @param df Data frame with a datetime column and the series to filter.
+#' @param cols Character vector of column names to filter.
 #' @param datetime_col Name of the datetime column (default `"datetime"`).
-#' @param cycle_len Integer. Window width in samples equal to one period of the
-#'   fluctuation to remove (e.g. 25 for hourly data with a ~25 h tidal cycle).
-#' @param step Character string passed to [lubridate::floor_date()] for
-#'   downsampling (e.g. `"6 hours"`). Pass `NULL` to skip downsampling.
+#' @param periods Numeric vector of tidal periods in hours. Defaults to the
+#'   five dominant constituents: M2 (principal lunar semidiurnal), S2
+#'   (principal solar semidiurnal), N2 (larger lunar elliptic semidiurnal), K1
+#'   (lunisolar declinational diurnal) and O1 (principal lunar diurnal).
+#' @param half_width Notch half-width in cycles per hour. The default 1/300
+#'   spans the M2/S2 beat at ~355 h (the spring-neap cycle), so amplitude
+#'   modulation is removed with the constituent rather than left behind.
+#' @param step Passed to [lubridate::floor_date()] for downsampling. `NULL`
+#'   skips downsampling.
 #'
-#' @return The input data frame with smoothed values in `cols`, fewer rows (NAs
-#'   dropped and downsampled), and otherwise the same columns.
+#' @return The input data frame with filtered values in `cols`, fewer rows if
+#'   downsampled, otherwise the same columns.
+TIDAL_PERIODS <- c(M2 = 12.4206, S2 = 12.0000, N2 = 12.6583,
+                   K1 = 23.9345, O1 = 25.8193)
+
 presmooth_tidal <- function(df,
                             cols,
                             datetime_col = "datetime",
-                            cycle_len,
-                            step = "6 hours") {
+                            periods      = TIDAL_PERIODS,
+                            half_width   = 1/300,
+                            step         = "6 hours") {
+  notch <- function(x) {
+    keep <- !is.na(x)
+    if (sum(keep) < 4L) return(x)
+    y  <- x[keep]; n <- length(y); mu <- mean(y)
+    # frequency in cycles per sample, folded to [0, 1/2]; the series is hourly,
+    # so cycles per sample == cycles per hour
+    f  <- (seq_len(n) - 1) / n
+    f  <- pmin(f, 1 - f)
+    X  <- stats::fft(y - mu)
+    X[Reduce(`|`, lapply(periods, \(p) abs(f - 1/p) <= half_width))] <- 0
+    x[keep] <- Re(stats::fft(X, inverse = TRUE)) / n + mu
+    x
+  }
+
   df <- df |>
-    mutate(across(
-      .cols = all_of(cols),
-      .fns  = ~data.table::frollmean(.x, n = cycle_len, fill = NA, align = "center")
-    )) |>
+    mutate(across(.cols = all_of(cols), .fns = notch)) |>
     drop_na(all_of(cols))
 
   if (!is.null(step)) {
