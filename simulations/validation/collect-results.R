@@ -11,7 +11,7 @@
 ##   RAW_DIR=/some/other/path Rscript simulations/validation/collect-results.R
 
 
-RAW_DIR <- Sys.getenv("RAW_DIR", "simulations/validation/results/raw")
+RAW_DIR <- Sys.getenv("RAW_DIR", "simulations/validation/results/_raw")
 OUT_DIR <- "simulations/validation/results"
 
 # ---- Load all results --------------------------------------------------------

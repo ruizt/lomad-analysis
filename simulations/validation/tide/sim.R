@@ -5,7 +5,7 @@
 ##
 ## To test locally (requires lomad installed):
 ##   SIM_EXPERIMENT=clt-s80 SIM_S=5 SIM_SEED=7291 \
-##     SIM_OUT_DIR=simulations/validation/results/raw \
+##     SIM_OUT_DIR=simulations/validation/results/_raw \
 ##     Rscript simulations/validation/tide/sim.R
 
 # In the container, lomad is pre-installed. For local testing, install it

@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-LOCAL_DIR="${1:-simulations/validation/results/raw}"
+LOCAL_DIR="${1:-simulations/validation/results/_raw}"
 ACCESSOR_YAML="simulations/validation/tide/accessor.yaml"
 POD_NAME="lomad-valid-fetch"
 NAMESPACE="cal-poly-ruiz"

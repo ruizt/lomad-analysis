@@ -37,16 +37,19 @@
 ##
 ## Curves pool over separation d; they are separated by trend structure,
 ## AR(1) coefficient phi, SNR, and rolling-window size s (equivalently T).
+## Both the estimated-noise pipeline and the oracle pipeline are swept (the
+## oracle series only exist at phi = 0.8, mirroring the power-curve figure),
+## distinguished by a `method` column ("estimated" / "oracle").
 ##
 ## This is the expensive stage: it reads every -series.rds file in the power
-## study (~1.4 GB across 216 files) and takes several minutes. It is separated
+## study (~1.4 GB across 360 files) and takes several minutes. It is separated
 ## from figure generation so that redrawing a figure never re-runs it.
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/power/localization-sweep.R
 ##
 ## Outputs:
-##   simulations/power/results/_img/fig_localization.png
+##   simulations/power/results/_img/fig-localization.png
 ##   simulations/power/results/localization.rds  (both orientations + profile)
 
 suppressPackageStartupMessages({
@@ -102,11 +105,13 @@ meta <- do.call(rbind, lapply(series_files, parse_meta))
 ## Exclude d = 0. Those series are null everywhere, so they contribute a large
 ## mass of zero-separation windows that are almost never rejected; including
 ## them drags P(m > c | not rejected) toward 0 and flatters the curves.
-meta <- meta[!meta$oracle & meta$d > 0, ]
-message(sprintf("Series files (estimated noise, d > 0): %d", nrow(meta)))
+meta <- meta[meta$d > 0, ]
+message(sprintf("Series files (estimated + oracle, d > 0): %d", nrow(meta)))
 
 ## For each cell, tally windows by binned m_t, split by the test's decision.
 ## Every sweep quantity follows from these two vectors by cumulative sums.
+## Cells are keyed separately by method (estimated / oracle) so the two
+## pipelines never mix.
 cells <- list(); corrupt <- character(0)
 edges <- seq(0, MMAX, length.out = NBIN + 1L)
 
@@ -115,8 +120,9 @@ for (i in seq_len(nrow(meta))) {
   x <- tryCatch(readRDS(m$file), error = function(e) NULL)
   if (is.null(x)) { corrupt <- c(corrupt, basename(m$file)); next }
 
-  s_win <- s_win_fcn(m$n)
-  key <- paste(m$struct, m$phi, m$snr, s_win, sep = "|")
+  s_win  <- s_win_fcn(m$n)
+  method <- if (m$oracle) "oracle" else "estimated"
+  key <- paste(m$struct, m$phi, m$snr, s_win, method, sep = "|")
   if (is.null(cells[[key]]))
     cells[[key]] <- list(rej = numeric(NBIN), non = numeric(NBIN))
   cl <- cells[[key]]
@@ -151,7 +157,7 @@ sweep <- bind_rows(lapply(names(cells), function(key) {
   A <- tot_rej - B; C <- tot_non - D
   data.frame(
     struct = k[1], phi = as.numeric(k[2]), snr = as.numeric(k[3]),
-    s_win = as.integer(k[4]),
+    s_win = as.integer(k[4]), method = k[5],
     c = edges[-1],
     sens = A / pmax(1, A + C),          # P(rejected  | m > c)
     spec = D / pmax(1, D + B),          # P(!rejected | m <= c)

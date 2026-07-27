@@ -13,10 +13,10 @@
 ##   (the trend-construction figure needs no inputs; it simulates its own)
 ##
 ## Outputs -> simulations/_img/
-##   fig_trend_construction.png   methods of simulating trend separation
-##   power_curves.png             detection rate vs separation d
-##   fig_localization.png         localization threshold sweep
-##   validation-composite.png     finite-sample accuracy of the CLT
+##   fig-trends.png                methods of simulating trend separation
+##   fig-power.png                 detection rate vs separation d
+##   fig-localization.png          localization threshold sweep
+##   fig-validation.png            finite-sample accuracy of the CLT
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/simulation-figures.R
@@ -35,6 +35,33 @@ suppressPackageStartupMessages({
 IMG_DIR <- "simulations/_img"
 alpha   <- 0.05
 dir.create(IMG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+# ---- Shared structure naming/colour convention (all figures) ---------------
+# Internal codes (as stored in the data) map to the same display name,
+# abbreviation, and colour everywhere: trend construction, power curves, and
+# localization. Keep the palette keyed by the internal code (not by a display
+# label) — a display label used as a vector name gets silently mangled if it
+# is itself named when spliced into another named vector via c().
+STRUCT_FULL <- c(rate = "Fixed Rate", smooth = "Stochastic Modulation",
+                  cross = "Stochastic Blending")
+STRUCT_ABBR <- c(rate = "FR", smooth = "SM", cross = "SB")
+STRUCT_HEX  <- c(rate = "#009E73", smooth = "#0072B2", cross = "#D55E00")
+
+# Full display label used only for the trend-construction panel titles.
+STRUCT_LABELS <- STRUCT_FULL
+# Abbreviation-keyed palette, for the Structure legend in the other figures.
+STRUCT_PAL <- setNames(STRUCT_HEX, STRUCT_ABBR[names(STRUCT_HEX)])
+
+# Rolling-window length s_T as a function of series length T. Mirrors
+# localization-sweep.R exactly; fig-power.png doesn't carry a window-size
+# column of its own, so T's s_T is derived here for the facet labels.
+h_win_fcn <- function(n) max(5L, floor(n / 200L))
+s_win_fcn <- function(n) min(60L * h_win_fcn(n), floor(n / 4L))
+
+# Shared legend for the solid/dashed (estimated vs. oracle noise) contrast,
+# used identically in the power-curve and localization figures.
+ESTIMATION_LAB <- c(estimated = "Lomad", oracle = "Oracle")
+ESTIMATION_LTY <- c(estimated = "solid", oracle = "dashed")
 
 
 # =============================================================================
@@ -94,7 +121,8 @@ theme_bot <- theme_minimal(base_size = 9) +
 
 # ---- Panel builders ----------------------------------------------------
 
-# Unstructured panel: w = 0, so x1/x2 are the raw Fourier trends.
+# Unstructured panel: w = 0, so x1/x2 are the raw Fourier trends. Both lines
+# black — there is no structure/colour to distinguish here.
 panel_top_dist <- function(tr, title) {
   x_mean_loc <- (tr$x1 + tr$x2) / 2
   df <- data.frame(t = seq_len(n), x1 = tr$x1, x2 = tr$x2,
@@ -104,7 +132,7 @@ panel_top_dist <- function(tr, title) {
   ggplot(df, aes(t, value, color = series, linewidth = series,
                  linetype = series, alpha = series)) +
     geom_line() +
-    scale_color_manual(values = c(x_mean = "gray50", x1 = "#0072B2", x2 = "#D55E00")) +
+    scale_color_manual(values = c(x_mean = "gray50", x1 = "black", x2 = "black")) +
     scale_linewidth_manual(values = c(x_mean = 0.35, x1 = 0.45, x2 = 0.45)) +
     scale_linetype_manual(values = c(x_mean = "dashed", x1 = "solid", x2 = "solid")) +
     scale_alpha_manual(values = c(x_mean = 1, x1 = 0.9, x2 = 0.9)) +
@@ -113,8 +141,11 @@ panel_top_dist <- function(tr, title) {
     theme_top
 }
 
-# Structured panel: show x1, x2, and x_mean.
-panel_top_struct <- function(tr, title) {
+# Structured panel: show x1, x2, and x_mean. x1/x2 share a single colour
+# (the structure's colour, from STRUCT_PAL) rather than being distinguished
+# from each other — the panel is about the structure, not which series is
+# which.
+panel_top_struct <- function(tr, title, colour) {
   df <- data.frame(t = seq_len(n), x1 = tr$x1, x2 = tr$x2,
                    x_mean = tr$x_mean) |>
     pivot_longer(c(x1, x2, x_mean), names_to = "series", values_to = "value") |>
@@ -122,7 +153,7 @@ panel_top_struct <- function(tr, title) {
   ggplot(df, aes(t, value, color = series, linewidth = series,
                  linetype = series, alpha = series)) +
     geom_line() +
-    scale_color_manual(values = c(x_mean = "gray50", x1 = "#0072B2", x2 = "#D55E00")) +
+    scale_color_manual(values = c(x_mean = "gray50", x1 = colour, x2 = colour)) +
     scale_linewidth_manual(values = c(x_mean = 0.35, x1 = 0.45, x2 = 0.45)) +
     scale_linetype_manual(values = c(x_mean = "dashed", x1 = "solid", x2 = "solid")) +
     scale_alpha_manual(values = c(x_mean = 1, x1 = 0.9, x2 = 0.9)) +
@@ -131,8 +162,9 @@ panel_top_struct <- function(tr, title) {
     theme_top
 }
 
-# Coupling weight sub-panel.
-panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL) {
+# Coupling weight sub-panel. Colour-matched to the structure above it (gray
+# for the unstructured panel, where there is no structure colour).
+panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL, colour = "gray20") {
   if (is.null(ylim)) {
     rng  <- range(tr$w)
     pad  <- diff(rng) * 0.1
@@ -142,7 +174,7 @@ panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL) {
     ggplot(aes(t, w)) +
     geom_hline(yintercept = ref_lines, linetype = "dashed",
                color = "gray65", linewidth = 0.3) +
-    geom_line(linewidth = 0.4, color = "gray20") +
+    geom_line(linewidth = 0.4, color = colour) +
     scale_y_continuous(limits = ylim, breaks = ref_lines) +
     labs(y = expression(w[t]), x = "t") +
     theme_bot
@@ -150,27 +182,32 @@ panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL) {
 
 # ---- Composite panels (series / w_t) -----------------------------------
 
-comp_dist <- panel_top_dist(tr_dist, "(a) Unstructured") /
+struct_title <- function(code) paste0(STRUCT_FULL[[code]], " (", STRUCT_ABBR[[code]], ")")
+
+comp_dist <- panel_top_dist(tr_dist, "Unstructured") /
   panel_wt(tr_dist, ref_lines = c(0, 1), ylim = c(-0.1, 1.1)) +
   plot_layout(heights = c(3, 1))
 
-comp_rate <- panel_top_struct(tr_rate, "(b) Event rate") /
-  panel_wt(tr_rate) +
+comp_rate <- panel_top_struct(tr_rate, struct_title("rate"),
+                               colour = STRUCT_HEX[["rate"]]) /
+  panel_wt(tr_rate, colour = STRUCT_HEX[["rate"]]) +
   plot_layout(heights = c(3, 1))
 
-comp_smooth <- panel_top_struct(tr_smooth, "(c) Stochastic repulsion") /
-  panel_wt(tr_smooth) +
+comp_smooth <- panel_top_struct(tr_smooth, struct_title("smooth"),
+                                 colour = STRUCT_HEX[["smooth"]]) /
+  panel_wt(tr_smooth, colour = STRUCT_HEX[["smooth"]]) +
   plot_layout(heights = c(3, 1))
 
-comp_cross <- panel_top_struct(tr_cross, "(d) Stochastic crossing") /
-  panel_wt(tr_cross, ref_lines = c(0, 1)) +
+comp_cross <- panel_top_struct(tr_cross, struct_title("cross"),
+                                colour = STRUCT_HEX[["cross"]]) /
+  panel_wt(tr_cross, ref_lines = c(0, 1), colour = STRUCT_HEX[["cross"]]) +
   plot_layout(heights = c(3, 1))
 
 # ---- 2×2 figure --------------------------------------------------------
 
 fig_1x4 <- comp_dist | comp_rate | comp_smooth | comp_cross
-ggsave(file.path(IMG_DIR, "fig_trend_construction.png"),
-         fig_1x4, width = 8, height = 2.5, units = "in", dpi = 400)
+ggsave(file.path(IMG_DIR, "fig-trends.png"),
+         fig_1x4, width = 8.6, height = 2.5, units = "in", dpi = 400)
 
 })
 
@@ -185,8 +222,15 @@ local({
 
 library(ggh4x)
 
+# Oracle only exists at phi = 0.8 (dashed vs. solid is meaningless elsewhere
+# in this grid), so it gets a one-off inline note there instead of a legend
+# that would otherwise apply, misleadingly, to every panel.
+oracle_note <- data.frame(phi = 0.8, snr = 0.5, n = 200,
+                           d = 0.05, detection = 0.97,
+                           label = "dashed = oracle")
+
 results_summary |>
-  mutate(struct = str_to_sentence(struct)) |>
+  mutate(struct = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR)) |>
 ggplot(aes(d, detection, colour = struct,
            linetype = method,
            group = interaction(struct, method))) +
@@ -195,22 +239,21 @@ ggplot(aes(d, detection, colour = struct,
   geom_line(linewidth = 0.5, alpha = 0.8) +
   geom_ribbon(aes(ymin = ci_lo, ymax = ci_hi, fill = struct),
               alpha = 0.2, colour = NA) +
+  geom_text(data = oracle_note, aes(x = d, y = detection, label = label),
+            inherit.aes = FALSE, hjust = 0, size = 2.8, colour = "grey30") +
   scale_y_continuous(limits = c(0, 1)) +
-  scale_colour_manual(values = c("Smooth" = "#0072B2",
-                                 "Cross"  = "#D55E00",
-                                 "Rate"   = "#009E73")) +
-  scale_fill_manual(values = c("Smooth" = "#0072B2",
-                               "Cross"  = "#D55E00",
-                               "Rate"   = "#009E73")) +
+  scale_colour_manual(values = STRUCT_PAL) +
+  scale_fill_manual(values = STRUCT_PAL) +
+  scale_linetype_manual(values = ESTIMATION_LTY) +
+  guides(linetype = guide_none()) +
   facet_nested(phi ~ snr + n, labeller = labeller(
     phi = \(x) paste0("phi == ", x),
     snr = \(x) paste0("SNR == ", x),
-    n   = \(x) paste0("T == ", x),
+    n   = \(x) paste0("T==", x, "*', '~s[T]==", vapply(as.integer(x), s_win_fcn, numeric(1))),
     .default = label_parsed
   )) +
   labs(x = "Separation (d)", y = "Power",
        colour = "Structure", fill = "Structure") +
-  guides(linetype = guide_none()) +
   theme_minimal(base_size = 12) +
   theme(legend.position = "right",
         axis.text = element_text(size = 8),
@@ -218,7 +261,7 @@ ggplot(aes(d, detection, colour = struct,
         panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
 
-ggsave(file.path(IMG_DIR, "power_curves.png"),
+ggsave(file.path(IMG_DIR, "fig-power.png"),
          width = 9, height = 4, dpi = 450)
 
 })
@@ -234,62 +277,63 @@ local({
   sweep  <- L$sweep
   ORIENT <- L$orient
   C_MAX   <- 0.30
-  C_MARKS <- c(0.01, 0.02, 0.05, 0.10, 0.20)
   MIN_N   <- 10000L
+  # The rolling-max estimator's localization collapses to near-chance only for
+  # "FR" in the two hardest cells (phi = 0.8, SNR = 1.5, s_T = 100 and 150) —
+  # dropped there and only there; FR is kept everywhere else.
+  DROP_STRUCT <- "rate"; DROP_PHI <- 0.8; DROP_SNR <- 1.5
+  DROP_S_WIN  <- c(100L, 150L)
 
   # Axis pair depends on the orientation recorded by localization-sweep.R.
   if (ORIENT == "conventional") {
     sweep$xx <- 1 - sweep$spec; sweep$yy <- sweep$sens
-    xlab <- "1 - specificity   P(rejected | separation <= c)"
-    ylab <- "Sensitivity   P(rejected | separation > c)"
+    xlab <- "1 - Specificity"
+    ylab <- "Sensitivity"
   } else {
     sweep$xx <- 1 - sweep$npv;  sweep$yy <- sweep$prec
-    xlab <- "1 - NPV   P(separation > c | not rejected)"
-    ylab <- "Precision   P(separation > c | rejected)"
+    xlab <- "1 - NPV"
+    ylab <- "Precision"
   }
-lab_struct <- c(smooth = "Smooth", cross = "Cross", rate = "Rate")
-pal <- c(Smooth = "#0072B2", Cross = "#D55E00", Rate = "#009E73")
-
 sw <- sweep |>
   filter(c <= C_MAX, n_above >= MIN_N, n_below >= MIN_N) |>
-  mutate(Structure = factor(lab_struct[struct], levels = names(pal)))
+  filter(!(struct == DROP_STRUCT & phi == DROP_PHI & snr == DROP_SNR &
+             s_win %in% DROP_S_WIN)) |>
+  mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
+         method = factor(method, levels = c("estimated", "oracle")))
 
-marks <- bind_rows(lapply(C_MARKS, function(z) {
-  sw |> group_by(struct, phi, snr, s_win) |>
-    slice_min(abs(c - z), n = 1, with_ties = FALSE) |>
-    ungroup() |> mutate(c_lab = z)
-}))
+# Oracle only exists at phi = 0.8 here too (same as the power-curve figure),
+# so it gets the same one-off inline note instead of a legend that would
+# otherwise apply, misleadingly, to every panel.
+oracle_note_loc <- data.frame(phi = 0.8, snr = 0.5, s_win = 50,
+                               xx = 0.95, yy = 0.05, label = "dashed = oracle")
 
-p <- ggplot(sw, aes(xx, yy, colour = Structure)) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed",
+p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
+                    group = interaction(struct, method))) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dotted",
               colour = "grey70", linewidth = 0.3) +
-  geom_path(linewidth = 0.6) +
-  geom_point(data = marks, size = 1.4) +
+  geom_path(linewidth = 0.6, alpha = 0.85) +
+  geom_text(data = oracle_note_loc, aes(x = xx, y = yy, label = label),
+            inherit.aes = FALSE, hjust = 1, size = 2.8, colour = "grey30") +
   facet_nested(phi ~ snr + s_win, labeller = labeller(
     phi   = function(x) paste0("phi == ", x),
     snr   = function(x) paste0("SNR == ", x),
-    s_win = function(x) paste0("s == ", x),
+    s_win = function(x) paste0("s[T] == ", x),
     .default = label_parsed)) +
-  scale_colour_manual(values = pal) +
+  scale_colour_manual(values = STRUCT_PAL) +
+  scale_linetype_manual(values = ESTIMATION_LTY) +
+  guides(linetype = guide_none()) +
   scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
   scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-  labs(x = xlab, y = ylab, colour = NULL,
-       caption = paste0(
-         "Each curve sweeps the separation threshold c defining a decoupled ",
-         "window (windowed maximum |nu_1 - nu_2|).\nPoints mark c = ",
-         paste(C_MARKS, collapse = ", "),
-         ". Curves pool over separation d.")) +
-  theme_bw(base_size = 11) +
-  theme(legend.position  = "bottom",
+  labs(x = xlab, y = ylab, colour = "Structure") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "right",
+        axis.text = element_text(size = 8),
         panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(linewidth = 0.15, colour = "grey85"),
-        strip.background = element_rect(fill = "grey95", colour = NA),
-        axis.title       = element_text(size = 9),
-        plot.caption     = element_text(size = 7, hjust = 0, colour = "grey30"))
+        panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
-ggsave(file.path(IMG_DIR, "fig_localization.png"), p,
-       width = 11, height = 6.5, dpi = 400)
-cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig_localization.png")))
+ggsave(file.path(IMG_DIR, "fig-localization.png"), p,
+       width = 9, height = 4, dpi = 450)
+cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig-localization.png")))
 
 })
 
@@ -522,7 +566,7 @@ full_fig <- row_a + p_rho + p_v + p_qq + p_cov +
     theme = theme(plot.tag = element_text(size = 12, face = "bold"))
   )
 
-ggsave(file.path(IMG_DIR, "validation-composite.png"),
+ggsave(file.path(IMG_DIR, "fig-validation.png"),
          full_fig, width = 6, height = 6, dpi = 300)
 })
 

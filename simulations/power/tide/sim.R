@@ -20,7 +20,7 @@
 ##
 ## Test locally:
 ##   SIM_D=0 SIM_STRUCTURE=smooth SIM_N=500 SIM_SNR=1.5 SIM_S=5 \
-##     SIM_OUT_DIR=simulations/power/results/raw \
+##     SIM_OUT_DIR=simulations/power/results/_raw \
 ##     Rscript simulations/power/tide/sim.R
 
 library(lomad)

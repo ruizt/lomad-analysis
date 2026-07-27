@@ -83,7 +83,7 @@ To isolate this as an estimation problem rather than a test problem, `sim.R` sup
 ### Figures
 
 Built by `simulations/simulation-figures.R`, not by this study, and written to
-`simulations/_img/`: `power_curves.png` and `fig_localization.png`.
+`simulations/_img/`: `fig-power.png` and `fig-localization.png`.
 
 ------------------------------------------------------------------------
 

@@ -65,7 +65,7 @@ Eval points:
 | `var-s150` | 2 (right) | 150 | 2000 | R_t at grid of eval points |
 | `e2e-s150` | 3 | 150 | 1000 | Oracle + pipeline quantities at 5 eval pts |
 
-## Composite figure (`simulations/_img/validation-composite.png`)
+## Composite figure (`simulations/_img/fig-validation.png`)
 
 A single three-row figure saved as both PNG (300 dpi) and PDF.
 
@@ -136,7 +136,7 @@ somewhat conservative inference due to plug-in variance compression.
 ### Figures
 
 Built by `simulations/simulation-figures.R`, not by this study, and written to
-`simulations/_img/validation-composite.png`.
+`simulations/_img/fig-validation.png`.
 
 ------------------------------------------------------------------------
 
