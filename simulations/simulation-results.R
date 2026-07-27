@@ -362,15 +362,44 @@ auc <- sweep |>
     sum(diff(x[o]) * (y[o][-1] + head(y[o], -1)) / 2, na.rm = TRUE)
   }, .groups = "drop")
 
-write.csv(auc, file.path(TBL_DIR, "tbl-localization-auc.csv"), row.names = FALSE)
+# Averaged over the trend structures. They agree closely wherever the method
+# works -- the spread across structures is at most 0.068 once FR is set aside
+# -- so carrying all three costs eighteen rows to say one thing three times.
+#
+# FR is excluded at phi = 0.8, where its localization collapses to near chance
+# and averaging it in would report a middle that describes none of the three.
+# It is dropped from the oracle rows as well as the estimated ones: if the two
+# averaged over different structures, the estimated-vs-oracle contrast would be
+# confounded with which structures went into each.
+#
+# The mean of the three AUCs, not the concordance of the pooled windows. Those
+# differ by up to 0.06, because pooling counts cross-structure pairs -- a window
+# from one data-generating process ranked against a window from another, which
+# is not a comparison that means anything.
+auc_avg <- auc |>
+  filter(!(phi == 0.8 & struct == "rate")) |>
+  group_by(phi, snr, s_win, method) |>
+  summarise(spread = max(auc) - min(auc), n_struct = n(), auc = mean(auc),
+            .groups = "drop")
+
+write.csv(auc_avg, file.path(TBL_DIR, "tbl-localization-auc.csv"),
+          row.names = FALSE)
 cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
 
-cat("\nLocalization concordance AUC:\n")
-print(as.data.frame(auc |>
-  mutate(auc = sprintf("%.3f", auc)) |>
-  tidyr::pivot_wider(names_from = s_win, values_from = auc,
-                     names_prefix = "s=") |>
-  arrange(method, struct, snr, phi)), row.names = FALSE)
+cat("\nLocalization concordance AUC, averaged over structures",
+    "(FR excluded at phi = 0.8):\n")
+for (m in c("estimated", "oracle")) {
+  d <- auc_avg |> filter(method == m)
+  if (!nrow(d)) next
+  cat(sprintf("\n  %s noise:\n", m))
+  print(as.data.frame(d |>
+    mutate(auc = sprintf("%.3f", auc)) |>
+    tidyr::pivot_wider(names_from = s_win, values_from = auc,
+                       names_prefix = "s=", id_cols = c(phi, snr)) |>
+    arrange(phi, snr)), row.names = FALSE)
+}
+cat(sprintf("\n  largest spread among the averaged structures: %.3f\n",
+            max(auc_avg$spread)))
 
 })
 
