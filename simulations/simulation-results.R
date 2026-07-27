@@ -21,7 +21,6 @@
 ##
 ## Outputs -> simulations/_tbl/
 ##   tbl-localization-auc.csv      concordance AUC per design cell
-##   tbl-localization-auc.tex      the same, as a LaTeX table for the paper
 ##   tbl-localization-resolution.csv  separation at which rejection hits .50/.95
 ##
 ## Both output directories are _-prefixed and therefore untracked: everything
@@ -312,11 +311,47 @@ sw <- sweep |>
   mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
          method = factor(method, levels = c("estimated", "oracle")))
 
+# ---- Concordance AUC ---------------------------------------------------------
+# Area under each curve above. In the predictive orientation this is a genuine
+# ROC -- true separation m_t is the score, rejection status the class label --
+# so the area reads as P(a rejected window has larger m_t than an unrejected
+# one).
+#
+# Integrated over the FULL c grid, not the plotted range: C_MAX and MIN_N trim
+# the tails for display only, and a partial area would not carry the
+# concordance reading. The curve is anchored at both corners without them --
+# every window is above the cut as c -> 0, none as c -> max.
+auc <- sweep |>
+  group_by(struct, phi, snr, s_win, method) |>
+  arrange(c, .by_group = TRUE) |>
+  summarise(auc = {
+    x <- 1 - npv; y <- prec; o <- order(x)
+    sum(diff(x[o]) * (y[o][-1] + head(y[o], -1)) / 2, na.rm = TRUE)
+  }, .groups = "drop")
+
+write.csv(auc, file.path(TBL_DIR, "tbl-localization-auc.csv"), row.names = FALSE)
+cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
+
+# Panel annotation: the mean over exactly the solid curves drawn in that panel.
+# Semi-joining against sw is what guarantees that -- if DROP_STRUCT changes
+# which structures a panel shows, the mean follows automatically rather than
+# silently describing a different set of curves than the reader can see.
+#
+# Solid only. Averaging estimated and oracle curves into one number would be
+# meaningless, and the oracle curves are labelled separately.
+auc_panel <- auc |>
+  filter(method == "estimated") |>
+  semi_join(distinct(sw, struct, phi, snr, s_win, method),
+            by = c("struct", "phi", "snr", "s_win", "method")) |>
+  group_by(phi, snr, s_win) |>
+  summarise(xx = 0.95, yy = 0.05, k = n(),
+            label = sprintf("mean AUC = %.3f", mean(auc)), .groups = "drop")
+
 # Oracle only exists at phi = 0.8 here too (same as the power-curve figure),
 # so it gets the same one-off inline note instead of a legend that would
 # otherwise apply, misleadingly, to every panel.
 oracle_note_loc <- data.frame(phi = 0.8, snr = 0.5, s_win = 50,
-                               xx = 0.95, yy = 0.05, label = "dashed = oracle")
+                               xx = 0.95, yy = 0.18, label = "dashed = oracle")
 
 p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
                     group = interaction(struct, method))) +
@@ -325,6 +360,8 @@ p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
   geom_path(linewidth = 0.6, alpha = 0.85) +
   geom_text(data = oracle_note_loc, aes(x = xx, y = yy, label = label),
             inherit.aes = FALSE, hjust = 1, size = 2.8, colour = "grey30") +
+  geom_text(data = auc_panel, aes(x = xx, y = yy, label = label),
+            inherit.aes = FALSE, hjust = 1, size = 2.6, colour = "grey20") +
   facet_nested(phi ~ snr + s_win, labeller = labeller(
     phi   = function(x) paste0("phi == ", x),
     snr   = function(x) paste0("SNR == ", x),
@@ -346,101 +383,6 @@ ggsave(file.path(IMG_DIR, "fig-localization.png"), p,
        width = 9, height = 4, dpi = 450)
 cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig-localization.png")))
 
-# ---- Concordance AUC ---------------------------------------------------------
-# Area under the curve above, which in the predictive orientation is a genuine
-# ROC: true separation m_t is the score, rejection status the class label. So
-# the area reads as P(a rejected window has larger m_t than an unrejected one).
-#
-# Integrated over the FULL c grid, not the plotted range: C_MAX and MIN_N are
-# display choices that trim the tails, and a partial area would not carry the
-# concordance reading. The curve is anchored at both corners without them --
-# every window is above the cut as c -> 0, none as c -> max.
-auc <- sweep |>
-  group_by(struct, phi, snr, s_win, method) |>
-  arrange(c, .by_group = TRUE) |>
-  summarise(auc = {
-    x <- 1 - npv; y <- prec; o <- order(x)
-    sum(diff(x[o]) * (y[o][-1] + head(y[o], -1)) / 2, na.rm = TRUE)
-  }, .groups = "drop")
-
-# Averaged over the trend structures. They agree closely wherever the method
-# works -- the spread across structures is at most 0.068 once FR is set aside
-# -- so carrying all three costs eighteen rows to say one thing three times.
-#
-# FR is excluded at phi = 0.8, where its localization collapses to near chance
-# and averaging it in would report a middle that describes none of the three.
-# It is dropped from the oracle rows as well as the estimated ones: if the two
-# averaged over different structures, the estimated-vs-oracle contrast would be
-# confounded with which structures went into each.
-#
-# The mean of the three AUCs, not the concordance of the pooled windows. Those
-# differ by up to 0.06, because pooling counts cross-structure pairs -- a window
-# from one data-generating process ranked against a window from another, which
-# is not a comparison that means anything.
-# Oracle is excluded from the table but kept in both figures. It was only run
-# at phi = 0.8, so in a table it is either two orphan rows hanging under six or
-# a parenthetical present in a third of the cells and blank elsewhere; the
-# figures carry it without that asymmetry showing.
-auc_avg_all <- auc |>
-  filter(!(phi == 0.8 & struct == "rate")) |>
-  group_by(snr, phi, s_win, method) |>
-  summarise(auc = mean(auc), .groups = "drop")
-
-auc_avg <- auc |>
-  filter(!(phi == 0.8 & struct == "rate"), method == "estimated") |>
-  group_by(snr, phi, s_win) |>
-  summarise(spread = max(auc) - min(auc), n_struct = n(), auc = mean(auc),
-            .groups = "drop") |>
-  arrange(snr, phi, s_win)
-
-write.csv(auc_avg, file.path(TBL_DIR, "tbl-localization-auc.csv"),
-          row.names = FALSE)
-cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
-
-cat("\nLocalization concordance AUC, averaged over structures",
-    "(FR excluded at phi = 0.8; oracle omitted, see figures):\n")
-print(as.data.frame(auc_avg |>
-  mutate(auc = sprintf("%.3f", auc)) |>
-  tidyr::pivot_wider(names_from = s_win, values_from = auc,
-                     names_prefix = "s=", id_cols = c(snr, phi)) |>
-  arrange(snr, phi)), row.names = FALSE)
-
-# LaTeX for the manuscript. Emitted here so the numbers and the structure
-# handling cannot drift from what the figures beside it show.
-local({
-  rows <- paste0(sprintf("  %.1f & %.1f & %.3f & %.3f & %.3f \\\\",
-                         auc_avg$snr[auc_avg$s_win == 50],
-                         auc_avg$phi[auc_avg$s_win == 50],
-                         auc_avg$auc[auc_avg$s_win == 50],
-                         auc_avg$auc[auc_avg$s_win == 100],
-                         auc_avg$auc[auc_avg$s_win == 150]), collapse = "\n")
-  tex <- c(
-    "\\begin{table}[!htbp]", "\\centering",
-    "\\caption{DRAFT. Concordance between rejections and true separation: the",
-    "  probability that a randomly chosen rejected window carries larger true",
-    "  windowed separation $m_t$ than a randomly chosen unrejected one, by",
-    "  signal-to-noise ratio $\\lambda$, AR(1) coefficient $\\phi$, and test",
-    "  window $s_T$. A value of $0.5$ indicates that rejections carry no",
-    "  information about where the trends separate. Values are averaged over",
-    sprintf("  the three structured separation methods, which differ by at most $%.2f$;",
-            max(auc_avg$spread)),
-    "  the fixed-rate method is excluded at $\\phi = 0.8$, where its",
-    "  localization degrades to near chance. Oracle values at $\\phi = 0.8$",
-    sprintf("  range from $%.2f$ to $%.2f$ and are shown in Figures",
-            min(auc_avg_all$auc[auc_avg_all$method == "oracle"]),
-            max(auc_avg_all$auc[auc_avg_all$method == "oracle"])),
-    "  \\ref{fig:localization} and \\ref{fig:profile}.}",
-    "\\label{tab:localization-auc}",
-    "\\begin{tabular}{llccc}", "  \\toprule",
-    "  & & \\multicolumn{3}{c}{$s_T$} \\\\", "  \\cmidrule(lr){3-5}",
-    "  $\\lambda$ & $\\phi$ & 50 & 100 & 150 \\\\", "  \\midrule",
-    rows, "  \\bottomrule", "\\end{tabular}", "\\end{table}")
-  writeLines(tex, file.path(TBL_DIR, "tbl-localization-auc.tex"))
-  cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.tex")))
-})
-
-cat(sprintf("\n  largest spread among the averaged structures: %.3f\n",
-            max(auc_avg$spread)))
 
 })
 
