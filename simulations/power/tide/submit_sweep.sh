@@ -2,6 +2,7 @@
 # submit_sweep.sh — submit one Kubernetes Job per (structure, d, n, snr, phi)
 #
 # Usage: bash simulations/power/tide/submit_sweep.sh
+#        STRUCTS="rate" bash simulations/power/tide/submit_sweep.sh   # subset
 #
 # Each Job runs SIM_S replicates for one parameter combination. Results land in
 # the lomad-power-results PVC as one .rds file per Job (plus a -series.rds).
@@ -28,7 +29,12 @@ export SIM_S=500
 export SIM_SEED=2847
 
 D_VALUES=(0 0.5 1.0 1.5 2.0)
-STRUCTURES=(smooth cross rate)
+
+# Structures to sweep. Override to rerun a subset in place -- results are one
+# file per cell in the PVC, so untouched structures are left alone:
+#   STRUCTS="rate" bash simulations/power/tide/submit_sweep.sh
+read -r -a STRUCTURES <<< "${STRUCTS:-smooth cross rate}"
+
 SAMPLE_SIZES=(200 400 600)
 SNR_VALUES=(0.5 1.5)
 PHI_VALUES=(0.3 0.5 0.8)

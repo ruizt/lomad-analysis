@@ -43,7 +43,14 @@ struct_params <- list(
   dist   = list(),
   smooth = list(bw = 50),
   cross  = list(bw = 50),
-  rate   = list(rate = 0.01)
+  # bump = "gaussian": the shape-2 gamma default puts a corner at each event
+  # onset, which difference-based noise estimation cannot cancel (Hall and Van
+  # Keilegom 2003 require a bounded derivative). The leftover biases the
+  # residual autocovariance upward, and near the unit root that bias is
+  # amplified by ~2/(1-phi)^2, so at phi = 0.8 the fixed-rate structure loses
+  # almost all detection. The gaussian pulse is matched on width and smooth at
+  # onset; it still trails the stochastic structures but is no longer anomalous.
+  rate   = list(rate = 0.01, bump = "gaussian")
 )
 
 # ---- Single-replicate function -----------------------------------------------

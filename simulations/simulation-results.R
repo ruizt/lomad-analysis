@@ -92,8 +92,8 @@ seed_coef <- 2847   # seed for Fourier base (shared across all panels)
 # ---- Generate trend pairs via sim_trends() ------------------------------
 
 tr_dist   <- sim_trends(n, d = d, method = "dist",   seed = seed_coef)
-tr_rate   <- sim_trends(n, d = d, method = "rate",   seed = seed_coef, 
-                        rate = rate)
+tr_rate   <- sim_trends(n, d = d, method = "rate",   seed = seed_coef,
+                        rate = rate, bump = "gaussian")
 tr_smooth <- sim_trends(n, d = d, method = "smooth", seed = seed_coef,
                         bw = bw, coupling = coupling)
 tr_cross  <- sim_trends(n, d = d, method = "cross",  seed = seed_coef,

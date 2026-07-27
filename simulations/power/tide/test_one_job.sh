@@ -24,7 +24,7 @@ export CONFIGMAP="lomad-power-script"
 
 # ---- The cell to test --------------------------------------------------------
 
-export SIM_STRUCTURE="smooth"
+export SIM_STRUCTURE="rate"
 export SIM_D="1.0"
 export SIM_N="400"
 export SIM_SNR="0.5"
