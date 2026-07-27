@@ -61,11 +61,11 @@ for (loc in names(loc_results)) {
   blocks       <- blocks[!too_short]
   blocks_presm <- blocks_presm[!too_short]
 
-  # Fit each block with ARMA noise, then test
+  # Fit each block (variogram-based AR(1) noise), then test
   block_fits <- lapply(names(blocks), \(nm) {
     b <- blocks[[nm]]
     tryCatch({
-      fit <- lomad_fit(b$x1, b$x2, h = h_win, s = s_win, noise_method = "arma")
+      fit <- lomad_fit(b$x1, b$x2, h = h_win, s = s_win)
       tst <- lomad_test(fit, alpha = alpha)
       list(fit = fit, tst = tst)
     }, error = function(e) { message(paste("  Block", nm, "failed:", e$message)); NULL })

@@ -69,7 +69,7 @@ x1 <- example_block_presm$o2
 x2 <- example_block_presm$ph
 dt <- example_block_presm$datetime
 
-fit <- lomad_fit(x1, x2, h = 3, s = 50, noise_method = "arma")
+fit <- lomad_fit(x1, x2, h = 3, s = 50)
 tst <- lomad_test(fit, alpha = 0.05)
 
 cat(sprintf("Rejected %d / %d time points at alpha_eff = %.4f\n",
