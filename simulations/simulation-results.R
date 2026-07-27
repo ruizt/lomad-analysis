@@ -22,6 +22,8 @@
 ##
 ## Outputs -> simulations/_tbl/
 ##   tbl-localization-auc.csv      concordance AUC per design cell
+##   tbl-localization-auc.tex      the same, as a LaTeX table for the paper
+##   tbl-localization-resolution.csv  separation at which rejection hits .50/.95
 ##
 ## Both output directories are _-prefixed and therefore untracked: everything
 ## here is regenerable in seconds from the compiled results, which are tracked.
@@ -364,6 +366,51 @@ auc <- sweep |>
 
 write.csv(auc, file.path(TBL_DIR, "tbl-localization-auc.csv"), row.names = FALSE)
 cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
+
+# LaTeX for the paper, emitted here rather than hand-transcribed so that the
+# structure abbreviations come from STRUCT_ABBR above and cannot drift out of
+# step with the figures' legends.
+local({
+  w <- auc |>
+    mutate(Structure = STRUCT_ABBR[struct]) |>
+    tidyr::pivot_wider(names_from = s_win, values_from = auc,
+                       names_prefix = "s",
+                       id_cols = c(Structure, snr, phi, method)) |>
+    arrange(method, factor(Structure, levels = STRUCT_ABBR), snr, phi)
+
+  legend <- paste(sprintf("%s, %s", STRUCT_ABBR[names(STRUCT_FULL)],
+                          tolower(STRUCT_FULL)), collapse = "; ")
+  rows <- function(d) paste0(sprintf(
+    "  %s & %.1f & %.1f & %.3f & %.3f & %.3f \\\\", d$Structure, d$snr, d$phi,
+    d$s50, d$s100, d$s150), collapse = "\n")
+
+  tex <- c(
+    # [!htbp], not [ht]: 24 data rows alongside two full-width figures in a
+    # short section leaves no in-place slot, and LaTeX defers the float all the
+    # way into the appendix.
+    "\\begin{table}[!htbp]", "\\centering",
+    "\\caption{DRAFT. Concordance between rejections and true separation: the",
+    "  probability that a randomly chosen rejected window carries larger true",
+    "  windowed separation $m_t$ than a randomly chosen unrejected one, by",
+    sprintf("  structured separation method (%s), signal-to-noise ratio", legend),
+    "  $\\lambda$, AR(1) coefficient $\\phi$, and test window $s_T$. A value of",
+    "  $0.5$ indicates that rejections carry no information about where the",
+    "  trends separate. Oracle rows use the true noise parameters and were run",
+    "  at $\\phi = 0.8$ only.}",
+    "\\label{tab:localization-auc}",
+    "\\begin{tabular}{llcccc}", "  \\toprule",
+    "  & & & \\multicolumn{3}{c}{$s_T$} \\\\", "  \\cmidrule(lr){4-6}",
+    "  Method & $\\lambda$ & $\\phi$ & 50 & 100 & 150 \\\\", "  \\midrule",
+    "  \\multicolumn{6}{l}{\\textit{Estimated noise}} \\\\",
+    rows(w |> filter(method == "estimated")),
+    "  \\midrule",
+    "  \\multicolumn{6}{l}{\\textit{Oracle noise}} \\\\",
+    rows(w |> filter(method == "oracle")),
+    "  \\bottomrule", "\\end{tabular}", "\\end{table}")
+
+  writeLines(tex, file.path(TBL_DIR, "tbl-localization-auc.tex"))
+  cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.tex")))
+})
 
 cat("\nLocalization concordance AUC:\n")
 print(as.data.frame(auc |>
