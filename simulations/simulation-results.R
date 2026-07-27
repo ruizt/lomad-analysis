@@ -378,9 +378,10 @@ auc <- sweep |>
 # is not a comparison that means anything.
 auc_avg <- auc |>
   filter(!(phi == 0.8 & struct == "rate")) |>
-  group_by(phi, snr, s_win, method) |>
+  group_by(snr, phi, s_win, method) |>
   summarise(spread = max(auc) - min(auc), n_struct = n(), auc = mean(auc),
-            .groups = "drop")
+            .groups = "drop") |>
+  arrange(method, snr, phi, s_win)
 
 write.csv(auc_avg, file.path(TBL_DIR, "tbl-localization-auc.csv"),
           row.names = FALSE)
@@ -395,8 +396,9 @@ for (m in c("estimated", "oracle")) {
   print(as.data.frame(d |>
     mutate(auc = sprintf("%.3f", auc)) |>
     tidyr::pivot_wider(names_from = s_win, values_from = auc,
-                       names_prefix = "s=", id_cols = c(phi, snr)) |>
-    arrange(phi, snr)), row.names = FALSE)
+                       names_prefix = "s=", id_cols = c(snr, phi)) |>
+    arrange(snr, phi) |>
+    relocate(snr, phi)), row.names = FALSE)
 }
 cat(sprintf("\n  largest spread among the averaged structures: %.3f\n",
             max(auc_avg$spread)))
