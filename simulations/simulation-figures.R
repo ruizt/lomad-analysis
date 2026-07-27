@@ -335,6 +335,33 @@ ggsave(file.path(IMG_DIR, "fig-localization.png"), p,
        width = 9, height = 4, dpi = 450)
 cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig-localization.png")))
 
+# ---- Concordance AUC ---------------------------------------------------------
+# Area under the curve above, which in the predictive orientation is a genuine
+# ROC: true separation m_t is the score, rejection status the class label. So
+# the area reads as P(a rejected window has larger m_t than an unrejected one).
+#
+# Integrated over the FULL c grid, not the plotted range: C_MAX and MIN_N are
+# display choices that trim the tails, and a partial area would not carry the
+# concordance reading. The curve is anchored at both corners without them --
+# every window is above the cut as c -> 0, none as c -> max.
+auc <- sweep |>
+  group_by(struct, phi, snr, s_win, method) |>
+  arrange(c, .by_group = TRUE) |>
+  summarise(auc = {
+    x <- 1 - npv; y <- prec; o <- order(x)
+    sum(diff(x[o]) * (y[o][-1] + head(y[o], -1)) / 2, na.rm = TRUE)
+  }, .groups = "drop")
+
+saveRDS(auc, "simulations/power/results/simulations-power-auc.rds")
+cat(sprintf("Wrote %s\n", "simulations/power/results/simulations-power-auc.rds"))
+
+cat("\nLocalization concordance AUC:\n")
+print(as.data.frame(auc |>
+  mutate(auc = sprintf("%.3f", auc)) |>
+  tidyr::pivot_wider(names_from = s_win, values_from = auc,
+                     names_prefix = "s=") |>
+  arrange(method, struct, snr, phi)), row.names = FALSE)
+
 })
 
 

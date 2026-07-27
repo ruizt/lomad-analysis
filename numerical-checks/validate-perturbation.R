@@ -6,8 +6,24 @@
 # R_t against both the common-trend rho and the perturbation expression.
 
 library(lomad)
+library(parallel)
 
 set.seed(2917)
+
+# ---- Parallel setup ---------------------------------------------------------
+# The n_rep loop below is embarrassingly parallel (each replicate is
+# independent); fork on Unix/macOS (fast, no data copying), fall back to a
+# PSOCK cluster on Windows.
+n_cores <- max(1L, detectCores() - 1L)
+is_windows <- .Platform$OS.type == "windows"
+if (is_windows) {
+  cl <- makeCluster(n_cores)
+  on.exit(stopCluster(cl), add = TRUE)
+}
+run_reps <- function(FUN, n_rep, ...) {
+  if (is_windows) parLapply(cl, seq_len(n_rep), FUN, ...)
+  else mclapply(seq_len(n_rep), FUN, ..., mc.cores = n_cores)
+}
 
 # ---- Parameters ------------------------------------------------------------
 
@@ -61,23 +77,32 @@ for (eps in eps_vals) {
     rho_actual[t] <- cov12 / sqrt(var1 * var2)
   }
 
-  # Empirical mean R_t
-  R_sum   <- rep(0, n)
-  R_count <- rep(0L, n)
-
-  for (r in 1:n_rep) {
+  # Empirical mean R_t. Each replicate is independent, so run the n_rep loop
+  # in parallel and reduce the per-replicate sums/counts afterward. Arguments
+  # are passed explicitly (rather than captured by lexical scope) so this
+  # works identically whether workers are forks (Unix/macOS) or a PSOCK
+  # cluster (Windows).
+  one_rep <- function(r, trend1, trend2, n, h, s, sigma_sq) {
     y1 <- trend1 + rnorm(n, sd = sqrt(sigma_sq))
     y2 <- trend2 + rnorm(n, sd = sqrt(sigma_sq))
     m1 <- as.numeric(stats::filter(y1, rep(1/h, h), sides = 1))
     m2 <- as.numeric(stats::filter(y2, rep(1/h, h), sides = 1))
+    r_sum   <- rep(0, n)
+    r_count <- rep(0L, n)
     for (t in s:n) {
       idx <- (t - s + 1):t
       a <- m1[idx]; b <- m2[idx]
       if (any(is.na(a)) || any(is.na(b))) next
-      R_sum[t]   <- R_sum[t] + cor(a, b)
-      R_count[t] <- R_count[t] + 1L
+      r_sum[t]   <- cor(a, b)
+      r_count[t] <- 1L
     }
+    list(r_sum = r_sum, r_count = r_count)
   }
+
+  rep_results <- run_reps(one_rep, n_rep, trend1 = trend1, trend2 = trend2,
+                           n = n, h = h, s = s, sigma_sq = sigma_sq)
+  R_sum   <- Reduce(`+`, lapply(rep_results, `[[`, "r_sum"))
+  R_count <- Reduce(`+`, lapply(rep_results, `[[`, "r_count"))
 
   R_mean <- ifelse(R_count > 0, R_sum / R_count, NA_real_)
   valid  <- which(!is.na(R_mean) & !is.na(rho_common) & !is.na(rho_actual))
