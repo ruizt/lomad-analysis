@@ -56,12 +56,33 @@ h_win <- 4
 s_win <- 60
 alpha <- 0.05
 
-# Minimum length: m >= 2s, i.e. n >= 3s + h. The bare fitting minimum
+# Minimum length: m >= 1.5s, i.e. n >= 2.5s + h. Since m = n - s - h + 2, a
+# floor of k*s + h is a floor of m/s ~ k - 1. The bare fitting minimum
 # (n >= 2h + s) admits blocks whose every window overlaps every other one --
-# roughly one effective look -- and per-block BY then hands the weakest
-# evidence the laxest threshold. Requiring two window-lengths of valid test
-# points drops those.
-min_len <- 3L * s_win + h_win
+# roughly one effective look -- so some floor is needed.
+#
+# Where to put it is settled by simulation rather than judgement, because the
+# threshold and the result move together: the blocks in the 38-46 day band are
+# almost all BM1, so the choice preferentially re-arms the station the analysis
+# is about. simulations/calibration/blocklength-calibration.R runs the global
+# null (d = 0) at this operating point and pools exactly the block ensemble each
+# threshold admits. Global-null FDR against a nominal 0.05:
+#
+#     k = 4.0  (m/s 3.03, 11 blocks)   0.005
+#     k = 3.0  (m/s 2.03, 15 blocks)   0.008
+#     k = 2.5  (m/s 1.53, 26 blocks)   0.013   <- here
+#     k = 2.0  (m/s 1.03, 29 blocks)   0.018
+#
+# Control holds throughout with room to spare; per-block p-values stay
+# conservative at every length (P(p <= 0.05) = 0.020 at k = 2.5 against 0.017
+# at k = 3). Shorter blocks do erode the margin monotonically, which is why
+# this stops at 2.5 rather than 2: the extra half-step buys only 3 blocks and
+# 2,594 hours, having already recovered 11 blocks and 11,292.
+#
+# Note the power sweep fixed n = 4s in every cell, so k = 4 is the only row
+# above that was ever covered by the main simulations; the rest is why this
+# study exists.
+min_len <- as.integer(2.5 * s_win) + h_win
 
 for (loc in names(loc_results)) {
   blocks_presm <- loc_results[[loc]]$blocks_presm
@@ -69,7 +90,7 @@ for (loc in names(loc_results)) {
 
   too_short <- vapply(blocks, \(b) length(b$x1) < min_len, logical(1))
   if (any(too_short))
-    cat(sprintf('  %s: dropping %d blocks shorter than %d observations (m < 2s)\n',
+    cat(sprintf('  %s: dropping %d blocks shorter than %d observations (m < 1.5s)\n',
                 loc, sum(too_short), min_len))
   blocks       <- blocks[!too_short]
   blocks_presm <- blocks_presm[!too_short]

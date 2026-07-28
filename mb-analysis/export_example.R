@@ -21,19 +21,22 @@ source("mb-analysis/utils.R")   # presmooth_tidal()
 
 # The block is identified by the period it covers, not by block_id: ids are
 # assigned by position within a station and shift whenever the record is
-# extended or the QA changes.
+# extended or the QA changes. The previous choice (Bay Mouth, spring 2023) is
+# gone for exactly that reason -- correcting morro_param_map() applied 23 pH
+# flag windows that had been silently skipped, one of which splits that block
+# into three pieces too short to fit.
 #
-# One Bay Mouth block, spring 2023, containing a single sustained decoupling
-# episode. Chosen so that both series fit without hitting a variogram boundary:
-# a neighbouring candidate detects just as clearly but clamps phi_hat for pH at
-# its lower bound, and example data should not greet a user with a warning that
-# the noise model may be misspecified.
+# One Bay Mouth block, late summer 2022, containing a single sustained
+# decoupling episode of about two weeks. Chosen so that both series fit without
+# hitting a variogram boundary: several candidates detect just as clearly but
+# clamp phi_hat at its lower bound, and example data should not greet a user
+# with a warning that the noise model may be misspecified.
 #
-# Bay Mouth rather than Bay South because under the current pipeline Bay South
-# records no detections in any of its analysable blocks, so a Bay South example
-# would show the method finding nothing.
+# Bay Mouth rather than Bay South because Bay South records detections in only
+# two of its analysable blocks, both very long; a short Bay South example would
+# show the method finding nothing.
 KEEP_LOCATION <- "BM1"
-PERIODS   <- list(c("2023-02-01", "2023-06-30"))
+PERIODS   <- list(c("2022-08-20", "2022-10-20"))
 MIN_HOURS <- 1000L   # excludes short fragments sharing a window
 
 blocks_csv <- "_mb-data/ph_o2_blocks.csv"
