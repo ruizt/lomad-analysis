@@ -400,8 +400,206 @@ ggsave(paste0(img_out, "/stations-aligned.png"), plt_aligned,
 print(plt_aligned)
 
 # --- Persist the fitted window-level output -----------------------------------
-# station-comparison.R works from this rather than refitting. One row per
-# analysed window, carrying the test decision under the global threshold.
+# One row per analysed window, carrying the test decision under the global
+# threshold. Kept for ad hoc work; everything below runs from `wv` directly.
 
 saveRDS(aligned, "_mb-data/lomad_windows.rds")
 message("Wrote _mb-data/lomad_windows.rds (", nrow(aligned), " windows)")
+
+
+# =============================================================================
+# Station comparison
+# =============================================================================
+# Two claims: the stations differ greatly in how much of their record gets
+# flagged, and they nonetheless share a seasonal pattern.
+#
+# Every interval below is a bootstrap over BLOCKS, never over windows. At
+# s = 60 on a 6-hourly step, successive windows share 59/60 of their data and
+# rejections arrive in runs, so a pointwise standard error would be fiction.
+# For the same reason the seasonality nulls rotate each block's flag vector
+# circularly within that block: run lengths, the marginal rate and the exposure
+# pattern are all held fixed, and only the calendar alignment is destroyed.
+
+set.seed(20260727)
+B <- 3000L
+
+wv <- aligned |>
+  # `rejected` was NA-filled to FALSE upstream; a window is only under test
+  # where the fit produced both a correlation and a benchmark for it
+  mutate(valid = !is.na(R) & !is.na(rho), blk = paste(location, block_id)) |>
+  filter(valid)
+
+tbl_out <- 'mb-analysis/_tbl'
+fs::dir_create(tbl_out)
+
+# --- Rate ---------------------------------------------------------------------
+
+boot_rate <- function(d, B) {
+  blocks <- split(d, d$blk)
+  vapply(seq_len(B), function(i) {
+    s <- blocks[sample.int(length(blocks), replace = TRUE)]
+    sum(vapply(s, \(b) sum(b$rejected), numeric(1))) /
+      sum(vapply(s, \(b) nrow(b), numeric(1)))
+  }, numeric(1))
+}
+
+rate_tbl <- wv |>
+  group_by(location) |>
+  group_modify(~{
+    bs <- boot_rate(.x, B)
+    tibble(n_blocks = n_distinct(.x$blk), n_valid = nrow(.x),
+           n_rej = sum(.x$rejected), rate = sum(.x$rejected) / nrow(.x),
+           lo = quantile(bs, 0.025), hi = quantile(bs, 0.975))
+  }) |> ungroup()
+
+cat('\n========== Rate by station ==========\n')
+print(rate_tbl |> mutate(across(c(rate, lo, hi), \(x) round(100 * x, 1))))
+
+rr <- boot_rate(filter(wv, location == 'BM1'), B) /
+      boot_rate(filter(wv, location == 'BS1'), B)
+cat(sprintf('rate ratio BM1/BS1 = %.2f  (95%% CI %.2f to %.2f)\n',
+            rate_tbl$rate[1] / rate_tbl$rate[2],
+            quantile(rr, 0.025), quantile(rr, 0.975)))
+
+# The two stations were up at different times, so the headline ratio could in
+# principle be an exposure artifact. Restricted to timestamps where both were
+# under test, it is not.
+conc <- wv |>
+  select(location, datetime, rejected) |>
+  pivot_wider(id_cols = datetime, names_from = location,
+              values_from = rejected, values_fn = any) |>
+  drop_na(BM1, BS1)
+cat(sprintf('concurrent support: %d timestamps (%.0f days) -- BM1 %.1f%%, BS1 %.1f%%\n',
+            nrow(conc), nrow(conc) * 6 / 24,
+            100 * mean(conc$BM1), 100 * mean(conc$BS1)))
+
+# Leave-one-block-out. The cleanest robustness statement available, because it
+# makes no distributional assumption at all: if the two ranges do not overlap,
+# no single block is carrying the difference.
+blk_tbl <- wv |> group_by(location, blk) |>
+  summarise(n = n(), rej = sum(rejected), frac = rej / n, .groups = 'drop')
+for (loc in c('BM1', 'BS1')) {
+  d  <- filter(blk_tbl, location == loc)
+  lo <- vapply(seq_len(nrow(d)), \(i) sum(d$rej[-i]) / sum(d$n[-i]), numeric(1))
+  cat(sprintf('%s leave-one-block-out: %.1f%% to %.1f%%\n',
+              loc, 100 * min(lo), 100 * max(lo)))
+}
+
+# The conservative counterweight: a block-level test that ignores within-block
+# structure entirely. It does not reach significance, and the write-up should
+# say so -- BS1's whole signal is two blocks.
+det <- blk_tbl |> group_by(location) |>
+  summarise(blocks = n(), detecting = sum(rej > 0), .groups = 'drop')
+ft <- fisher.test(matrix(c(det$detecting, det$blocks - det$detecting), nrow = 2))
+cat(sprintf('blocks detecting: BM1 %d/%d, BS1 %d/%d (Fisher p = %.3f)\n',
+            det$detecting[1], det$blocks[1],
+            det$detecting[2], det$blocks[2], ft$p.value))
+
+# --- Seasonality --------------------------------------------------------------
+
+rotate_within_blocks <- function(r, blk) {
+  out <- r
+  for (b in split(seq_along(r), blk))
+    if (length(b) > 1L)
+      out[b] <- r[b][(seq_along(b) + sample.int(length(b), 1L) - 1L) %% length(b) + 1L]
+  out
+}
+
+# Spring contrast rather than a harmonic. A single sinusoid is the wrong shape
+# here: BM1 has two peaks about five months apart, so the fitted annual maximum
+# lands in July, between them, and the test loses most of its power (BM1
+# p = 0.046 on harmonic 1 but its estimated peak is meaningless; pooled, the
+# annual harmonic gives p = 0.27). The semiannual harmonic does better at BM1
+# (p = 0.026) but has no interpretation at BS1, which has only one peak.
+#
+# What the two stations actually share is a window, not a waveform: both are
+# silent in midwinter and midsummer and both concentrate their flags in March
+# to June. A one-degree-of-freedom contrast on that window is the powerful test.
+spring_contrast <- function(d, B) {
+  s    <- month(d$datetime) %in% 3:6
+  stat <- function(r) mean(r[s]) - mean(r[!s])
+  obs  <- stat(d$rejected)
+  nul  <- vapply(seq_len(B),
+                 \(i) stat(rotate_within_blocks(d$rejected, d$blk)), numeric(1))
+  tibble(spring = 100 * mean(d$rejected[s]), rest = 100 * mean(d$rejected[!s]),
+         diff = 100 * obs, p = (1 + sum(nul >= obs)) / (1 + B))
+}
+
+cat('\n========== Seasonality: March-June vs rest of year ==========\n')
+seas_test <- bind_rows(
+  wv |> group_by(location) |> group_modify(~spring_contrast(.x, B)) |> ungroup(),
+  spring_contrast(wv, B) |> mutate(location = 'pooled')) |>
+  relocate(location)
+print(seas_test |> mutate(across(c(spring, rest, diff), \(x) round(x, 1)),
+                          p = round(p, 4)))
+
+# Pooling is what makes this work, and the reason is worth recording: BM1 alone
+# has a wide rotation null (its 13.7% flagged fraction and second, autumn peak
+# mean random rotations land in spring almost as often as the data do), while
+# BS1 alone is too sparse. Together the shared window clears.
+cat('\nshare of each station\'s flags falling in March-June:\n')
+print(wv |> filter(rejected) |> mutate(sp = month(datetime) %in% 3:6) |>
+      group_by(location) |>
+      summarise(spring = sum(sp), other = sum(!sp),
+                pct_spring = round(100 * mean(sp)), .groups = 'drop'))
+
+seas <- wv |> mutate(month = month(datetime)) |>
+  group_by(location, month) |>
+  summarise(n = n(), rej = sum(rejected), frac = rej / n, .groups = 'drop')
+
+cat('\nmonths with no detection at either station: ')
+cat(paste(month.abb[setdiff(1:12, unique(seas$month[seas$rej > 0]))],
+          collapse = ', '), '\n')
+
+write_csv(bind_rows(
+  rate_tbl |> transmute(quantity = 'rate', location, n = n_valid, rej = n_rej,
+                        est = rate, lo, hi),
+  seas_test |> transmute(quantity = 'spring_contrast', location, n = NA_integer_,
+                         rej = NA_integer_, est = diff, lo = NA_real_, hi = p)),
+  file.path(tbl_out, 'station-comparison.csv'))
+
+# --- Figure -------------------------------------------------------------------
+
+pal <- c(BM1 = '#C44E52', BS1 = '#4C72B0')
+
+# Phenology raster: day of year across, year down, one lane per station, grey
+# where under test. This is the evidence that the spring concentration recurs
+# rather than resting on one episode, and it shows the exposure that produced
+# every rate below it.
+ras <- wv |>
+  mutate(year = year(datetime), doy = yday(datetime),
+         lane = year + ifelse(location == 'BM1', -0.19, 0.19))
+
+p_ras <- ggplot(ras, aes(doy, lane)) +
+  geom_tile(fill = 'grey86', height = 0.34, width = 1) +
+  geom_tile(data = filter(ras, rejected), aes(fill = location),
+            height = 0.34, width = 1) +
+  scale_fill_manual(values = pal) +
+  scale_x_continuous(
+    breaks = cumsum(c(1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30)),
+    labels = month.abb, expand = c(0.01, 0)) +
+  scale_y_reverse(breaks = 2020:2025) +
+  ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
+                panel.grid.major.y = element_blank()) +
+  labs(x = NULL, y = NULL,
+       subtitle = 'upper lane BM1, lower lane BS1; grey = under test')
+
+# Point size is load-bearing: BM1's May and June rates rest on 73 and 46
+# windows against 438 in April and 452 in September.
+p_seas <- ggplot(seas, aes(month, 100 * frac, colour = location)) +
+  geom_hline(data = rate_tbl, aes(yintercept = 100 * rate, colour = location),
+             linetype = 'dashed', linewidth = 0.3) +
+  geom_line(linewidth = 0.4, alpha = 0.6) +
+  geom_point(aes(size = n)) +
+  scale_x_continuous(breaks = 1:12, labels = month.abb) +
+  scale_colour_manual(values = pal, guide = 'none') +
+  scale_size_area(max_size = 5, name = 'windows under test',
+                  breaks = c(50, 200, 500)) +
+  ggthm + theme(legend.position = 'bottom') +
+  labs(x = NULL, y = 'windows flagged (%)')
+
+plt_seas <- p_ras / p_seas + plot_layout(heights = c(1.25, 1)) +
+  plot_annotation(tag_levels = 'a', tag_prefix = '(', tag_suffix = ')')
+ggsave(paste0(img_out, '/seasonality.png'), plt_seas,
+       width = 10, height = 7, dpi = 200)
+print(plt_seas)

@@ -199,11 +199,12 @@ upstream because every choice in it is an analysis decision: hourly binning, a
 dissolved oxygen. Tide and pressure are carried through but excluded from the
 block definition, so their missingness cannot move block boundaries.
 
-`mb-analysis/full_analysis.R` then presmooths (spectral notch at the tidal
+`mb-analysis/analysis.R` then presmooths (spectral notch at the tidal
 bands, downsample to 6-hourly), fits each block, pools the raw p-values across
 all blocks for a single Benjamini--Yekutieli correction, and writes figures to
 `mb-analysis/_img/`. Presmoothing stays in the analysis script rather than the
 processing script so that both the raw and presmoothed series are available for
 figures.
 
-The two blocks used in the paper also ship with the package as `morro_bay`.
+One Bay Mouth block (late summer 2022) ships with the package as `morro_bay`;
+`mb-analysis/export_example.R` regenerates it.
