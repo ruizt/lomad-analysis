@@ -7,15 +7,15 @@
 #   _mb-data/ph_o2_blocks.csv     (produced by mb-analysis/process_blocks.R)
 #
 # Output
-#   ../lomad-package/data-raw/mb-example.rds
+#   mb-analysis/_export/morro_bay.rda
 #
-# This is a one-way hand-off, not a build dependency. The .rds is committed to
-# the package repository, and the package rebuilds `morro_bay` from its own
-# local copy -- it never reads anything from this repo. Re-run this script only
-# when the example blocks should change.
+# Copy that file into lomad-package/data/ by hand. Neither repository reads
+# from the other: this script writes locally, the package ships the .rda it was
+# given. Re-run only when the example blocks should change.
 
 suppressPackageStartupMessages({
   library(tidyverse)
+  library(lomad)
 })
 source("mb-analysis/utils.R")   # presmooth_tidal()
 
@@ -54,7 +54,7 @@ pick <- vapply(PERIODS, function(w) {
   hit$block_id
 }, numeric(1))
 
-example <- all_blocks |>
+morro_bay <- all_blocks |>
   filter(block_id %in% pick) |>
   group_split(block_id) |>
   lapply(presmooth_tidal, cols = c("o2", "ph"), step = "6 hours") |>
@@ -65,20 +65,29 @@ example <- all_blocks |>
             ph       = ph) |>
   arrange(block, datetime) |>
   as.data.frame()
-rownames(example) <- NULL
+rownames(morro_bay) <- NULL
 
-out <- "../lomad-package/data-raw/mb-example.rds"
-if (!dir.exists(dirname(out)))
-  stop("lomad-package/data-raw not found at ", dirname(out),
-       "\nExpected lomad-package as a sibling of this repo.")
+dir.create("mb-analysis/_export", showWarnings = FALSE, recursive = TRUE)
+out <- "mb-analysis/_export/morro_bay.rda"
+save(morro_bay, file = out, compress = "xz")
 
-saveRDS(example, out, compress = "xz")
-cat(sprintf("Wrote %s: %d rows, blocks %s (%.0f KB)\n", out, nrow(example),
-            paste(unique(example$block), collapse = ", "),
+cat(sprintf("Wrote %s: %d rows, blocks %s (%.0f KB)\n", out, nrow(morro_bay),
+            paste(unique(morro_bay$block), collapse = ", "),
             file.size(out) / 1024))
 
-for (b in unique(example$block)) {
-  d <- example[example$block == b, ]
-  cat(sprintf("  block %2d: n = %3d, %s .. %s\n", b, nrow(d),
-              as.Date(min(d$datetime)), as.Date(max(d$datetime))))
+# The exported data must be something the noise model can actually fit -- the
+# previous example shipped with a lag-2/lag-1 variogram ratio above 2, which no
+# stationary AR(1) can produce, so lomad_fit() clamped phi_hat on every fit.
+vg <- function(x, l) mean((x[(l + 1):length(x)] - x[1:(length(x) - l)])^2) / 2
+for (b in unique(morro_bay$block)) {
+  d <- morro_bay[morro_bay$block == b, ]
+  f <- suppressWarnings(suppressMessages(
+    lomad::lomad_fit(d$o2, d$ph, h = 4, s = 60)))
+  vt <- which(!is.na(f$trend)); r <- d$o2[vt] - f$trend[vt]
+  cat(sprintf("  block %2d: n = %3d, %s .. %s, V2/V1 = %.2f, phi_hat = %.3f\n",
+              b, nrow(d), as.Date(min(d$datetime)), as.Date(max(d$datetime)),
+              vg(r, 2) / vg(r, 1), f$noise$series1$ar))
 }
+cat("  (V2/V1 must be below 2 for a stationary AR(1) to fit)\n")
+cat("\nNow copy it across:\n")
+cat("  cp", out, "../lomad-package/data/morro_bay.rda\n")
