@@ -427,7 +427,7 @@ MONTH_START <- c(0, head(MONTH_END, -1))
 # MONTH_START + 0.5 to MONTH_END + 0.5 on screen. Its visual centre is therefore
 # half a day right of the arithmetic midpoint; labels and points both go there.
 MONTH_MID   <- (MONTH_START + MONTH_END + 1) / 2
-X_EXPAND    <- expansion(mult = c(0.032, 0.01))   # left gutter holds the lane labels
+X_EXPAND    <- expansion(mult = c(0.045, 0.01))   # left gutter holds the lane labels
 # Both panels must share limits, not just breaks: expand() is multiplicative on
 # each panel's own data range, and the raster spans doy 1-366 while the marginal
 # spans only 16-350 (first to last month midpoint). Without this the same doy
