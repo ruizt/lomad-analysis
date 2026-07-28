@@ -437,7 +437,7 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
   geom_tile(data = filter(ras, rejected), aes(fill = station),
             height = 0.34, width = 1) +
   geom_text(data = lanes, aes(x = -2, y = lane, label = station),
-            inherit.aes = FALSE, hjust = 1, size = 2.1, colour = 'grey35') +
+            inherit.aes = FALSE, hjust = 1, size = 2.5, colour = 'grey35') +
   scale_fill_manual(values = pal,
                     labels = paste(names(pal), 'detection')) +
   scale_x_continuous(breaks = MONTH_START + 1, labels = month.abb,
@@ -445,8 +445,10 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
   scale_y_reverse(breaks = 2020:2025) +
   ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
                 panel.grid.major.y = element_blank(),
-                axis.title.y = element_text(size = 9)) +
-  labs(x = NULL, y = 'year')
+                # axis.title.y = element_text(size = 9),
+                axis.ticks.length = unit(0, 'in'),
+                axis.text.y = element_text(angle = 90, hjust = 0.5)) +
+  labs(x = NULL, y = "Year")
 
 # Pooled monthly rate as a marginal strip above the raster, on the same axis.
 p_seas <- seas |>
@@ -459,11 +461,12 @@ p_seas <- seas |>
   scale_y_continuous(breaks = c(0, 10, 20)) +
   ggthm + theme(axis.text.x  = element_blank(),
                 axis.ticks.x = element_blank(),
-                axis.title.y = element_text(size = 9),
-                axis.text.y  = element_text(size = 7)) +
-  labs(x = NULL, y = 'flagged (%)')
+                # axis.title.y = element_text(size = 9),
+                # axis.text.y  = element_text(size = 7),
+                panel.grid.major.y = element_line(linewidth = 0.1, color = 'darkgrey')) +
+  labs(x = NULL, y = 'Detections \n(%)')
 
-plt_seas <- p_seas / p_ras + plot_layout(heights = c(1, 5))
+plt_seas <- p_seas / p_ras + plot_layout(heights = c(1.5, 5))
 ggsave(paste0(img_out, '/fig-mb-seasonality.png'), plt_seas,
-       width = 10, height = 5.6, dpi = 200)
+       width = 6, height = 4, dpi = 200)
 print(plt_seas)
