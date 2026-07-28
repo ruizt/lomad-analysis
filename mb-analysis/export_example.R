@@ -23,12 +23,17 @@ source("mb-analysis/utils.R")   # presmooth_tidal()
 # assigned by position within a station and shift whenever the record is
 # extended or the QA changes.
 #
-# One Bay Mouth block, spring 2022, containing a single sustained decoupling
-# episode. Bay Mouth rather than Bay South because under the current pipeline
-# Bay South records no detections in any of its analysable blocks, so a Bay
-# South example would show the method finding nothing.
+# One Bay Mouth block, spring 2023, containing a single sustained decoupling
+# episode. Chosen so that both series fit without hitting a variogram boundary:
+# a neighbouring candidate detects just as clearly but clamps phi_hat for pH at
+# its lower bound, and example data should not greet a user with a warning that
+# the noise model may be misspecified.
+#
+# Bay Mouth rather than Bay South because under the current pipeline Bay South
+# records no detections in any of its analysable blocks, so a Bay South example
+# would show the method finding nothing.
 KEEP_LOCATION <- "BM1"
-PERIODS   <- list(c("2022-02-01", "2022-04-30"))
+PERIODS   <- list(c("2023-02-01", "2023-06-30"))
 MIN_HOURS <- 1000L   # excludes short fragments sharing a window
 
 blocks_csv <- "_mb-data/ph_o2_blocks.csv"
