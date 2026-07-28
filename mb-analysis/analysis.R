@@ -419,38 +419,51 @@ write_csv(
 # leading s + h - 2 points of each block.
 pal <- c(BM = '#C44E52', BS = '#4C72B0')
 
+# Month boundaries on the day-of-year axis, so the marginal above shares the
+# raster's x scale exactly.
+MONTH_END   <- cumsum(c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31))
+MONTH_START <- c(0, head(MONTH_END, -1))
+X_EXPAND    <- expansion(mult = c(0.032, 0.01))   # left gutter holds the lane labels
+
 ras <- wv |>
   mutate(year    = year(datetime), doy = yday(datetime),
          lane    = year + ifelse(location == 'BM1', -0.19, 0.19),
          station = sub('1$', '', location))
 
+lanes <- distinct(ras, lane, station)
+
 p_ras <- ggplot(ras, aes(doy, lane)) +
   geom_tile(fill = 'grey86', height = 0.34, width = 1) +
   geom_tile(data = filter(ras, rejected), aes(fill = station),
             height = 0.34, width = 1) +
+  geom_text(data = lanes, aes(x = -2, y = lane, label = station),
+            inherit.aes = FALSE, hjust = 1, size = 2.1, colour = 'grey35') +
   scale_fill_manual(values = pal,
                     labels = paste(names(pal), 'detection')) +
-  scale_x_continuous(
-    breaks = cumsum(c(1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30)),
-    labels = month.abb, expand = c(0.01, 0)) +
+  scale_x_continuous(breaks = MONTH_START + 1, labels = month.abb,
+                     expand = X_EXPAND) +
   scale_y_reverse(breaks = 2020:2025) +
   ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
-                panel.grid.major.y = element_blank()) +
-  labs(x = NULL, y = NULL)
+                panel.grid.major.y = element_blank(),
+                axis.title.y = element_text(size = 9)) +
+  labs(x = NULL, y = 'year')
 
-# Pooled: the seasonal shape is the shared feature, the rate difference is
-# separate. Point size is load-bearing -- May and June are the thinnest months.
-p_seas <- ggplot(seas, aes(month, 100 * frac)) +
-  geom_line(linewidth = 0.4, colour = 'grey25') +
-  geom_point(aes(size = n), colour = 'grey15') +
-  scale_x_continuous(breaks = 1:12, labels = month.abb) +
-  scale_size_area(max_size = 5, name = 'windows evaluated',
-                  breaks = c(400, 700, 1000)) +
-  ggthm + theme(legend.position = 'bottom') +
-  labs(x = NULL, y = 'windows flagged (%)')
+# Pooled monthly rate as a marginal strip above the raster, on the same axis.
+p_seas <- seas |>
+  mutate(xmin = MONTH_START[month], xmax = MONTH_END[month]) |>
+  ggplot() +
+  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 100 * frac),
+            fill = 'grey55') +
+  scale_x_continuous(breaks = MONTH_START + 1, labels = month.abb,
+                     expand = X_EXPAND) +
+  scale_y_continuous(breaks = c(0, 10, 20)) +
+  ggthm + theme(axis.text.x  = element_blank(),
+                axis.ticks.x = element_blank(),
+                axis.title.y = element_text(size = 9),
+                axis.text.y  = element_text(size = 7)) +
+  labs(x = NULL, y = 'flagged (%)')
 
-plt_seas <- p_ras / p_seas + plot_layout(heights = c(1.25, 1)) +
-  plot_annotation(tag_levels = 'a', tag_prefix = '(', tag_suffix = ')')
+plt_seas <- p_seas / p_ras + plot_layout(heights = c(1, 5))
 ggsave(paste0(img_out, '/fig-mb-seasonality.png'), plt_seas,
-       width = 10, height = 7, dpi = 200)
+       width = 10, height = 5.6, dpi = 200)
 print(plt_seas)
