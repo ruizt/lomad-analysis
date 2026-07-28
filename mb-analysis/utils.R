@@ -1,6 +1,7 @@
 library(data.table)
 library(lubridate)
 library(dplyr)
+library(tidyr)
 
 #' Remove tidal periodicity from a time series by spectral notching
 #'
@@ -59,8 +60,8 @@ presmooth_tidal <- function(df,
   }
 
   df <- df |>
-    mutate(across(.cols = all_of(cols), .fns = notch)) |>
-    drop_na(all_of(cols))
+    dplyr::mutate(dplyr::across(.cols = dplyr::all_of(cols), .fns = notch)) |>
+    tidyr::drop_na(all_of(cols))
 
   if (!is.null(step)) {
     df <- df |>
