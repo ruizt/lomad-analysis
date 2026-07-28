@@ -398,3 +398,10 @@ plt_aligned <- ggplot(aligned, aes(x = datetime, group = block_id)) +
 ggsave(paste0(img_out, "/stations-aligned.png"), plt_aligned,
        width = 14, height = 4.2, dpi = 200)
 print(plt_aligned)
+
+# --- Persist the fitted window-level output -----------------------------------
+# station-comparison.R works from this rather than refitting. One row per
+# analysed window, carrying the test decision under the global threshold.
+
+saveRDS(aligned, "_mb-data/lomad_windows.rds")
+message("Wrote _mb-data/lomad_windows.rds (", nrow(aligned), " windows)")
