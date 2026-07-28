@@ -456,6 +456,7 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
   ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
                 panel.grid.major.y = element_blank(),
                 axis.ticks.length = unit(0, 'in'),
+                panel.border = element_blank(),
                 axis.text.y = element_text(angle = 90, hjust = 0.5)) +
   labs(x = NULL, y = "Year")
 
@@ -470,7 +471,8 @@ p_seas <- seas |>
                      expand = X_EXPAND) +
   scale_y_continuous(breaks = c(0, 10, 20)) +
   ggthm + theme(axis.text.x  = element_blank(),
-                axis.ticks.x = element_blank(),
+                axis.ticks = element_blank(),
+                panel.border = element_blank(),
                 panel.grid.major.y = element_line(linewidth = 0.1, color = 'darkgrey')) +
   labs(x = NULL, y = 'Detections \n(%)')
 
