@@ -530,41 +530,57 @@ write_csv(
 
 # --- Figure -------------------------------------------------------------------
 
-pal <- c(BM1 = '#C44E52', BS1 = '#4C72B0')
+# Phenology raster: day of year across, year down, one lane per station. This is
+# what carries the seasonal claim -- the spring concentration recurs across years
+# rather than resting on one episode -- and it shows the observational effort
+# behind every rate, including the months where a high percentage rests on very
+# little data.
+#
+# Station is encoded twice, by lane position and by hue, so the panel needs no
+# caption to say which lane is which; the four states go in one legend. Hue
+# rather than hatching because the lanes render about a fifth of an inch tall,
+# where hatch lines read as noise rather than as texture.
+#
+# "Evaluated" means the test returned a decision at that timestamp: lomad_fit()
+# produced both a local correlation and a benchmark for it. It excludes the
+# leading s + h - 2 points of every block, which have no complete rolling window
+# yet, along with blocks too short to fit and stretches with no data at all.
+pal <- c('BM1 evaluated'  = '#EBC7C8', 'BM1 decoupling detected' = '#C44E52',
+         'BS1 evaluated'  = '#C8D3E8', 'BS1 decoupling detected' = '#4C72B0')
 
-# Phenology raster: day of year across, year down, one lane per station, grey
-# where under test. This is what carries the seasonal claim -- the spring
-# concentration recurs across years rather than resting on one episode -- and it
-# shows the exposure behind every rate, including the months where a high
-# percentage rests on very little data.
 ras <- wv |>
-  mutate(year = year(datetime), doy = yday(datetime),
-         lane = year + ifelse(location == 'BM1', -0.19, 0.19))
+  mutate(year  = year(datetime), doy = yday(datetime),
+         lane  = year + ifelse(location == 'BM1', -0.19, 0.19),
+         state = factor(paste(location,
+                              ifelse(rejected, 'decoupling detected',
+                                     'evaluated')),
+                        levels = names(pal)))
 
-p_ras <- ggplot(ras, aes(doy, lane)) +
-  geom_tile(fill = 'grey86', height = 0.34, width = 1) +
-  geom_tile(data = filter(ras, rejected), aes(fill = location),
-            height = 0.34, width = 1) +
-  scale_fill_manual(values = pal) +
+p_ras <- ggplot(ras, aes(doy, lane, fill = state)) +
+  geom_tile(height = 0.34, width = 1) +
+  scale_fill_manual(values = pal, drop = FALSE) +
   scale_x_continuous(
     breaks = cumsum(c(1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30)),
     labels = month.abb, expand = c(0.01, 0)) +
   scale_y_reverse(breaks = 2020:2025) +
+  guides(fill = guide_legend(nrow = 2, byrow = FALSE)) +
   ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
                 panel.grid.major.y = element_blank()) +
-  labs(x = NULL, y = NULL,
-       subtitle = 'upper lane BM1, lower lane BS1; grey = under test')
+  labs(x = NULL, y = NULL)
 
 # Pooled across stations: the seasonal shape is the shared feature, and the rate
 # difference is a separate finding that the raster above already shows. Point
 # size is load-bearing -- the tall months are not always the well-observed ones.
+#
+# No reference line. The only candidate was the overall flagged fraction, which
+# is not a baseline anything is measured against -- it is just the average of
+# these twelve numbers, exposure-weighted, so drawing it would invite reading
+# months above it as elevated relative to something meaningful.
 p_seas <- ggplot(seas, aes(month, 100 * frac)) +
-  geom_hline(yintercept = 100 * sum(seas$rej) / sum(seas$n),
-             colour = 'grey40', linetype = 'dashed', linewidth = 0.3) +
   geom_line(linewidth = 0.4, colour = 'grey25') +
   geom_point(aes(size = n), colour = 'grey15') +
   scale_x_continuous(breaks = 1:12, labels = month.abb) +
-  scale_size_area(max_size = 5, name = 'windows under test',
+  scale_size_area(max_size = 5, name = 'windows evaluated',
                   breaks = c(400, 700, 1000)) +
   ggthm + theme(legend.position = 'bottom') +
   labs(x = NULL, y = 'windows flagged (%)')
