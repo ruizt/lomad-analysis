@@ -423,6 +423,7 @@ pal <- c(BM = '#C44E52', BS = '#4C72B0')
 # raster's x scale exactly.
 MONTH_END   <- cumsum(c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31))
 MONTH_START <- c(0, head(MONTH_END, -1))
+MONTH_MID   <- (MONTH_START + MONTH_END) / 2   # labels and points both sit here
 X_EXPAND    <- expansion(mult = c(0.032, 0.01))   # left gutter holds the lane labels
 
 ras <- wv |>
@@ -440,29 +441,26 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
             inherit.aes = FALSE, hjust = 1, size = 2.5, colour = 'grey35') +
   scale_fill_manual(values = pal,
                     labels = paste(names(pal), 'detection')) +
-  scale_x_continuous(breaks = MONTH_START + 1, labels = month.abb,
+  scale_x_continuous(breaks = MONTH_MID, labels = month.abb,
                      expand = X_EXPAND) +
   scale_y_reverse(breaks = 2020:2025) +
   ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
                 panel.grid.major.y = element_blank(),
-                # axis.title.y = element_text(size = 9),
                 axis.ticks.length = unit(0, 'in'),
                 axis.text.y = element_text(angle = 90, hjust = 0.5)) +
   labs(x = NULL, y = "Year")
 
 # Pooled monthly rate as a marginal strip above the raster, on the same axis.
 p_seas <- seas |>
-  mutate(mid = (MONTH_START[month] + MONTH_END[month]) / 2) |>
+  mutate(mid = MONTH_MID[month]) |>
   ggplot(aes(mid, 100 * frac)) +
   geom_line(linewidth = 0.4, colour = 'grey25') +
   geom_point(size = 1.3, colour = 'grey15') +
-  scale_x_continuous(breaks = MONTH_START + 1, labels = month.abb,
+  scale_x_continuous(breaks = MONTH_MID, labels = month.abb,
                      expand = X_EXPAND) +
   scale_y_continuous(breaks = c(0, 10, 20)) +
   ggthm + theme(axis.text.x  = element_blank(),
                 axis.ticks.x = element_blank(),
-                # axis.title.y = element_text(size = 9),
-                # axis.text.y  = element_text(size = 7),
                 panel.grid.major.y = element_line(linewidth = 0.1, color = 'darkgrey')) +
   labs(x = NULL, y = 'Detections \n(%)')
 
