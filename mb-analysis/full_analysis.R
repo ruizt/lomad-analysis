@@ -232,7 +232,7 @@ make_lomad_plot_data <- function(loc_name, results) {
   )
 }
 
-make_lomad_ggplot <- function(pd, title_str) {
+make_lomad_ggplot <- function(pd) {
   shade_up  <- pd$shade |> filter(panel == 'upper')
   shade_lo  <- pd$shade |> filter(panel == 'lower')
   shade_col <- rgb(0.7, 0.85, 1, 0.4)
@@ -253,7 +253,7 @@ make_lomad_ggplot <- function(pd, title_str) {
     theme(axis.text.x  = element_blank(),
           axis.ticks.x = element_blank(),
           strip.text   = element_blank()) +
-    labs(x = NULL, y = 'series', title = title_str)
+    labs(x = NULL, y = 'series')
 
   p_lo <- ggplot(pd$main, aes(x = datetime)) +
     geom_rect(data = shade_lo, inherit.aes = FALSE,
@@ -276,7 +276,7 @@ make_lomad_ggplot <- function(pd, title_str) {
 for (loc in names(loc_results)) {
   if (is.null(loc_results[[loc]]$block_fits)) next
   pd  <- make_lomad_plot_data(loc, loc_results)
-  plt <- make_lomad_ggplot(pd, paste0(loc, ' - lomad fit (AR(1) noise, global BY)'))
+  plt <- make_lomad_ggplot(pd)
   ggsave(paste0(img_out, '/', loc, '-lomad-fit.png'), plt, width = 12, height = 3)
   print(plt)
 }
@@ -322,36 +322,58 @@ episodes <- aligned |>
   }) |>
   ungroup()
 
-xlim <- range(aligned$datetime)
+# Facet on shared coverage windows rather than on blocks. Blocks cannot be
+# faceted directly and still align: BM1 block 7 and BS1 block 7 are unrelated
+# periods. Instead, merge the two stations' block extents into common intervals
+# -- a window runs from where either station starts recording to where both
+# have stopped for longer than `gap_days` -- so within a facet the two rows
+# share an x range and are directly comparable. `space = "free_x"` makes panel
+# width proportional to duration, so time is to scale within and across facets,
+# while the dead stretches between windows are dropped.
+
+gap_days <- 30
+
+spans <- aligned |>
+  group_by(location, block_id) |>
+  summarise(start = min(datetime), end = max(datetime), .groups = "drop") |>
+  arrange(start)
+
+# merge overlapping-or-close spans across BOTH stations into shared windows
+win <- spans |>
+  mutate(new = start > lag(cummax(as.numeric(end)), default = -Inf) +
+                 gap_days * 86400,
+         window = cumsum(replace_na(new, TRUE))) |>
+  group_by(window) |>
+  summarise(wstart = min(start), wend = max(end), .groups = "drop") |>
+  mutate(label = paste(format(wstart, "%b %Y"), format(wend, "%b %Y"), sep = " - "))
+
+assign_window <- function(x) {
+  i <- vapply(x, function(d) which(d >= win$wstart & d <= win$wend)[1], integer(1))
+  factor(win$label[i], levels = win$label)
+}
+aligned  <- aligned  |> mutate(window = assign_window(datetime))
+episodes <- episodes |> mutate(window = assign_window(xmin))
+
+cat(sprintf("\n%d shared coverage windows (gap threshold %d days)\n",
+            nrow(win), gap_days))
+
 shade_col <- rgb(0.7, 0.85, 1, 0.5)
 
-p_series <- ggplot(aligned, aes(x = datetime, group = block_id)) +
+plt_aligned <- ggplot(aligned, aes(x = datetime, group = block_id)) +
   geom_rect(data = episodes, inherit.aes = FALSE,
             aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
             fill = shade_col) +
-  geom_line(aes(y = ma1), colour = 'blue', linewidth = 0.3) +
-  geom_line(aes(y = ma2), colour = 'red',  linewidth = 0.3) +
-  facet_grid(location ~ .) +
-  scale_x_datetime(limits = xlim, date_labels = '%b %Y', expand = c(0.01, 0)) +
+  geom_line(aes(y = ma1), colour = "blue", linewidth = 0.3) +
+  geom_line(aes(y = ma2), colour = "red",  linewidth = 0.3) +
+  facet_grid(location ~ window, scales = "free_x", space = "free_x") +
+  scale_x_datetime(date_breaks = "3 months", date_labels = "%b %Y",
+                   expand = expansion(mult = 0.03)) +
   ggthm +
-  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
-  labs(x = NULL, y = 'smoothed series',
-       title = 'Morro Bay: both stations on a common time axis',
-       subtitle = 'blue = dissolved oxygen, red = pH; shading = flagged windows')
+  theme(panel.spacing.x = unit(2, "pt"),
+        strip.text.x = element_blank(),
+        axis.text.x  = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7)) +
+  labs(x = NULL, y = "smoothed series")
 
-p_corr <- ggplot(aligned, aes(x = datetime, group = block_id)) +
-  geom_rect(data = episodes, inherit.aes = FALSE,
-            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
-            fill = shade_col) +
-  geom_hline(yintercept = 0, colour = 'grey80', linewidth = 0.3) +
-  geom_line(aes(y = rho), colour = 'grey30', linetype = 'dashed') +
-  geom_line(aes(y = R),   colour = 'grey20') +
-  facet_grid(location ~ .) +
-  scale_x_datetime(limits = xlim, date_labels = '%b %Y', expand = c(0.01, 0)) +
-  ggthm +
-  labs(x = NULL, y = 'correlation')
-
-plt_aligned <- p_series / p_corr + plot_layout(heights = c(1, 1))
-ggsave(paste0(img_out, '/stations-aligned.png'), plt_aligned,
-       width = 12, height = 7, dpi = 200)
+ggsave(paste0(img_out, "/stations-aligned.png"), plt_aligned,
+       width = 14, height = 4.2, dpi = 200)
 print(plt_aligned)
