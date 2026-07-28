@@ -253,10 +253,15 @@ make_lomad_plot_data <- function(loc_name, results) {
   )
 }
 
-make_lomad_ggplot <- function(pd) {
+# Returns the two panels rather than a composed plot, so both stations can be
+# stacked into one figure below. The station goes in the y-axis labels rather
+# than a title: in a four-panel stack every axis needs naming anyway, so the
+# label can carry the identification for free.
+make_lomad_ggplot <- function(pd, loc) {
   shade_up  <- pd$shade |> filter(panel == 'upper')
   shade_lo  <- pd$shade |> filter(panel == 'lower')
   shade_col <- rgb(0.7, 0.85, 1, 0.4)
+  stn       <- sub('1$', '', loc)          # BM1 -> BM
 
   p_up <- ggplot(pd$main, aes(x = datetime)) +
     geom_rect(data = shade_up, inherit.aes = FALSE,
@@ -274,7 +279,7 @@ make_lomad_ggplot <- function(pd) {
     theme(axis.text.x  = element_blank(),
           axis.ticks.x = element_blank(),
           strip.text   = element_blank()) +
-    labs(x = NULL, y = 'series')
+    labs(x = NULL, y = paste(stn, 'series'))
 
   p_lo <- ggplot(pd$main, aes(x = datetime)) +
     geom_rect(data = shade_lo, inherit.aes = FALSE,
@@ -286,30 +291,33 @@ make_lomad_ggplot <- function(pd) {
     facet_grid(~block_id, scales = 'free_x', space = 'free_x') +
     scale_x_datetime(breaks = function(x) mean(x), date_labels = '%b %Y') +
     ggthm +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1,
+                                     size = 7),
           strip.text  = element_blank()) +
-    labs(x = NULL, y = 'correlation')
+    labs(x = NULL, y = paste(stn, 'correlation'))
 
-  p_up / p_lo + plot_layout(heights = c(2, 1))
+  list(up = p_up, lo = p_lo)
 }
 
-# Generate ggplots for each location
-for (loc in names(loc_results)) {
-  if (is.null(loc_results[[loc]]$block_fits)) next
-  pd  <- make_lomad_plot_data(loc, loc_results)
-  plt <- make_lomad_ggplot(pd)
-  ggsave(paste0(img_out, '/', loc, '-lomad-fit.png'), plt, width = 12, height = 3)
-  print(plt)
-}
+# Supplemental figure: both stations stacked. Each contributes a series panel
+# over a correlation panel, and the two stations keep independent x scales
+# because they have different blocks -- this is a per-block view, not a shared
+# calendar axis.
+panels <- unlist(lapply(names(loc_results), function(loc) {
+  if (is.null(loc_results[[loc]]$block_fits)) return(NULL)
+  make_lomad_ggplot(make_lomad_plot_data(loc, loc_results), loc)
+}), recursive = FALSE)
+
+plt_fits <- wrap_plots(panels, ncol = 1) +
+  plot_layout(heights = rep(c(2, 1), length(panels) / 2))
+ggsave(paste0(img_out, '/sfig-mb-blockfits.png'), plt_fits,
+       width = 12, height = 8, dpi = 200)
+print(plt_fits)
 
 
-# --- Both stations on one calendar axis ---------------------------------------
-# The per-location figures above lay blocks out side by side with free x scales,
-# which compresses gaps and makes the two stations impossible to compare: block
-# 7 at BM1 and block 7 at BS1 are different periods. Here x is real time,
-# shared, so a rejection at one station can be read against what the other was
-# doing at that moment. Blocks appear as segments with gaps between them, which
-# is what the record actually looks like.
+# --- Window-level output ------------------------------------------------------
+# One row per analysed window at both stations on a common calendar axis. This
+# is the input to the station comparison below; it is not plotted directly.
 
 aligned <- bind_rows(lapply(names(loc_results), function(loc) {
   bf <- loc_results[[loc]]$block_fits
@@ -331,73 +339,6 @@ aligned <- bind_rows(lapply(names(loc_results), function(loc) {
   }))
 }))
 
-# Flagged runs as rectangles, so shading does not break at every observation
-episodes <- aligned |>
-  group_by(location, block_id) |>
-  group_modify(~{
-    r  <- rle(.x$rejected)
-    en <- cumsum(r$lengths); st <- en - r$lengths + 1L
-    if (!any(r$values)) return(tibble(xmin = as.POSIXct(character()),
-                                      xmax = as.POSIXct(character())))
-    tibble(xmin = .x$datetime[st[r$values]], xmax = .x$datetime[en[r$values]])
-  }) |>
-  ungroup()
-
-# Facet on shared coverage windows rather than on blocks. Blocks cannot be
-# faceted directly and still align: BM1 block 7 and BS1 block 7 are unrelated
-# periods. Instead, merge the two stations' block extents into common intervals
-# -- a window runs from where either station starts recording to where both
-# have stopped for longer than `gap_days` -- so within a facet the two rows
-# share an x range and are directly comparable. `space = "free_x"` makes panel
-# width proportional to duration, so time is to scale within and across facets,
-# while the dead stretches between windows are dropped.
-
-gap_days <- 30
-
-spans <- aligned |>
-  group_by(location, block_id) |>
-  summarise(start = min(datetime), end = max(datetime), .groups = "drop") |>
-  arrange(start)
-
-# merge overlapping-or-close spans across BOTH stations into shared windows
-win <- spans |>
-  mutate(new = start > lag(cummax(as.numeric(end)), default = -Inf) +
-                 gap_days * 86400,
-         window = cumsum(replace_na(new, TRUE))) |>
-  group_by(window) |>
-  summarise(wstart = min(start), wend = max(end), .groups = "drop") |>
-  mutate(label = paste(format(wstart, "%b %Y"), format(wend, "%b %Y"), sep = " - "))
-
-assign_window <- function(x) {
-  i <- vapply(x, function(d) which(d >= win$wstart & d <= win$wend)[1], integer(1))
-  factor(win$label[i], levels = win$label)
-}
-aligned  <- aligned  |> mutate(window = assign_window(datetime))
-episodes <- episodes |> mutate(window = assign_window(xmin))
-
-cat(sprintf("\n%d shared coverage windows (gap threshold %d days)\n",
-            nrow(win), gap_days))
-
-shade_col <- rgb(0.7, 0.85, 1, 0.5)
-
-plt_aligned <- ggplot(aligned, aes(x = datetime, group = block_id)) +
-  geom_rect(data = episodes, inherit.aes = FALSE,
-            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
-            fill = shade_col) +
-  geom_line(aes(y = ma1), colour = "blue", linewidth = 0.3) +
-  geom_line(aes(y = ma2), colour = "red",  linewidth = 0.3) +
-  facet_grid(location ~ window, scales = "free_x", space = "free_x") +
-  scale_x_datetime(date_breaks = "3 months", date_labels = "%b %Y",
-                   expand = expansion(mult = 0.03)) +
-  ggthm +
-  theme(panel.spacing.x = unit(2, "pt"),
-        strip.text.x = element_blank(),
-        axis.text.x  = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7)) +
-  labs(x = NULL, y = "smoothed series")
-
-ggsave(paste0(img_out, "/stations-aligned.png"), plt_aligned,
-       width = 14, height = 4.2, dpi = 200)
-print(plt_aligned)
 
 # --- Persist the fitted window-level output -----------------------------------
 # One row per analysed window, carrying the test decision under the global
@@ -536,37 +477,38 @@ write_csv(
 # behind every rate, including the months where a high percentage rests on very
 # little data.
 #
-# Station is encoded twice, by lane position and by hue, so the panel needs no
-# caption to say which lane is which; the four states go in one legend. Hue
-# rather than hatching because the lanes render about a fifth of an inch tall,
-# where hatch lines read as noise rather than as texture.
+# Neutral grey for the evaluated extent rather than a tint of the station
+# colour. Tinting was tried at two saturations so the lanes could identify
+# themselves and the caption could go; both washed out. The pale reds and blues
+# were too close to tell apart at this lane height, which cost the figure-ground
+# separation that makes the detections read, and bought nothing for it. Grey
+# keeps the detections maximally legible and the lane order goes in the caption.
 #
 # "Evaluated" means the test returned a decision at that timestamp: lomad_fit()
 # produced both a local correlation and a benchmark for it. It excludes the
 # leading s + h - 2 points of every block, which have no complete rolling window
 # yet, along with blocks too short to fit and stretches with no data at all.
-pal <- c('BM1 evaluated'  = '#EBC7C8', 'BM1 decoupling detected' = '#C44E52',
-         'BS1 evaluated'  = '#C8D3E8', 'BS1 decoupling detected' = '#4C72B0')
+pal <- c(BM = '#C44E52', BS = '#4C72B0')
 
 ras <- wv |>
-  mutate(year  = year(datetime), doy = yday(datetime),
-         lane  = year + ifelse(location == 'BM1', -0.19, 0.19),
-         state = factor(paste(location,
-                              ifelse(rejected, 'decoupling detected',
-                                     'evaluated')),
-                        levels = names(pal)))
+  mutate(year    = year(datetime), doy = yday(datetime),
+         lane    = year + ifelse(location == 'BM1', -0.19, 0.19),
+         station = sub('1$', '', location))
 
-p_ras <- ggplot(ras, aes(doy, lane, fill = state)) +
-  geom_tile(height = 0.34, width = 1) +
-  scale_fill_manual(values = pal, drop = FALSE) +
+p_ras <- ggplot(ras, aes(doy, lane)) +
+  geom_tile(fill = 'grey86', height = 0.34, width = 1) +
+  geom_tile(data = filter(ras, rejected), aes(fill = station),
+            height = 0.34, width = 1) +
+  scale_fill_manual(values = pal,
+                    labels = paste(names(pal), 'decoupling detected')) +
   scale_x_continuous(
     breaks = cumsum(c(1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30)),
     labels = month.abb, expand = c(0.01, 0)) +
   scale_y_reverse(breaks = 2020:2025) +
-  guides(fill = guide_legend(nrow = 2, byrow = FALSE)) +
   ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
                 panel.grid.major.y = element_blank()) +
-  labs(x = NULL, y = NULL)
+  labs(x = NULL, y = NULL,
+       subtitle = 'upper lane BM, lower lane BS; grey = evaluated')
 
 # Pooled across stations: the seasonal shape is the shared feature, and the rate
 # difference is a separate finding that the raster above already shows. Point
@@ -587,6 +529,6 @@ p_seas <- ggplot(seas, aes(month, 100 * frac)) +
 
 plt_seas <- p_ras / p_seas + plot_layout(heights = c(1.25, 1)) +
   plot_annotation(tag_levels = 'a', tag_prefix = '(', tag_suffix = ')')
-ggsave(paste0(img_out, '/seasonality.png'), plt_seas,
+ggsave(paste0(img_out, '/fig-mb-seasonality.png'), plt_seas,
        width = 10, height = 7, dpi = 200)
 print(plt_seas)
