@@ -450,10 +450,10 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
 
 # Pooled monthly rate as a marginal strip above the raster, on the same axis.
 p_seas <- seas |>
-  mutate(xmin = MONTH_START[month], xmax = MONTH_END[month]) |>
-  ggplot() +
-  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 100 * frac),
-            fill = 'grey55') +
+  mutate(mid = (MONTH_START[month] + MONTH_END[month]) / 2) |>
+  ggplot(aes(mid, 100 * frac)) +
+  geom_line(linewidth = 0.4, colour = 'grey25') +
+  geom_point(size = 1.3, colour = 'grey15') +
   scale_x_continuous(breaks = MONTH_START + 1, labels = month.abb,
                      expand = X_EXPAND) +
   scale_y_continuous(breaks = c(0, 10, 20)) +
