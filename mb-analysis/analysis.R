@@ -423,8 +423,16 @@ pal <- c(BM = '#C44E52', BS = '#4C72B0')
 # raster's x scale exactly.
 MONTH_END   <- cumsum(c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31))
 MONTH_START <- c(0, head(MONTH_END, -1))
-MONTH_MID   <- (MONTH_START + MONTH_END) / 2   # labels and points both sit here
+# Tiles are centred on integer doy with width 1, so month m occupies
+# MONTH_START + 0.5 to MONTH_END + 0.5 on screen. Its visual centre is therefore
+# half a day right of the arithmetic midpoint; labels and points both go there.
+MONTH_MID   <- (MONTH_START + MONTH_END + 1) / 2
 X_EXPAND    <- expansion(mult = c(0.032, 0.01))   # left gutter holds the lane labels
+# Both panels must share limits, not just breaks: expand() is multiplicative on
+# each panel's own data range, and the raster spans doy 1-366 while the marginal
+# spans only 16-350 (first to last month midpoint). Without this the same doy
+# lands at a different x in each panel.
+X_LIM       <- c(-2, 366)
 
 ras <- wv |>
   mutate(year    = year(datetime), doy = yday(datetime),
@@ -442,6 +450,7 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
   scale_fill_manual(values = pal,
                     labels = paste(names(pal), 'detection')) +
   scale_x_continuous(breaks = MONTH_MID, labels = month.abb,
+                     limits = X_LIM, oob = scales::oob_keep,
                      expand = X_EXPAND) +
   scale_y_reverse(breaks = 2020:2025) +
   ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
@@ -457,6 +466,7 @@ p_seas <- seas |>
   geom_line(linewidth = 0.4, colour = 'grey25') +
   geom_point(size = 1.3, colour = 'grey15') +
   scale_x_continuous(breaks = MONTH_MID, labels = month.abb,
+                     limits = X_LIM, oob = scales::oob_keep,
                      expand = X_EXPAND) +
   scale_y_continuous(breaks = c(0, 10, 20)) +
   ggthm + theme(axis.text.x  = element_blank(),
