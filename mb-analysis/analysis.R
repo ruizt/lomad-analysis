@@ -69,9 +69,8 @@ for (loc in names(loc_results)) {
   blocks       <- blocks[!too_short]
   blocks_presm <- blocks_presm[!too_short]
 
-  # Fit each block (variogram-based AR(1) noise); per-block lomad_test() is
-  # only a container for the raw p-values here -- its decisions are
-  # overwritten by the global stage below.
+  # Per-block lomad_test() is only a container for the raw p-values; its
+  # decisions are overwritten by the global stage below.
   block_fits <- lapply(names(blocks), \(nm) {
     b <- blocks[[nm]]
     tryCatch({
@@ -419,20 +418,14 @@ write_csv(
 # leading s + h - 2 points of each block.
 pal <- c(BM = '#C44E52', BS = '#4C72B0')
 
-# Month boundaries on the day-of-year axis, so the marginal above shares the
-# raster's x scale exactly.
+# Shared x geometry. Tiles are centred on integer doy with width 1, so a
+# month's visual centre sits half a day right of its arithmetic midpoint.
 MONTH_END   <- cumsum(c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31))
 MONTH_START <- c(0, head(MONTH_END, -1))
-# Tiles are centred on integer doy with width 1, so month m occupies
-# MONTH_START + 0.5 to MONTH_END + 0.5 on screen. Its visual centre is therefore
-# half a day right of the arithmetic midpoint; labels and points both go there.
 MONTH_MID   <- (MONTH_START + MONTH_END + 1) / 2
-X_EXPAND    <- expansion(mult = c(0.045, 0.01))   # left gutter holds the lane labels
-# Both panels must share limits, not just breaks: expand() is multiplicative on
-# each panel's own data range, and the raster spans doy 1-366 while the marginal
-# spans only 16-350 (first to last month midpoint). Without this the same doy
-# lands at a different x in each panel.
-X_LIM       <- c(-2, 366)
+X_EXPAND    <- expansion(mult = c(0.045, 0.01))   # gutter holds the lane labels
+X_LIM       <- c(-2, 366)   # shared, not just breaks: expand() is relative to
+                            # each panel's own range, which differs
 
 ras <- wv |>
   mutate(year    = year(datetime), doy = yday(datetime),
