@@ -133,23 +133,6 @@ for (loc in names(loc_results)) {
   }
 }
 
-# --- Base R block plots ------------------------------------------------------
-
-for (loc in names(loc_results)) {
-  block_fits   <- loc_results[[loc]]$block_fits
-  blocks_presm <- loc_results[[loc]]$blocks_presm
-  if (is.null(block_fits) || length(block_fits) == 0) next
-  tryCatch({
-    pdf(paste0(img_out, '/', loc, '-blocks-fit.pdf'), width = 5, height = 4)
-    for (nm in names(block_fits)) {
-      dt <- blocks_presm[[nm]]$datetime
-      lomad_plot(block_fits[[nm]]$fit, block_fits[[nm]]$tst,
-                 dates = dt, alpha = 0.4)
-      title(main = paste(loc, 'block', nm), line = 0.5)
-    }
-  }, finally = dev.off())
-}
-
 # --- Rejection summary by location ------------------------------------------
 
 rejection_summary <- bind_rows(lapply(names(loc_results), function(loc) {
@@ -269,7 +252,7 @@ make_lomad_ggplot <- function(pd, title_str) {
     ggthm +
     theme(axis.text.x  = element_blank(),
           axis.ticks.x = element_blank(),
-          strip.text   = element_text(size = 7)) +
+          strip.text   = element_blank()) +
     labs(x = NULL, y = 'series', title = title_str)
 
   p_lo <- ggplot(pd$main, aes(x = datetime)) +
@@ -297,3 +280,78 @@ for (loc in names(loc_results)) {
   ggsave(paste0(img_out, '/', loc, '-lomad-fit.png'), plt, width = 12, height = 3)
   print(plt)
 }
+
+
+# --- Both stations on one calendar axis ---------------------------------------
+# The per-location figures above lay blocks out side by side with free x scales,
+# which compresses gaps and makes the two stations impossible to compare: block
+# 7 at BM1 and block 7 at BS1 are different periods. Here x is real time,
+# shared, so a rejection at one station can be read against what the other was
+# doing at that moment. Blocks appear as segments with gaps between them, which
+# is what the record actually looks like.
+
+aligned <- bind_rows(lapply(names(loc_results), function(loc) {
+  bf <- loc_results[[loc]]$block_fits
+  if (is.null(bf) || length(bf) == 0) return(NULL)
+  bind_rows(lapply(names(bf), function(nm) {
+    presm <- loc_results[[loc]]$blocks_presm[[nm]]
+    fit   <- bf[[nm]]$fit
+    tst   <- bf[[nm]]$tst
+    tibble(location = loc,
+           block_id = presm$block_id[[1]],
+           datetime = presm$datetime,
+           o2       = loc_results[[loc]]$blocks[[nm]]$x1,
+           ph       = loc_results[[loc]]$blocks[[nm]]$x2,
+           ma1      = fit$ma1,
+           ma2      = fit$ma2,
+           R        = fit$R,
+           rho      = fit$rho,
+           rejected = replace_na(tst$rejected, FALSE))
+  }))
+}))
+
+# Flagged runs as rectangles, so shading does not break at every observation
+episodes <- aligned |>
+  group_by(location, block_id) |>
+  group_modify(~{
+    r  <- rle(.x$rejected)
+    en <- cumsum(r$lengths); st <- en - r$lengths + 1L
+    if (!any(r$values)) return(tibble(xmin = as.POSIXct(character()),
+                                      xmax = as.POSIXct(character())))
+    tibble(xmin = .x$datetime[st[r$values]], xmax = .x$datetime[en[r$values]])
+  }) |>
+  ungroup()
+
+xlim <- range(aligned$datetime)
+shade_col <- rgb(0.7, 0.85, 1, 0.5)
+
+p_series <- ggplot(aligned, aes(x = datetime, group = block_id)) +
+  geom_rect(data = episodes, inherit.aes = FALSE,
+            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+            fill = shade_col) +
+  geom_line(aes(y = ma1), colour = 'blue', linewidth = 0.3) +
+  geom_line(aes(y = ma2), colour = 'red',  linewidth = 0.3) +
+  facet_grid(location ~ .) +
+  scale_x_datetime(limits = xlim, date_labels = '%b %Y', expand = c(0.01, 0)) +
+  ggthm +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  labs(x = NULL, y = 'smoothed series',
+       title = 'Morro Bay: both stations on a common time axis',
+       subtitle = 'blue = dissolved oxygen, red = pH; shading = flagged windows')
+
+p_corr <- ggplot(aligned, aes(x = datetime, group = block_id)) +
+  geom_rect(data = episodes, inherit.aes = FALSE,
+            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+            fill = shade_col) +
+  geom_hline(yintercept = 0, colour = 'grey80', linewidth = 0.3) +
+  geom_line(aes(y = rho), colour = 'grey30', linetype = 'dashed') +
+  geom_line(aes(y = R),   colour = 'grey20') +
+  facet_grid(location ~ .) +
+  scale_x_datetime(limits = xlim, date_labels = '%b %Y', expand = c(0.01, 0)) +
+  ggthm +
+  labs(x = NULL, y = 'correlation')
+
+plt_aligned <- p_series / p_corr + plot_layout(heights = c(1, 1))
+ggsave(paste0(img_out, '/stations-aligned.png'), plt_aligned,
+       width = 12, height = 7, dpi = 200)
+print(plt_aligned)
