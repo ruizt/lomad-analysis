@@ -43,45 +43,19 @@ loc_results <- lapply(names(location_data), function(loc) {
 names(loc_results) <- names(location_data)
 
 # --- Fit per block, test globally --------------------------------------------
-# Two stages. Stage 1 fits every block at both locations and computes raw
-# pointwise p-values. Stage 2 pools the raw p-values across ALL blocks and
-# applies one Benjamini-Yekutieli step-up correction to the pooled family, so
-# FDR is controlled over every window tested in the study, not per block.
-# Decisions map back to each block through the realized threshold p_star:
-# for a step-up procedure the rejection set is exactly {p_raw <= p_star} with
-# p_star = alpha * k / (M * c(M)), which keeps lomad_plot()'s tolerance band
-# consistent with the flags.
+# Fit every block, then apply one Benjamini-Yekutieli step-up correction to the
+# pooled p-values so FDR is controlled study-wide rather than per block.
+# Decisions map back through p_star = alpha * k / (M * c(M)), the realized
+# threshold: for a step-up procedure the rejection set is {p_raw <= p_star}.
 
 h_win <- 4
 s_win <- 60
 alpha <- 0.05
 
-# Minimum length: m >= 1.5s, i.e. n >= 2.5s + h. Since m = n - s - h + 2, a
-# floor of k*s + h is a floor of m/s ~ k - 1. The bare fitting minimum
-# (n >= 2h + s) admits blocks whose every window overlaps every other one --
-# roughly one effective look -- so some floor is needed.
-#
-# Where to put it is settled by simulation rather than judgement, because the
-# threshold and the result move together: the blocks in the 38-46 day band are
-# almost all BM1, so the choice preferentially re-arms the station the analysis
-# is about. simulations/calibration/blocklength-calibration.R runs the global
-# null (d = 0) at this operating point and pools exactly the block ensemble each
-# threshold admits. Global-null FDR against a nominal 0.05:
-#
-#     k = 4.0  (m/s 3.03, 11 blocks)   0.005
-#     k = 3.0  (m/s 2.03, 15 blocks)   0.008
-#     k = 2.5  (m/s 1.53, 26 blocks)   0.013   <- here
-#     k = 2.0  (m/s 1.03, 29 blocks)   0.018
-#
-# Control holds throughout with room to spare; per-block p-values stay
-# conservative at every length (P(p <= 0.05) = 0.020 at k = 2.5 against 0.017
-# at k = 3). Shorter blocks do erode the margin monotonically, which is why
-# this stops at 2.5 rather than 2: the extra half-step buys only 3 blocks and
-# 2,594 hours, having already recovered 11 blocks and 11,292.
-#
-# Note the power sweep fixed n = 4s in every cell, so k = 4 is the only row
-# above that was ever covered by the main simulations; the rest is why this
-# study exists.
+# Minimum block length, m >= 1.5s. This is below the regime the power sweep
+# covered (n = 4s throughout), so it was checked against the global null in
+# simulations/calibration/blocklength-calibration.R: FDR 0.013 here, 0.008 at
+# the previous m >= 2s, against a nominal 0.05.
 min_len <- as.integer(2.5 * s_win) + h_win
 
 for (loc in names(loc_results)) {
@@ -253,15 +227,13 @@ make_lomad_plot_data <- function(loc_name, results) {
   )
 }
 
-# Returns the two panels rather than a composed plot, so both stations can be
-# stacked into one figure below. The station goes in the y-axis labels rather
-# than a title: in a four-panel stack every axis needs naming anyway, so the
-# label can carry the identification for free.
+# Returns the two panels rather than a composed plot so both stations can stack.
+STATION_NAME <- c(BM1 = 'Bay Mouth (BM)', BS1 = 'Bay South (BS)')
+
 make_lomad_ggplot <- function(pd, loc) {
   shade_up  <- pd$shade |> filter(panel == 'upper')
   shade_lo  <- pd$shade |> filter(panel == 'lower')
   shade_col <- rgb(0.7, 0.85, 1, 0.4)
-  stn       <- sub('1$', '', loc)          # BM1 -> BM
 
   p_up <- ggplot(pd$main, aes(x = datetime)) +
     geom_rect(data = shade_up, inherit.aes = FALSE,
@@ -278,8 +250,11 @@ make_lomad_ggplot <- function(pd, loc) {
     ggthm +
     theme(axis.text.x  = element_blank(),
           axis.ticks.x = element_blank(),
-          strip.text   = element_blank()) +
-    labs(x = NULL, y = paste(stn, 'series'))
+          strip.text   = element_blank(),
+          axis.title.y = element_text(size = 8),
+          axis.text.y  = element_text(size = 7),
+          plot.title   = element_text(size = 9, face = 'plain')) +
+    labs(x = NULL, y = 'moving averages', title = STATION_NAME[[loc]])
 
   p_lo <- ggplot(pd$main, aes(x = datetime)) +
     geom_rect(data = shade_lo, inherit.aes = FALSE,
@@ -291,18 +266,18 @@ make_lomad_ggplot <- function(pd, loc) {
     facet_grid(~block_id, scales = 'free_x', space = 'free_x') +
     scale_x_datetime(breaks = function(x) mean(x), date_labels = '%b %Y') +
     ggthm +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1,
-                                     size = 7),
-          strip.text  = element_blank()) +
-    labs(x = NULL, y = paste(stn, 'correlation'))
+    theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, hjust = 1,
+                                      size = 6),
+          axis.title.y = element_text(size = 8),
+          axis.text.y  = element_text(size = 7),
+          strip.text   = element_blank()) +
+    labs(x = NULL, y = 'correlation')
 
   list(up = p_up, lo = p_lo)
 }
 
-# Supplemental figure: both stations stacked. Each contributes a series panel
-# over a correlation panel, and the two stations keep independent x scales
-# because they have different blocks -- this is a per-block view, not a shared
-# calendar axis.
+# Both stations stacked, series over correlation. Independent x scales: the
+# stations have different blocks, so this is a per-block view.
 panels <- unlist(lapply(names(loc_results), function(loc) {
   if (is.null(loc_results[[loc]]$block_fits)) return(NULL)
   make_lomad_ggplot(make_lomad_plot_data(loc, loc_results), loc)
@@ -310,14 +285,13 @@ panels <- unlist(lapply(names(loc_results), function(loc) {
 
 plt_fits <- wrap_plots(panels, ncol = 1) +
   plot_layout(heights = rep(c(2, 1), length(panels) / 2))
-ggsave(paste0(img_out, '/sfig-mb-blockfits.png'), plt_fits,
-       width = 12, height = 8, dpi = 200)
+ggsave(paste0(img_out, '/sfig-mb-detections.png'), plt_fits,
+       width = 10, height = 5, dpi = 200)
 print(plt_fits)
 
 
 # --- Window-level output ------------------------------------------------------
-# One row per analysed window at both stations on a common calendar axis. This
-# is the input to the station comparison below; it is not plotted directly.
+# One row per analysed window; input to the station comparison below.
 
 aligned <- bind_rows(lapply(names(loc_results), function(loc) {
   bf <- loc_results[[loc]]$block_fits
@@ -341,8 +315,7 @@ aligned <- bind_rows(lapply(names(loc_results), function(loc) {
 
 
 # --- Persist the fitted window-level output -----------------------------------
-# One row per analysed window, carrying the test decision under the global
-# threshold. Kept for ad hoc work; everything below runs from `wv` directly.
+# Kept for ad hoc work; everything below runs from `aligned` directly.
 
 saveRDS(aligned, "_mb-data/lomad_windows.rds")
 message("Wrote _mb-data/lomad_windows.rds (", nrow(aligned), " windows)")
@@ -351,25 +324,9 @@ message("Wrote _mb-data/lomad_windows.rds (", nrow(aligned), " windows)")
 # =============================================================================
 # Station comparison
 # =============================================================================
-# Two claims: the stations differ greatly in how much of their record gets
-# flagged, and they nonetheless share a seasonal pattern.
-#
-# Both are reported descriptively. Neither gets a p-value or an interval, for
-# different reasons.
-#
-# The seasonal pattern cannot honestly be tested here. There was no seasonal
-# hypothesis before these data were looked at, and any hypothesis specified now
-# would be read off the same figure it would then be tested against. The pattern
-# is either visible or it is not.
-#
-# The rate difference could be tested, but the test would not mean what it
-# appears to. The unit being counted is a rejection -- itself the output of a
-# test whose accuracy on this data is assumed, not established. The simulations
-# and the leakage diagnostics support that assumption; they do not calibrate it,
-# and an interval computed as though they did would be precise about the wrong
-# thing. (A pointwise interval would be worse still: at s = 60 successive
-# windows share 59/60 of their data.) What follows the point estimates is
-# sensitivity analysis -- does the ratio survive perturbation -- not inference.
+# Descriptive only. A seasonal hypothesis would have to be specified after
+# seeing these data, and a rate interval would be inference on inference. What
+# follows the point estimates is sensitivity, not uncertainty.
 
 wv <- aligned |>
   # `rejected` was NA-filled to FALSE upstream; a window is only under test
@@ -381,15 +338,6 @@ tbl_out <- 'mb-analysis/_tbl'
 fs::dir_create(tbl_out)
 
 # --- Rate ---------------------------------------------------------------------
-# Reported as point estimates. No interval, and no test.
-#
-# A confidence interval here would be inference layered on inference: the unit
-# being counted is a rejection, which is itself the output of a test whose
-# accuracy on this data is an assumption, not a measurement. The simulations and
-# the leakage diagnostics give some confidence in it, but "some confidence" does
-# not propagate into a calibrated interval, and an interval computed as though
-# it did would invite more argument than the precision is worth. The ratio is
-# the informative number.
 
 rate_tbl <- wv |>
   group_by(location) |>
@@ -403,10 +351,8 @@ cat(sprintf('rate ratio BM1/BS1 = %.2f\n',
             rate_tbl$rate[rate_tbl$location == 'BS1']))
 
 # --- Sensitivity of the ratio -------------------------------------------------
-# Not uncertainty quantification. These ask a narrower and answerable question:
-# does the point estimate depend on any one block, or on the stations having
-# been up at different times? Both perturbations leave the ordering intact and
-# the ratio in the same range, which is the claim the write-up should make.
+# Does the ratio depend on any one block, or on the stations having been up at
+# different times?
 
 ratio_of <- function(d) {
   r <- tapply(d$rejected, d$location, mean)
@@ -440,9 +386,6 @@ cat(sprintf('concurrent support (%d timestamps, %.0f days): BM1 %.1f%%, BS1 %.1f
             mean(conc$BM1) / mean(conc$BS1)))
 
 # --- Season -------------------------------------------------------------------
-# Described, not tested. Any seasonal hypothesis here would have to be specified
-# after seeing these data, so a p-value attached to it would mean nothing; the
-# pattern either reads off the figure or it does not.
 
 seas <- wv |> mutate(month = month(datetime)) |>
   group_by(month) |>
@@ -471,23 +414,9 @@ write_csv(
 
 # --- Figure -------------------------------------------------------------------
 
-# Phenology raster: day of year across, year down, one lane per station. This is
-# what carries the seasonal claim -- the spring concentration recurs across years
-# rather than resting on one episode -- and it shows the observational effort
-# behind every rate, including the months where a high percentage rests on very
-# little data.
-#
-# Neutral grey for the evaluated extent rather than a tint of the station
-# colour. Tinting was tried at two saturations so the lanes could identify
-# themselves and the caption could go; both washed out. The pale reds and blues
-# were too close to tell apart at this lane height, which cost the figure-ground
-# separation that makes the detections read, and bought nothing for it. Grey
-# keeps the detections maximally legible and the lane order goes in the caption.
-#
-# "Evaluated" means the test returned a decision at that timestamp: lomad_fit()
-# produced both a local correlation and a benchmark for it. It excludes the
-# leading s + h - 2 points of every block, which have no complete rolling window
-# yet, along with blocks too short to fit and stretches with no data at all.
+# Phenology raster: day of year across, year down, upper lane BM, lower lane BS.
+# Grey is every window the test reached a decision on, which excludes the
+# leading s + h - 2 points of each block.
 pal <- c(BM = '#C44E52', BS = '#4C72B0')
 
 ras <- wv |>
@@ -500,24 +429,17 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
   geom_tile(data = filter(ras, rejected), aes(fill = station),
             height = 0.34, width = 1) +
   scale_fill_manual(values = pal,
-                    labels = paste(names(pal), 'decoupling detected')) +
+                    labels = paste(names(pal), 'detection')) +
   scale_x_continuous(
     breaks = cumsum(c(1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30)),
     labels = month.abb, expand = c(0.01, 0)) +
   scale_y_reverse(breaks = 2020:2025) +
   ggthm + theme(legend.position = 'bottom', legend.title = element_blank(),
                 panel.grid.major.y = element_blank()) +
-  labs(x = NULL, y = NULL,
-       subtitle = 'upper lane BM, lower lane BS; grey = evaluated')
+  labs(x = NULL, y = NULL)
 
-# Pooled across stations: the seasonal shape is the shared feature, and the rate
-# difference is a separate finding that the raster above already shows. Point
-# size is load-bearing -- the tall months are not always the well-observed ones.
-#
-# No reference line. The only candidate was the overall flagged fraction, which
-# is not a baseline anything is measured against -- it is just the average of
-# these twelve numbers, exposure-weighted, so drawing it would invite reading
-# months above it as elevated relative to something meaningful.
+# Pooled: the seasonal shape is the shared feature, the rate difference is
+# separate. Point size is load-bearing -- May and June are the thinnest months.
 p_seas <- ggplot(seas, aes(month, 100 * frac)) +
   geom_line(linewidth = 0.4, colour = 'grey25') +
   geom_point(aes(size = n), colour = 'grey15') +
