@@ -101,15 +101,17 @@ pres <- read_csv("_mb-data/ph_o2_blocks.csv", show_col_types = FALSE) |>
       mutate(location = d$location[1], blk = d$block_id[1])
   }) |> bind_rows() |> filter(datetime >= W[1], datetime <= W[2])
 
-p_ser <- pres |>
+ser_dat <- pres |>
   mutate(station = factor(c(BM1 = "Bay Mouth (BM)", BS1 = "Bay Head (BH)")[location],
                           levels = c("Bay Mouth (BM)", "Bay Head (BH)"))) |>
   pivot_longer(c(o2, ph), names_to = "var", values_to = "z") |>
-  mutate(var = c(o2 = "DO", ph = "pH")[var]) |>
+  mutate(var = c(o2 = "DO", ph = "pH")[var])
+
+make_series <- function(alpha = 1) ser_dat |>
   # grouped on the block too, so the line breaks at gaps instead of
   # interpolating across them
   ggplot(aes(datetime, z, colour = var, group = interaction(var, station, blk))) +
-  geom_line(linewidth = LW_OBS) +
+  geom_line(linewidth = LW_OBS, alpha = alpha) +
   facet_grid(station ~ .) +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
@@ -118,6 +120,8 @@ p_ser <- pres |>
                 strip.background = element_blank(),
                 axis.text.y = element_blank()) +
   labs(x = NULL, y = NULL)
+
+p_ser <- make_series()
 
 ggsave(file.path(img_out, "fig-mb-sites.png"),
        p_map + p_ser + plot_layout(widths = c(1, 1.7)),
@@ -163,4 +167,17 @@ p_cpl <- ggplot() +
 ggsave(file.path(img_out, "fig-mb-coupling.png"), p_cpl,
        width = FIG_W, height = 3.2, dpi = 450)
 
-cat("Wrote fig-mb-sites.png and fig-mb-coupling.png\n")
+# ---- the two stacked ---------------------------------------------------------
+# The site series go faint here, matching the background of the coupling panel
+# below: the top row is context for the block, the bottom row is the point.
+# Its legend is dropped rather than collected, since the coupling panel already
+# carries one inside its own bounds.
+
+top <- p_map + (make_series(alpha = 0.35) + guides(colour = "none")) +
+  plot_layout(widths = c(1, 1.7))
+
+ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
+       top / p_cpl + plot_layout(heights = c(1, 1.05)),
+       width = FIG_W, height = 6.2, dpi = 450)
+
+cat("Wrote fig-mb-sites.png, fig-mb-coupling.png, fig-mb-sites-coupling.png\n")
