@@ -45,18 +45,28 @@ ggthm <- fig_theme()
 
 # The sub-window the lower row of the composite shows: a week trimmed off each
 # end of the block, which keeps the episode centred with context either side.
-TRIM      <- range(morro_bay$datetime) + c(7, -7) * 86400
+# Snapped to observation times, not to the nominal date. With no expansion the
+# lower panel spans its first and last observation, so a nominal window would
+# leave the box a few hours wider than the panel it marks.
+TRIM      <- local({
+  nom <- range(morro_bay$datetime) + c(7, -7) * 86400
+  range(morro_bay$datetime[morro_bay$datetime >= nom[1] &
+                           morro_bay$datetime <= nom[2]])
+})
 TRIM_FILL <- "grey92"
 
 # No grid, with a border, for the composite. A grid across a shaded panel reads
 # as two competing backgrounds.
 # panel.grid.major has to be blanked by name: fig_theme() sets it explicitly,
 # and ggplot does not let a parent element override an explicitly-set child.
-fig_theme_framed <- function(fill = NA) fig_theme() +
-  theme(panel.grid.major = element_blank(),
+fig_theme_framed <- function(fill = NA, grid = FALSE, border = TRUE) fig_theme() +
+  theme(panel.grid.major = if (grid) element_line(linewidth = 0.1, colour = "grey65")
+                           else element_blank(),
         panel.grid.minor = element_blank(),
         panel.background = element_rect(fill = fill, colour = NA),
-        panel.border = element_rect(fill = NA, colour = "grey40", linewidth = 0.3))
+        panel.border = if (border) element_rect(fill = NA, colour = "grey40",
+                                                linewidth = 0.3)
+                       else element_blank())
 
 # ---- shapefile --------------------------------------------------------------
 
@@ -160,25 +170,33 @@ ann <- tibble(x0 = c(brk - gap, brk + gap), x1 = c(brk - gap - len, brk + gap + 
               label = c("decoupled", "coupled"))
 ann$mid <- ann$x0 + (ann$x1 - ann$x0) / 2
 
-make_coupling <- function(win = NULL, framed = FALSE) ggplot() +
+# `win` filters rather than clips, and the scale takes no expansion, so the panel
+# spans exactly the window the box above it marks. coord_cartesian alone left
+# default padding on both sides, which is why the two did not line up.
+make_coupling <- function(win = NULL, framed = FALSE) {
+  keep <- function(x) if (is.null(win)) x else
+    dplyr::filter(x, datetime >= win[1], datetime <= win[2])
+  ggplot() +
   geom_vline(xintercept = brk, linetype = "dashed", colour = "grey35", linewidth = 0.45) +
-  geom_line(data = raw, aes(datetime, z, colour = var), linewidth = LW_OBS, alpha = 0.3) +
-  geom_line(data = ma,  aes(datetime, z, colour = var), linewidth = LW_MA) +
+  geom_line(data = keep(raw), aes(datetime, z, colour = var), linewidth = LW_OBS, alpha = 0.3) +
+  geom_line(data = keep(ma),  aes(datetime, z, colour = var), linewidth = LW_MA) +
   geom_segment(data = ann, aes(x = x0, xend = x1, y = ay, yend = ay),
                arrow = arrow(length = unit(0.055, "in"), type = "closed"),
                colour = "grey35", linewidth = 0.35) +
   geom_text(data = ann, aes(mid, ay + 0.4, label = label), size = 3.2, colour = "grey20") +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
-  scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
+  scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b",
+                   expand = if (is.null(win)) waiver() else expansion(0)) +
   coord_cartesian(xlim = win,
                   ylim = c(min(d$DO, d$pH, na.rm = TRUE), ay + 0.85)) +
-  (if (framed) fig_theme_framed(TRIM_FILL) else ggthm) +
+  (if (framed) fig_theme_framed(TRIM_FILL, grid = TRUE) else ggthm) +
   theme(legend.position = c(0.995, 0.98), legend.justification = c(1, 1),
         legend.direction = "vertical",
         legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
         legend.key.width = unit(0.22, "in"),
         axis.text.y = element_blank()) +
   labs(x = NULL, y = "Moving averages (BM)")
+}
 
 ggsave(file.path(img_out, "fig-mb-coupling.png"), make_coupling(),
        width = FIG_W, height = 3.2, dpi = 450)
@@ -192,13 +210,19 @@ ggsave(file.path(img_out, "fig-mb-coupling.png"), make_coupling(),
 # The upper row keeps the whole block and marks the sub-window in the same fill
 # the lower panel is drawn on, so the shaded box reads as "this is the panel
 # below". Without that the two rows look like the same view twice.
+# The box marks the window only in the Bay Mouth facet, since that is the
+# station the panel below shows. Outlined so it reads as a region rather than a
+# change of background.
+box <- tibble(x1 = TRIM[1], x2 = TRIM[2],
+              station = factor("Bay Mouth (BM)", levels = levels(ser_dat$station)))
+
 p_ser_faint <- make_series(alpha = 0.35) +
   guides(colour = "none") +
-  geom_rect(data = tibble(x1 = TRIM[1], x2 = TRIM[2]), inherit.aes = FALSE,
+  geom_rect(data = box, inherit.aes = FALSE,
             aes(xmin = x1, xmax = x2, ymin = -Inf, ymax = Inf),
-            fill = TRIM_FILL, alpha = 0.9) +
+            fill = TRIM_FILL, colour = "grey40", linewidth = 0.3) +
   geom_line(linewidth = LW_OBS, alpha = 0.35) +   # redrawn over the box
-  fig_theme_framed() +
+  fig_theme_framed(border = FALSE) +
   theme(legend.position = "none", strip.text.y = element_text(angle = -90),
         strip.background = element_blank(),
         axis.text = element_blank()) +
