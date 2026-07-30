@@ -227,7 +227,7 @@ ggsave(file.path(IMG_DIR, "fig-trends.png"),
 # Detection rate as a function of L2 separation d, by structure/phi/SNR/T.
 # =============================================================================
 
-local({
+p_power <- local({
   results_summary <- readRDS("simulations/power/results/simulations-power-summary.rds")
 
 library(ggh4x)
@@ -239,9 +239,9 @@ oracle_note <- data.frame(phi = 0.8, snr = 0.5, n = 200,
                            d = 0.05, detection = 0.97,
                            label = "dashed = oracle")
 
-results_summary |>
+p <- results_summary |>
   mutate(struct = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR)) |>
-ggplot(aes(d, detection, colour = struct,
+  ggplot(aes(d, detection, colour = struct,
            linetype = method,
            group = interaction(struct, method))) +
   geom_hline(yintercept = alpha, linetype = "dashed",
@@ -271,9 +271,10 @@ ggplot(aes(d, detection, colour = struct,
         panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
 
-ggsave(file.path(IMG_DIR, "fig-power.png"),
+  ggsave(file.path(IMG_DIR, "fig-power.png"), p,
          width = 9, height = 4, dpi = 450)
 
+  p
 })
 
 
@@ -282,7 +283,7 @@ ggsave(file.path(IMG_DIR, "fig-power.png"),
 # Threshold sweep relating rejections to true local separation.
 # =============================================================================
 
-local({
+p_local <- local({
   L      <- readRDS("simulations/power/results/simulations-power-localization.rds")
   sweep  <- L$sweep
   ORIENT <- L$orient
@@ -383,6 +384,7 @@ ggsave(file.path(IMG_DIR, "fig-localization.png"), p,
 cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig-localization.png")))
 
 
+p
 })
 
 
@@ -396,7 +398,7 @@ cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig-localization.png")))
 # supplies the magnitude.
 # =============================================================================
 
-local({
+p_profile <- local({
   sweep <- readRDS("simulations/power/results/simulations-power-localization.rds")$sweep
 
   BW    <- 0.01               # separation bin width
@@ -474,6 +476,57 @@ local({
                        names_prefix = "s=", id_cols = c(struct, snr, phi)) |>
     arrange(struct, snr, phi)), row.names = FALSE)
 
+  p
+})
+
+
+# =============================================================================
+# Composite: power, localization, profile stacked for a full-page figure
+# The three share a facet grid (phi by snr), a palette and a theme, so stacking
+# them collapses three identical Structure legends into one. The separate files
+# above are still written; this is an additional output, not a replacement.
+# =============================================================================
+
+local({
+  # Each sub-figure is 9x4 on its own. Three of those is 12 inches tall, past a
+  # printable page, so the composite is built at the size it will be placed at
+  # and the text scaled to match rather than letting LaTeX shrink it.
+  shrink <- theme(axis.text    = element_text(size = 6),
+                  axis.title   = element_text(size = 8),
+                  strip.text   = element_text(size = 7),
+                  legend.text  = element_text(size = 8),
+                  legend.title = element_text(size = 9),
+                  plot.tag     = element_text(size = 11, face = "bold"))
+
+  # In-panel annotations are positioned in data units with hjust = 1, so at a
+  # third of the standalone width they overrun the panel -- "mean AUC" was
+  # rendering as "ean AUC". Shrinking the text shrinks its extent.
+  shrink_annotations <- function(p, size = 1.9) {
+    for (i in seq_along(p$layers))
+      if (inherits(p$layers[[i]]$geom, "GeomText"))
+        p$layers[[i]]$aes_params$size <- size
+    p
+  }
+
+  # One legend, not three. guides = "collect" only merges guides that are
+  # identical, and the power panel maps fill as well as colour for its
+  # confidence ribbons, so its guide never matched the other two. Rather than
+  # rely on the merge, the colour guide is suppressed outright on (b) and (c)
+  # and only (a) contributes one. Suppression via guides() rather than
+  # theme(legend.position) so the trailing `&` cannot override it.
+  drop_guide <- guides(colour = "none", fill = "none")
+
+  composite <-
+    (shrink_annotations(p_power)   + shrink + guides(fill = "none")) /
+    (shrink_annotations(p_local)   + shrink + drop_guide) /
+    (shrink_annotations(p_profile) + shrink + drop_guide) +
+    plot_layout(guides = "collect") +
+    plot_annotation(tag_levels = "a", tag_prefix = "(", tag_suffix = ")") &
+    theme(legend.position = "bottom")
+
+  out <- file.path(IMG_DIR, "fig-power-composite.png")
+  ggsave(out, composite, width = 7.5, height = 9.5, dpi = 450)
+  cat(sprintf("\nWrote %s\n", out))
 })
 
 
