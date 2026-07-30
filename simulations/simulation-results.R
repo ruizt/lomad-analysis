@@ -344,14 +344,14 @@ auc_panel <- auc |>
   semi_join(distinct(sw, struct, phi, snr, s_win, method),
             by = c("struct", "phi", "snr", "s_win", "method")) |>
   group_by(phi, snr, s_win) |>
-  summarise(xx = 0.95, yy = 0.05, k = n(),
-            label = sprintf("mean AUC = %.3f", mean(auc)), .groups = "drop")
+  summarise(xx = 0.95, yy = 0.2, k = n(),
+            label = sprintf("AUC = %.3f", mean(auc)), .groups = "drop")
 
 # Oracle only exists at phi = 0.8 here too (same as the power-curve figure),
 # so it gets the same one-off inline note instead of a legend that would
 # otherwise apply, misleadingly, to every panel.
 oracle_note_loc <- data.frame(phi = 0.8, snr = 0.5, s_win = 50,
-                               xx = 0.95, yy = 0.18, label = "dashed = oracle")
+                               xx = 0.95, yy = 0.05, label = "dashed = oracle")
 
 p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
                     group = interaction(struct, method))) +
@@ -525,7 +525,7 @@ local({
     theme(legend.position = "bottom")
 
   out <- file.path(IMG_DIR, "fig-power-composite.png")
-  ggsave(out, composite, width = 7.5, height = 9.5, dpi = 450)
+  ggsave(out, composite, width = 6, height = 8.5, dpi = 450)
   cat(sprintf("\nWrote %s\n", out))
 })
 
