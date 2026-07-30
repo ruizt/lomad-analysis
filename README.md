@@ -111,8 +111,8 @@ compiled files from scratch.
 
 The Morro Bay monitoring data is on Zenodo too: `wp_data` as both parquet and
 CSV (identical content; the parquet is typed and a quarter the size) and
-`ph_o2_blocks.csv`. `_zenodo-description.txt` is the deposit's description,
-kept here so it stays in step with what the pipeline actually produces.
+`ph_o2_blocks.csv`. All three are written into `_mb-data/` by
+`mb-analysis/process_blocks.R`.
 
 The naming carries the rule, and it is the only rule `.gitignore` needs:
 
