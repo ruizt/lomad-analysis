@@ -207,32 +207,43 @@ ggsave(file.path(img_out, "fig-mb-coupling.png"), make_coupling(),
 # Its legend is dropped rather than collected, since the coupling panel already
 # carries one inside its own bounds.
 
-# The upper row keeps the whole block and marks the sub-window in the same fill
-# the lower panel is drawn on, so the shaded box reads as "this is the panel
-# below". Without that the two rows look like the same view twice.
-# The box marks the window only in the Bay Mouth facet, since that is the
-# station the panel below shows. Outlined so it reads as a region rather than a
-# change of background.
+# ---- the two stacked, in two variants --------------------------------------
+# v1: both rows over the whole block, gridded, unframed. Reads as two views of
+#     the same window.
+# v2: the upper row marks a sub-window in the fill the lower panel is drawn on
+#     and the lower panel is that window, so it reads as a detail figure. The
+#     box sits only in the Bay Mouth facet, since Bay Mouth is what the panel
+#     below shows, and is outlined so it reads as a marked region rather than a
+#     change of background.
+#
+# Both drop the site legend rather than collecting it: the coupling panel
+# carries one inside its own bounds, and collecting would take width from the
+# map.
+
+faint <- function() make_series(alpha = 0.35) + guides(colour = "none")
+
+ggsave(file.path(img_out, "fig-mb-sites-coupling-v1.png"),
+       (p_map + faint() + plot_layout(widths = c(1, 1.7))) /
+         make_coupling() + plot_layout(heights = c(2, 1)),
+       width = FIG_W, height = 6.6, dpi = 450)
+
 box <- tibble(x1 = TRIM[1], x2 = TRIM[2],
               station = factor("Bay Mouth (BM)", levels = levels(ser_dat$station)))
 
-p_ser_faint <- make_series(alpha = 0.35) +
-  guides(colour = "none") +
+p_ser_box <- faint() +
   geom_rect(data = box, inherit.aes = FALSE,
             aes(xmin = x1, xmax = x2, ymin = -Inf, ymax = Inf),
             fill = TRIM_FILL, colour = "grey40", linewidth = 0.3) +
   geom_line(linewidth = LW_OBS, alpha = 0.35) +   # redrawn over the box
   fig_theme_framed(border = FALSE) +
   theme(legend.position = "none", strip.text.y = element_text(angle = -90),
-        strip.background = element_blank(),
-        axis.text = element_blank()) +
+        strip.background = element_blank(), axis.text = element_blank()) +
   labs(x = NULL, y = NULL)
 
-top <- p_map + p_ser_faint + plot_layout(widths = c(1, 1.7))
+ggsave(file.path(img_out, "fig-mb-sites-coupling-v2.png"),
+       (p_map + p_ser_box + plot_layout(widths = c(1, 1.7))) /
+         make_coupling(win = TRIM, framed = TRUE) + plot_layout(heights = c(2, 1)),
+       width = FIG_W, height = 6.6, dpi = 450)
 
-ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
-       top / make_coupling(win = TRIM, framed = TRUE) +
-         plot_layout(heights = c(1, 1.05)),
-       width = FIG_W, height = 6.2, dpi = 450)
-
-cat("Wrote fig-mb-sites.png, fig-mb-coupling.png, fig-mb-sites-coupling.png\n")
+cat("Wrote fig-mb-sites.png, fig-mb-coupling.png,",
+    "fig-mb-sites-coupling-v1.png, fig-mb-sites-coupling-v2.png\n")
