@@ -59,6 +59,10 @@ draw_shade <- function(flag, col) {
 # Fill transparency, not the FDR level -- lomad_plot() takes these as separate
 # arguments and reusing ALPHA here shaded at 0.05 instead of 0.25.
 shade_col <- rgb(0.7, 0.85, 1, 0.25)
+# Match intro-figures.R. lwd is in 1/96 inch (0.2646 mm), so a width given in
+# mm has to be converted; ggplot's linewidth is mm already.
+MM   <- 1 / 0.2646
+LWD_MA <- 0.45 * MM
 col_do    <- "blue"
 col_ph    <- "red"
 col_trend <- rgb(0.4, 0.4, 0.4, 0.8)
@@ -74,9 +78,9 @@ yl <- range(c(fit$ma1, fit$ma2), na.rm = TRUE)
 plot(t_idx, fit$ma1, type = "n", ylim = yl + c(-1, 1) * diff(yl) * 0.05,
      xlab = "", ylab = "Moving averages", xaxt = "n")
 draw_shade(rej_upper, shade_col)
-lines(t_idx, fit$ma1,  col = col_do,    lwd = 1.5)
-lines(t_idx, fit$ma2,  col = col_ph,    lwd = 1.5)
-lines(t_idx, fit$trend, col = col_trend, lwd = 1.2)
+lines(t_idx, fit$ma1,  col = col_do,    lwd = LWD_MA)
+lines(t_idx, fit$ma2,  col = col_ph,    lwd = LWD_MA)
+lines(t_idx, fit$trend, col = col_trend, lwd = LWD_MA * 0.8)
 legend("bottomleft", legend = c("DO", "pH"), col = c(col_do, col_ph),
        lwd = 1.5, horiz = TRUE, bty = "n", cex = 0.9)
 

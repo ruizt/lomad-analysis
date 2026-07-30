@@ -26,6 +26,14 @@ map_dir <- "_map";             fs::dir_create(map_dir)
 # uses for the two stations -- same family, but not the same colours, so a
 # reader cannot carry "red = pH" across into a figure where red means Bay Mouth.
 VAR_PAL <- c(DO = "blue", pH = "red")
+
+# Line widths in mm, shared by every figure that shows these series. ggplot's
+# linewidth is already mm; base R lwd is in 1/96 inch, so example-figure.R
+# converts. All three figures export 7 inches wide so a common width in mm
+# renders at a common width on the page.
+LW_MA  <- 0.45   # moving averages
+LW_OBS <- 0.30   # the 6-hourly presmoothed observations
+FIG_W  <- 7
 STN <- tibble(
   station = c("Bay Mouth (BM)", "Bay Head (BH)"),
   lon = c(-(120 + 51/60 + 32.04/3600), -(120 + 50/60 + 50.28/3600)),
@@ -104,25 +112,26 @@ pres <- read_csv("_mb-data/ph_o2_blocks.csv", show_col_types = FALSE) |>
   }) |> bind_rows() |> filter(datetime >= W[1], datetime <= W[2])
 
 p_ser <- pres |>
-  mutate(station = factor(c(BM1 = "Bay Mouth", BS1 = "Bay Head")[location],
-                          levels = c("Bay Mouth", "Bay Head"))) |>
+  mutate(station = factor(c(BM1 = "Bay Mouth (BM)", BS1 = "Bay Head (BH)")[location],
+                          levels = c("Bay Mouth (BM)", "Bay Head (BH)"))) |>
   pivot_longer(c(o2, ph), names_to = "var", values_to = "z") |>
   mutate(var = c(o2 = "DO", ph = "pH")[var]) |>
   # grouped on the block too, so the line breaks at gaps instead of
   # interpolating across them
   ggplot(aes(datetime, z, colour = var, group = interaction(var, station, blk))) +
-  geom_line(linewidth = 0.4) +
-  facet_grid(station ~ ., switch = "y") +
+  geom_line(linewidth = LW_OBS) +
+  facet_grid(station ~ .) +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
-  ggthm + theme(legend.position = "top", strip.placement = "outside",
-                strip.text.y.left = element_text(angle = 90),
+  ggthm + theme(legend.position = "top",
+                strip.text.y = element_text(angle = -90),
+                strip.background = element_blank(),
                 axis.text.y = element_blank()) +
   labs(x = NULL, y = NULL)
 
 ggsave(file.path(img_out, "fig-mb-sites.png"),
        p_map + p_ser + plot_layout(widths = c(1, 1.7)),
-       width = 8, height = 3.5, dpi = 450)
+       width = FIG_W, height = 3.1, dpi = 450)
 
 # ---- coupling / decoupling -------------------------------------------------
 
@@ -144,8 +153,8 @@ ann$mid <- ann$x0 + (ann$x1 - ann$x0) / 2
 
 p_cpl <- ggplot() +
   geom_vline(xintercept = brk, linetype = "dashed", colour = "grey35", linewidth = 0.45) +
-  geom_line(data = raw, aes(datetime, z, colour = var), linewidth = 0.25, alpha = 0.3) +
-  geom_line(data = ma,  aes(datetime, z, colour = var), linewidth = 0.8) +
+  geom_line(data = raw, aes(datetime, z, colour = var), linewidth = LW_OBS, alpha = 0.3) +
+  geom_line(data = ma,  aes(datetime, z, colour = var), linewidth = LW_MA) +
   geom_segment(data = ann, aes(x = x0, xend = x1, y = ay, yend = ay),
                arrow = arrow(length = unit(0.055, "in"), type = "closed"),
                colour = "grey35", linewidth = 0.35) +
@@ -155,13 +164,13 @@ p_cpl <- ggplot() +
   coord_cartesian(ylim = c(min(d$DO, d$pH, na.rm = TRUE), ay + 0.85)) +
   ggthm +
   theme(legend.position = c(0.995, 0.98), legend.justification = c(1, 1),
-        legend.direction = "horizontal",
+        legend.direction = "vertical",
         legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
         legend.key.width = unit(0.22, "in"),
         axis.text.y = element_blank()) +
   labs(x = NULL, y = "Moving averages")
 
 ggsave(file.path(img_out, "fig-mb-coupling.png"), p_cpl,
-       width = 6.5, height = 3.2, dpi = 450)
+       width = FIG_W, height = 3.2, dpi = 450)
 
 cat("Wrote fig-mb-sites.png and fig-mb-coupling.png\n")
