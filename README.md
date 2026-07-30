@@ -109,6 +109,11 @@ every figure with no downloads. The bulk — the per-job raw output and its
 archive, roughly 2.6 GB — is on Zenodo and is only needed to re-derive the
 compiled files from scratch.
 
+The Morro Bay monitoring data is on Zenodo too: `wp_data` as both parquet and
+CSV (identical content; the parquet is typed and a quarter the size) and
+`ph_o2_blocks.csv`. `_zenodo-description.txt` is the deposit's description,
+kept here so it stays in step with what the pipeline actually produces.
+
 The naming carries the rule, and it is the only rule `.gitignore` needs:
 
 - **`_`-prefixed** — bulky, gitignored, archived on Zenodo (`_raw/`, the zips)

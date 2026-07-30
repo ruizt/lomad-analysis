@@ -55,6 +55,14 @@ dst <- fs::path(out_dir, "wp_data.parquet")
 fs::file_copy(src, dst, overwrite = TRUE)
 message("Copied wp_data.parquet to ", out_dir)
 
+# Parquet is the canonical form -- typed, and about a quarter the size -- but a
+# CSV is deposited alongside it because collaborators are likelier to open one.
+# Both hold the same 65 columns; nothing is dropped.
+csv_out <- fs::path(out_dir, "wp_data.csv")
+arrow::write_csv_arrow(arrow::read_parquet(dst), csv_out)
+message(sprintf("Wrote %s (%.0f MB)", csv_out,
+                as.numeric(fs::file_size(csv_out)) / 1e6))
+
 wp <- arrow::read_parquet(dst, col_select = c(time_utc, file_name, oxygen_mg_l,
                                        p_h_internal, tide_m_mllw,
                                        pressure_dbar)) |>
