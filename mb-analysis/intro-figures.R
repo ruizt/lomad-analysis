@@ -43,6 +43,21 @@ STAR <- compass_star(-120.8035, 35.3195, 0.0075)
 
 ggthm <- fig_theme()
 
+# The sub-window the lower row of the composite shows: a week trimmed off each
+# end of the block, which keeps the episode centred with context either side.
+TRIM      <- range(morro_bay$datetime) + c(7, -7) * 86400
+TRIM_FILL <- "grey92"
+
+# No grid, with a border, for the composite. A grid across a shaded panel reads
+# as two competing backgrounds.
+# panel.grid.major has to be blanked by name: fig_theme() sets it explicitly,
+# and ggplot does not let a parent element override an explicitly-set child.
+fig_theme_framed <- function(fill = NA) fig_theme() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = fill, colour = NA),
+        panel.border = element_rect(fill = NA, colour = "grey40", linewidth = 0.3))
+
 # ---- shapefile --------------------------------------------------------------
 
 shp <- file.path(map_dir, "tl_2023_06079_areawater.shp")
@@ -145,7 +160,7 @@ ann <- tibble(x0 = c(brk - gap, brk + gap), x1 = c(brk - gap - len, brk + gap + 
               label = c("decoupled", "coupled"))
 ann$mid <- ann$x0 + (ann$x1 - ann$x0) / 2
 
-p_cpl <- ggplot() +
+make_coupling <- function(win = NULL, framed = FALSE) ggplot() +
   geom_vline(xintercept = brk, linetype = "dashed", colour = "grey35", linewidth = 0.45) +
   geom_line(data = raw, aes(datetime, z, colour = var), linewidth = LW_OBS, alpha = 0.3) +
   geom_line(data = ma,  aes(datetime, z, colour = var), linewidth = LW_MA) +
@@ -155,16 +170,17 @@ p_cpl <- ggplot() +
   geom_text(data = ann, aes(mid, ay + 0.4, label = label), size = 3.2, colour = "grey20") +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
-  coord_cartesian(ylim = c(min(d$DO, d$pH, na.rm = TRUE), ay + 0.85)) +
-  ggthm +
+  coord_cartesian(xlim = win,
+                  ylim = c(min(d$DO, d$pH, na.rm = TRUE), ay + 0.85)) +
+  (if (framed) fig_theme_framed(TRIM_FILL) else ggthm) +
   theme(legend.position = c(0.995, 0.98), legend.justification = c(1, 1),
         legend.direction = "vertical",
         legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
         legend.key.width = unit(0.22, "in"),
         axis.text.y = element_blank()) +
-  labs(x = NULL, y = "Moving averages")
+  labs(x = NULL, y = "Moving averages (BM)")
 
-ggsave(file.path(img_out, "fig-mb-coupling.png"), p_cpl,
+ggsave(file.path(img_out, "fig-mb-coupling.png"), make_coupling(),
        width = FIG_W, height = 3.2, dpi = 450)
 
 # ---- the two stacked ---------------------------------------------------------
@@ -173,11 +189,26 @@ ggsave(file.path(img_out, "fig-mb-coupling.png"), p_cpl,
 # Its legend is dropped rather than collected, since the coupling panel already
 # carries one inside its own bounds.
 
-top <- p_map + (make_series(alpha = 0.35) + guides(colour = "none")) +
-  plot_layout(widths = c(1, 1.7))
+# The upper row keeps the whole block and marks the sub-window in the same fill
+# the lower panel is drawn on, so the shaded box reads as "this is the panel
+# below". Without that the two rows look like the same view twice.
+p_ser_faint <- make_series(alpha = 0.35) +
+  guides(colour = "none") +
+  geom_rect(data = tibble(x1 = TRIM[1], x2 = TRIM[2]), inherit.aes = FALSE,
+            aes(xmin = x1, xmax = x2, ymin = -Inf, ymax = Inf),
+            fill = TRIM_FILL, alpha = 0.9) +
+  geom_line(linewidth = LW_OBS, alpha = 0.35) +   # redrawn over the box
+  fig_theme_framed() +
+  theme(legend.position = "none", strip.text.y = element_text(angle = -90),
+        strip.background = element_blank(),
+        axis.text = element_blank()) +
+  labs(x = NULL, y = NULL)
+
+top <- p_map + p_ser_faint + plot_layout(widths = c(1, 1.7))
 
 ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
-       top / p_cpl + plot_layout(heights = c(1, 1.05)),
+       top / make_coupling(win = TRIM, framed = TRUE) +
+         plot_layout(heights = c(1, 1.05)),
        width = FIG_W, height = 6.2, dpi = 450)
 
 cat("Wrote fig-mb-sites.png, fig-mb-coupling.png, fig-mb-sites-coupling.png\n")
