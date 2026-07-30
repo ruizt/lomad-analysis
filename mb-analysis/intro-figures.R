@@ -187,6 +187,10 @@ make_coupling <- function(win = NULL, framed = FALSE) {
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b",
                    expand = if (is.null(win)) waiver() else expansion(0)) +
+  # Station named on the right, matching the facet strips in the row above. A
+  # duplicated axis with no breaks or labels is just the title.
+  scale_y_continuous(sec.axis = dup_axis(name = "Bay Mouth (BM)",
+                                         breaks = NULL, labels = NULL)) +
   coord_cartesian(xlim = win,
                   ylim = c(min(d$DO, d$pH, na.rm = TRUE), ay + 0.85)) +
   (if (framed) fig_theme_framed(TRIM_FILL, grid = TRUE) else ggthm) +
@@ -195,7 +199,7 @@ make_coupling <- function(win = NULL, framed = FALSE) {
         legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
         legend.key.width = unit(0.22, "in"),
         axis.text.y = element_blank()) +
-  labs(x = NULL, y = "Moving averages (BM)")
+  labs(x = NULL, y = "Moving average")
 }
 
 ggsave(file.path(img_out, "fig-mb-coupling.png"), make_coupling(),
@@ -210,11 +214,9 @@ ggsave(file.path(img_out, "fig-mb-coupling.png"), make_coupling(),
 # ---- the two stacked, in two variants --------------------------------------
 # v1: both rows over the whole block, gridded, unframed. Reads as two views of
 #     the same window.
-# v2: the upper row marks a sub-window in the fill the lower panel is drawn on
-#     and the lower panel is that window, so it reads as a detail figure. The
-#     box sits only in the Bay Mouth facet, since Bay Mouth is what the panel
-#     below shows, and is outlined so it reads as a marked region rather than a
-#     change of background.
+# v2: gridless unframed upper row over the whole block; the lower panel is
+#     trimmed to a sub-window and drawn on a shaded ground, which is what
+#     separates it from the row above.
 #
 # Both drop the site legend rather than collecting it: the coupling panel
 # carries one inside its own bounds, and collecting would take width from the
@@ -227,14 +229,7 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling-v1.png"),
          make_coupling() + plot_layout(heights = c(1, 1)),
        width = FIG_W, height = 6.2, dpi = 450)
 
-box <- tibble(x1 = TRIM[1], x2 = TRIM[2],
-              station = factor("Bay Mouth (BM)", levels = levels(ser_dat$station)))
-
 p_ser_box <- faint() +
-  geom_rect(data = box, inherit.aes = FALSE,
-            aes(xmin = x1, xmax = x2, ymin = -Inf, ymax = Inf),
-            fill = TRIM_FILL, colour = "grey40", linewidth = 0.3) +
-  geom_line(linewidth = LW_OBS, alpha = 0.35) +   # redrawn over the box
   fig_theme_framed(border = FALSE) +
   theme(legend.position = "none", strip.text.y = element_text(angle = -90),
         strip.background = element_blank(), axis.text = element_blank()) +
@@ -242,8 +237,8 @@ p_ser_box <- faint() +
 
 ggsave(file.path(img_out, "fig-mb-sites-coupling-v2.png"),
        (p_map + p_ser_box + plot_layout(widths = c(1, 1.7))) /
-         make_coupling(win = TRIM, framed = TRUE) + plot_layout(heights = c(1, 1)),
-       width = FIG_W, height = 6.2, dpi = 450)
+         make_coupling(framed = TRUE) + plot_layout(heights = c(1, 1)),
+       width = 6, height = 5, dpi = 450)
 
 cat("Wrote fig-mb-sites.png, fig-mb-coupling.png,",
     "fig-mb-sites-coupling-v1.png, fig-mb-sites-coupling-v2.png\n")
