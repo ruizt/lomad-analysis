@@ -25,15 +25,7 @@ map_dir <- "_map";             fs::dir_create(map_dir)
 # these two variables. Deliberately not the muted pair the seasonality raster
 # uses for the two stations -- same family, but not the same colours, so a
 # reader cannot carry "red = pH" across into a figure where red means Bay Mouth.
-VAR_PAL <- c(DO = "blue", pH = "red")
-
-# Line widths in mm, shared by every figure that shows these series. ggplot's
-# linewidth is already mm; base R lwd is in 1/96 inch, so example-figure.R
-# converts. All three figures export 7 inches wide so a common width in mm
-# renders at a common width on the page.
-LW_MA  <- 0.45   # moving averages
-LW_OBS <- 0.30   # the 6-hourly presmoothed observations
-FIG_W  <- 7
+# Palette, line widths and theme come from utils.R, shared with example-figure.R
 STN <- tibble(
   station = c("Bay Mouth (BM)", "Bay Head (BH)"),
   lon = c(-(120 + 51/60 + 32.04/3600), -(120 + 50/60 + 50.28/3600)),
@@ -49,9 +41,7 @@ compass_star <- function(cx, cy, r) {
 }
 STAR <- compass_star(-120.8035, 35.3195, 0.0075)
 
-ggthm <- theme_minimal(base_size = 9) +
-  theme(panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(linewidth = 0.1, colour = "darkgray"))
+ggthm <- fig_theme()
 
 # ---- shapefile --------------------------------------------------------------
 

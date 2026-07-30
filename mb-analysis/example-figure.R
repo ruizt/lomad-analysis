@@ -7,20 +7,20 @@
 #   mb-analysis/_img/fig-mb-example.png
 #
 # Same data, h, s and alpha as vignette("lomad"), so the paper and the package
-# show the reader the same fit. The two panels are drawn here rather than by
-# lomad_plot() only because the paper wants a colour legend and different axis
-# labels, neither of which that function exposes; the layout, colours and
-# shading convention are otherwise its.
+# report the same fit. Drawn in ggplot rather than with lomad_plot() so it
+# matches the other Morro Bay figures: palette, line widths and theme come from
+# utils.R. The two-panel layout and the shading convention are lomad_plot()'s.
 #
 # Note this reads the INSTALLED package's data, not anything in this repo. A
 # stale install silently draws a different block, so the fit is checked against
 # what the vignette reports before anything is written.
 
-suppressPackageStartupMessages(library(lomad))
+suppressPackageStartupMessages({
+  library(tidyverse); library(patchwork); library(lomad)
+})
+source("mb-analysis/utils.R")
 
-img_out <- "mb-analysis/_img"
-fs::dir_create(img_out)
-
+img_out <- "mb-analysis/_img"; fs::dir_create(img_out)
 H <- 4L; S <- 60L; ALPHA <- 0.05
 
 fit <- lomad_fit(morro_bay$o2, morro_bay$ph, h = H, s = S)
@@ -36,72 +36,59 @@ rejected <- replace(tst$rejected, is.na(tst$rejected), FALSE)
 t_idx    <- morro_bay$datetime
 
 # A rejection at t concerns the window ending at t, so the upper panel shades
-# back to t - s + 1 while the lower panel shades t itself. Taken from the
-# package so the two figures cannot disagree about which window a flag means.
-rej_upper <- lomad:::.rejected_window_span(rejected, S)
-
-crit <- fit$rho + qnorm(tst$alpha_eff) * sqrt(fit$V / S)
-
-shade_runs <- function(flag) {
-  r  <- rle(flag); en <- cumsum(r$lengths); st <- en - r$lengths + 1L
-  cbind(st[r$values], en[r$values])
+# back to t - s + 1 while the lower panel shades t itself. The span comes from
+# the package, so this figure and the vignette cannot disagree about which
+# window a flag refers to.
+runs <- function(flag) {
+  r <- rle(flag); en <- cumsum(r$lengths); st <- en - r$lengths + 1L
+  tibble(xmin = t_idx[st[r$values]], xmax = t_idx[en[r$values]])
 }
-# Shade to the panel's own limits. An arbitrary large y range (+/-1e6) silently
-# draws nothing where the panel's user span is small -- the correlation panel
-# spans about 1.1 units against the upper panel's 4.3, and the same 1e6 maps to
-# a device coordinate several times larger there and is dropped.
-draw_shade <- function(flag, col) {
-  yr <- par("usr")[3:4]
-  for (i in seq_len(nrow(sp <- shade_runs(flag))))
-    rect(t_idx[sp[i, 1]], yr[1], t_idx[sp[i, 2]], yr[2], col = col, border = NA)
-}
+shade_up <- runs(lomad:::.rejected_window_span(rejected, S))
+shade_lo <- runs(rejected)
 
-# Fill transparency, not the FDR level -- lomad_plot() takes these as separate
-# arguments and reusing ALPHA here shaded at 0.05 instead of 0.25.
-shade_col <- rgb(0.7, 0.85, 1, 0.25)
-# Match intro-figures.R. lwd is in 1/96 inch (0.2646 mm), so a width given in
-# mm has to be converted; ggplot's linewidth is mm already.
-MM   <- 1 / 0.2646
-LWD_MA <- 0.45 * MM
-col_do    <- "blue"
-col_ph    <- "red"
-col_trend <- rgb(0.4, 0.4, 0.4, 0.8)
+d <- tibble(datetime = t_idx, DO = fit$ma1, pH = fit$ma2, trend = fit$trend,
+            R = fit$R, rho = fit$rho,
+            crit = fit$rho + qnorm(tst$alpha_eff) * sqrt(fit$V / S))
+ma <- d |> select(datetime, DO, pH) |>
+  pivot_longer(-datetime, names_to = "var", values_to = "z")
 
-png(file.path(img_out, "fig-mb-example.png"),
-    width = 7, height = 4.5, units = "in", res = 450)
-op <- par(no.readonly = TRUE)
-par(mfrow = c(2, 1), oma = c(3, 0, 0, 0))
+p_up <- ggplot() +
+  geom_rect(data = shade_up, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+            fill = SHADE, alpha = 0.45) +
+  geom_line(data = d, aes(datetime, trend), colour = "grey45",
+            linewidth = LW_MA * 0.8) +
+  geom_line(data = ma, aes(datetime, z, colour = var), linewidth = LW_MA) +
+  scale_colour_manual(values = VAR_PAL, name = NULL) +
+  scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
+  fig_theme() +
+  theme(legend.position = c(0.995, 0.98), legend.justification = c(1, 1),
+        legend.direction = "vertical",
+        legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
+        legend.key.width = unit(0.22, "in"),
+        axis.text.x = element_blank(), axis.text.y = element_blank()) +
+  labs(x = NULL, y = "Moving averages")
 
-# ---- upper: moving averages -------------------------------------------------
-par(mar = c(0, 4, 2, 1))
-yl <- range(c(fit$ma1, fit$ma2), na.rm = TRUE)
-plot(t_idx, fit$ma1, type = "n", ylim = yl + c(-1, 1) * diff(yl) * 0.05,
-     xlab = "", ylab = "Moving averages", xaxt = "n")
-draw_shade(rej_upper, shade_col)
-lines(t_idx, fit$ma1,  col = col_do,    lwd = LWD_MA)
-lines(t_idx, fit$ma2,  col = col_ph,    lwd = LWD_MA)
-lines(t_idx, fit$trend, col = col_trend, lwd = LWD_MA * 0.8)
-legend("bottomleft", legend = c("DO", "pH"), col = c(col_do, col_ph),
-       lwd = 1.5, horiz = TRUE, bty = "n", cex = 0.9)
+# The band is the region between rho and the critical value below which R is
+# flagged. Both move with t, which is why the deepest dip in R need not be the
+# flagged one. Correlation keeps its tick labels: unlike a standardized
+# anomaly, the value is directly interpretable.
+p_lo <- ggplot() +
+  geom_rect(data = shade_lo, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+            fill = SHADE, alpha = 0.45) +
+  geom_ribbon(data = filter(d, !is.na(crit), !is.na(rho)),
+              aes(datetime, ymin = crit, ymax = rho), fill = "grey55", alpha = 0.25) +
+  geom_hline(yintercept = 0, colour = "grey80", linewidth = 0.2) +
+  geom_line(data = d, aes(datetime, rho), colour = "grey30", linetype = "dashed",
+            linewidth = LW_MA * 0.8) +
+  geom_line(data = d, aes(datetime, R), colour = "grey15", linewidth = LW_MA) +
+  scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
+  fig_theme() +
+  labs(x = NULL, y = "Correlation series")
 
-# ---- lower: correlation -----------------------------------------------------
-par(mar = c(0, 4, 0, 1))
-rng <- range(c(fit$R, fit$rho, crit), na.rm = TRUE)
-plot(t_idx, fit$R, type = "n",
-     ylim = c(min(rng[1], -0.1) - 0.05, max(rng[2], 0.1) + 0.05),
-     xlab = "", ylab = "Correlation series", xaxt = "n")
-draw_shade(rejected, shade_col)
-ok <- which(!is.na(crit) & !is.na(fit$rho))
-polygon(c(t_idx[ok], rev(t_idx[ok])), c(crit[ok], rev(fit$rho[ok])),
-        col = rgb(0.55, 0.55, 0.55, 0.22), border = NA)
-lines(t_idx, fit$R,   col = "grey40")
-lines(t_idx, fit$rho, col = "grey30", lty = 2)
-abline(h = 0, col = "grey80", lwd = 0.5)
-axis.POSIXct(1, x = t_idx)
+ggsave(file.path(img_out, "fig-mb-example.png"),
+       p_up / p_lo + plot_layout(heights = c(1.35, 1)),
+       width = FIG_W, height = 4.2, dpi = 450)
 
-par(op); invisible(dev.off())
-
-cat(sprintf("Wrote %s/fig-mb-example.png -- %d rows, %s to %s, %d of %d flagged\n",
-            img_out, nrow(morro_bay),
-            as.Date(min(t_idx)), as.Date(max(t_idx)),
+cat(sprintf("Wrote fig-mb-example.png -- %d rows, %s to %s, %d of %d flagged\n",
+            nrow(morro_bay), as.Date(min(t_idx)), as.Date(max(t_idx)),
             sum(rejected), length(fit$valid_idx)))

@@ -136,3 +136,21 @@ pool_arma_noise <- function(fits, blocks, p_max = 5L) {
 
   list(pool_one("series1"), pool_one("series2"))
 }
+
+
+# --- Shared figure aesthetics -------------------------------------------------
+# Used by the figures that show the same Morro Bay series, so they render alike.
+# Line widths are mm (ggplot's linewidth unit); base R lwd is 1/96 inch, so it
+# needs LW / 0.2646.
+
+VAR_PAL <- c(DO = "blue", pH = "red")   # variables, not stations
+LW_MA   <- 0.45                         # moving averages
+LW_OBS  <- 0.30                         # 6-hourly presmoothed observations
+FIG_W   <- 7                            # export width, so scaling is uniform
+SHADE   <- "#B3D9FF"                    # flagged-window fill
+
+fig_theme <- function(base = 9) {
+  theme_minimal(base_size = base) +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major = element_line(linewidth = 0.1, colour = "darkgray"))
+}
