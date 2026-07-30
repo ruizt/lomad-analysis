@@ -154,7 +154,8 @@ p_cpl <- ggplot() +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
   coord_cartesian(ylim = c(min(d$DO, d$pH, na.rm = TRUE), ay + 0.85)) +
   ggthm +
-  theme(legend.position = c(0.06, 0.13), legend.direction = "horizontal",
+  theme(legend.position = c(0.995, 0.98), legend.justification = c(1, 1),
+        legend.direction = "horizontal",
         legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
         legend.key.width = unit(0.22, "in"),
         axis.text.y = element_blank()) +
