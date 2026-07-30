@@ -227,7 +227,7 @@ make_lomad_plot_data <- function(loc_name, results) {
 }
 
 # Returns the two panels rather than a composed plot so both stations can stack.
-STATION_NAME <- c(BM1 = 'Bay Mouth (BM)', BS1 = 'Bay South (BS)')
+STATION_NAME <- c(BM1 = 'Bay Mouth (BM)', BS1 = 'Bay Head (BH)')
 
 make_lomad_ggplot <- function(pd, loc) {
   shade_up  <- pd$shade |> filter(panel == 'upper')
@@ -416,7 +416,7 @@ write_csv(
 # Phenology raster: day of year across, year down, upper lane BM, lower lane BS.
 # Grey is every window the test reached a decision on, which excludes the
 # leading s + h - 2 points of each block.
-pal <- c(BM = '#C44E52', BS = '#4C72B0')
+pal <- c(BM = '#C44E52', BH = '#4C72B0')
 
 # Shared x geometry. Tiles are centred on integer doy with width 1, so a
 # month's visual centre sits half a day right of its arithmetic midpoint.
@@ -430,7 +430,7 @@ X_LIM       <- c(-2, 366)   # shared, not just breaks: expand() is relative to
 ras <- wv |>
   mutate(year    = year(datetime), doy = yday(datetime),
          lane    = year + ifelse(location == 'BM1', -0.19, 0.19),
-         station = sub('1$', '', location))
+         station = c(BM1 = 'BM', BS1 = 'BH')[location])
 
 lanes <- distinct(ras, lane, station)
 

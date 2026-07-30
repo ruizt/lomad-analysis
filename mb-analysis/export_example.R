@@ -32,8 +32,8 @@ source("mb-analysis/utils.R")   # presmooth_tidal()
 # clamp phi_hat at its lower bound, and example data should not greet a user
 # with a warning that the noise model may be misspecified.
 #
-# Bay Mouth rather than Bay South because Bay South records detections in only
-# two of its analysable blocks, both very long; a short Bay South example would
+# Bay Mouth rather than Bay Head because Bay Head records detections in only
+# two of its analysable blocks, both very long; a short Bay Head example would
 # show the method finding nothing.
 KEEP_LOCATION <- "BM1"
 PERIODS   <- list(c("2022-08-20", "2022-10-20"))
