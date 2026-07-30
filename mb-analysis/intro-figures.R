@@ -41,27 +41,14 @@ compass_star <- function(cx, cy, r) {
 }
 STAR <- compass_star(-120.8035, 35.3195, 0.0075)
 
-ggthm <- fig_theme()
+PANEL_FILL <- "grey92"   # ground the lower panel is drawn on
 
-# The sub-window the lower row of the composite shows: a week trimmed off each
-# end of the block, which keeps the episode centred with context either side.
-# Snapped to observation times, not to the nominal date. With no expansion the
-# lower panel spans its first and last observation, so a nominal window would
-# leave the box a few hours wider than the panel it marks.
-TRIM      <- local({
-  nom <- range(morro_bay$datetime) + c(7, -7) * 86400
-  range(morro_bay$datetime[morro_bay$datetime >= nom[1] &
-                           morro_bay$datetime <= nom[2]])
-})
-TRIM_FILL <- "grey92"
-
-# No grid, with a border, for the composite. A grid across a shaded panel reads
-# as two competing backgrounds.
-# panel.grid.major has to be blanked by name: fig_theme() sets it explicitly,
-# and ggplot does not let a parent element override an explicitly-set child.
-fig_theme_framed <- function(fill = NA, grid = FALSE, border = TRUE) fig_theme() +
-  theme(panel.grid.major = if (grid) element_line(linewidth = 0.1, colour = "grey65")
-                           else element_blank(),
+# `grid` takes a colour or FALSE. panel.grid.major has to be set by name:
+# fig_theme() sets it explicitly, and ggplot does not let a parent element
+# override an explicitly-set child, so theme(panel.grid = ...) is ignored.
+fig_panel <- function(fill = NA, grid = FALSE, border = TRUE) fig_theme() +
+  theme(panel.grid.major = if (isFALSE(grid)) element_blank()
+                           else element_line(linewidth = 0.1, colour = grid),
         panel.grid.minor = element_blank(),
         panel.background = element_rect(fill = fill, colour = NA),
         panel.border = if (border) element_rect(fill = NA, colour = "grey40",
@@ -132,25 +119,22 @@ ser_dat <- pres |>
   pivot_longer(c(o2, ph), names_to = "var", values_to = "z") |>
   mutate(var = c(o2 = "DO", ph = "pH")[var])
 
-make_series <- function(alpha = 1) ser_dat |>
+p_ser <- ser_dat |>
   # grouped on the block too, so the line breaks at gaps instead of
   # interpolating across them
   ggplot(aes(datetime, z, colour = var, group = interaction(var, station, blk))) +
-  geom_line(linewidth = LW_OBS, alpha = alpha) +
+  geom_line(linewidth = LW_OBS, alpha = 0.35) +
   facet_grid(station ~ .) +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
-  ggthm + theme(legend.position = "top",
-                strip.text.y = element_text(angle = -90),
-                strip.background = element_blank(),
-                axis.text.y = element_blank()) +
+  guides(colour = "none") +
+  # a faint grid, but no tick labels: the values are standardized anomalies and
+  # the panel is context for the row below
+  fig_panel(grid = "grey88", border = FALSE) +
+  theme(strip.text.y = element_text(angle = -90),
+        strip.background = element_blank(),
+        axis.text = element_blank()) +
   labs(x = NULL, y = NULL)
-
-p_ser <- make_series()
-
-ggsave(file.path(img_out, "fig-mb-sites.png"),
-       p_map + p_ser + plot_layout(widths = c(1, 1.7)),
-       width = FIG_W, height = 3.1, dpi = 450)
 
 # ---- coupling / decoupling -------------------------------------------------
 
@@ -170,75 +154,51 @@ ann <- tibble(x0 = c(brk - gap, brk + gap), x1 = c(brk - gap - len, brk + gap + 
               label = c("decoupled", "coupled"))
 ann$mid <- ann$x0 + (ann$x1 - ann$x0) / 2
 
-# `win` filters rather than clips, and the scale takes no expansion, so the panel
-# spans exactly the window the box above it marks. coord_cartesian alone left
-# default padding on both sides, which is why the two did not line up.
-make_coupling <- function(win = NULL, framed = FALSE) {
-  keep <- function(x) if (is.null(win)) x else
-    dplyr::filter(x, datetime >= win[1], datetime <= win[2])
-  ggplot() +
+p_cpl <- ggplot() +
   geom_vline(xintercept = brk, linetype = "dashed", colour = "grey35", linewidth = 0.45) +
-  geom_line(data = keep(raw), aes(datetime, z, colour = var), linewidth = LW_OBS, alpha = 0.3) +
-  geom_line(data = keep(ma),  aes(datetime, z, colour = var), linewidth = LW_MA) +
+  geom_line(data = raw, aes(datetime, z, colour = var), linewidth = LW_OBS, alpha = 0.3) +
+  geom_line(data = ma,  aes(datetime, z, colour = var), linewidth = LW_MA) +
   geom_segment(data = ann, aes(x = x0, xend = x1, y = ay, yend = ay),
                arrow = arrow(length = unit(0.055, "in"), type = "closed"),
                colour = "grey35", linewidth = 0.35) +
   geom_text(data = ann, aes(mid, ay + 0.4, label = label), size = 3.2, colour = "grey20") +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
-  scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b",
-                   expand = if (is.null(win)) waiver() else expansion(0)) +
+  scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
   # Station named on the right, matching the facet strips in the row above. A
   # duplicated axis with no breaks or labels is just the title.
   scale_y_continuous(sec.axis = dup_axis(name = "Bay Mouth (BM)",
                                          breaks = NULL, labels = NULL)) +
-  coord_cartesian(xlim = win,
-                  ylim = c(min(d$DO, d$pH, na.rm = TRUE), ay + 0.85)) +
-  (if (framed) fig_theme_framed(TRIM_FILL, grid = TRUE) else ggthm) +
+  coord_cartesian(ylim = c(min(d$DO, d$pH, na.rm = TRUE), ay + 0.85)) +
+  fig_panel(PANEL_FILL, grid = "grey65") +
   theme(legend.position = c(0.995, 0.98), legend.justification = c(1, 1),
         legend.direction = "vertical",
         legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
         legend.key.width = unit(0.22, "in"),
-        axis.text.y = element_blank()) +
+        axis.text.y = element_blank(),
+        # with no tick labels the default title margin leaves a wide gutter
+        # vjust nudges a rotated title horizontally. It is the only lever here: the
+        # gutter's width is set by the map's latitude labels, which patchwork
+        # matches across both rows.
+        axis.title.y       = element_text(margin = margin(r = 1), vjust = 0),
+        axis.title.y.right = element_text(margin = margin(l = 1))) +
   labs(x = NULL, y = "Moving average")
-}
-
-ggsave(file.path(img_out, "fig-mb-coupling.png"), make_coupling(),
-       width = FIG_W, height = 3.2, dpi = 450)
 
 # ---- the two stacked ---------------------------------------------------------
-# The site series go faint here, matching the background of the coupling panel
+# Faint, matching the background of the coupling panel
 # below: the top row is context for the block, the bottom row is the point.
 # Its legend is dropped rather than collected, since the coupling panel already
 # carries one inside its own bounds.
 
-# ---- the two stacked, in two variants --------------------------------------
-# v1: both rows over the whole block, gridded, unframed. Reads as two views of
-#     the same window.
-# v2: gridless unframed upper row over the whole block; the lower panel is
-#     trimmed to a sub-window and drawn on a shaded ground, which is what
-#     separates it from the row above.
-#
-# Both drop the site legend rather than collecting it: the coupling panel
-# carries one inside its own bounds, and collecting would take width from the
-# map.
-
-faint <- function() make_series(alpha = 0.35) + guides(colour = "none")
-
-ggsave(file.path(img_out, "fig-mb-sites-coupling-v1.png"),
-       (p_map + faint() + plot_layout(widths = c(1, 1.7))) /
-         make_coupling() + plot_layout(heights = c(1, 1)),
-       width = FIG_W, height = 6.2, dpi = 450)
-
-p_ser_box <- faint() +
-  fig_theme_framed(border = FALSE) +
-  theme(legend.position = "none", strip.text.y = element_text(angle = -90),
-        strip.background = element_blank(), axis.text = element_blank()) +
-  labs(x = NULL, y = NULL)
+# ---- the figure -------------------------------------------------------------
+# Map and both stations over the block, above Bay Mouth's moving averages for
+# the same window. The lower panel is drawn on a shaded ground, which is what
+# separates it from the row above. Its legend sits inside its own bounds, so the
+# site panel drops one rather than collecting it, which would take width from
+# the map.
 
 ggsave(file.path(img_out, "fig-mb-sites-coupling-v2.png"),
-       (p_map + p_ser_box + plot_layout(widths = c(1, 1.7))) /
-         make_coupling(framed = TRUE) + plot_layout(heights = c(1, 1)),
+       (p_map + p_ser + plot_layout(widths = c(1, 1.7))) / p_cpl +
+         plot_layout(heights = c(1, 1)),
        width = 6, height = 5, dpi = 450)
 
-cat("Wrote fig-mb-sites.png, fig-mb-coupling.png,",
-    "fig-mb-sites-coupling-v1.png, fig-mb-sites-coupling-v2.png\n")
+cat("Wrote fig-mb-sites-coupling-v2.png\n")
