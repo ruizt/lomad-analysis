@@ -148,7 +148,7 @@ ma  <- d |> select(datetime, ma_DO, ma_pH) |>
   pivot_longer(-datetime, names_to = "var", values_to = "z") |>
   mutate(var = sub("^ma_", "", var))
 
-ytop <- max(d$DO, d$pH, na.rm = TRUE); ay <- ytop + 0.5
+ay <- max(d$DO, d$pH, na.rm = TRUE) + 0.5   # annotation row, above the series
 gap <- as.difftime(1, units = "days"); len <- as.difftime(5.5, units = "days")
 ann <- tibble(x0 = c(brk - gap, brk + gap), x1 = c(brk - gap - len, brk + gap + len),
               label = c("decoupled", "coupled"))
