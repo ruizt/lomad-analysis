@@ -224,8 +224,8 @@ faint <- function() make_series(alpha = 0.35) + guides(colour = "none")
 
 ggsave(file.path(img_out, "fig-mb-sites-coupling-v1.png"),
        (p_map + faint() + plot_layout(widths = c(1, 1.7))) /
-         make_coupling() + plot_layout(heights = c(2, 1)),
-       width = FIG_W, height = 6.6, dpi = 450)
+         make_coupling() + plot_layout(heights = c(1, 1)),
+       width = FIG_W, height = 6.2, dpi = 450)
 
 box <- tibble(x1 = TRIM[1], x2 = TRIM[2],
               station = factor("Bay Mouth (BM)", levels = levels(ser_dat$station)))
@@ -242,8 +242,8 @@ p_ser_box <- faint() +
 
 ggsave(file.path(img_out, "fig-mb-sites-coupling-v2.png"),
        (p_map + p_ser_box + plot_layout(widths = c(1, 1.7))) /
-         make_coupling(win = TRIM, framed = TRUE) + plot_layout(heights = c(2, 1)),
-       width = FIG_W, height = 6.6, dpi = 450)
+         make_coupling(win = TRIM, framed = TRUE) + plot_layout(heights = c(1, 1)),
+       width = FIG_W, height = 6.2, dpi = 450)
 
 cat("Wrote fig-mb-sites.png, fig-mb-coupling.png,",
     "fig-mb-sites-coupling-v1.png, fig-mb-sites-coupling-v2.png\n")
