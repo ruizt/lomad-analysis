@@ -7,10 +7,13 @@ img_out <- 'mb-analysis/_img'
 fs::dir_create(img_out)
 
 # ggplot theming
-ggthm <- theme_bw() +
+source(here::here('figure-theme.R'))   # PT, ANNOT, fig_sizes()
+
+ggthm <- theme_bw(base_size = PT$title) +
   theme(panel.grid.minor = element_blank(),
         panel.grid.major.x = element_blank(),
-        panel.grid.major.y = element_line(color = 'black', linewidth = 0.1))
+        panel.grid.major.y = element_line(color = 'black', linewidth = 0.1)) +
+  fig_sizes()
 
 # --- Data -------------------------------------------------------------------
 
@@ -250,9 +253,7 @@ make_lomad_ggplot <- function(pd, loc) {
     theme(axis.text.x  = element_blank(),
           axis.ticks.x = element_blank(),
           strip.text   = element_blank(),
-          axis.title.y = element_text(size = 8),
-          axis.text.y  = element_text(size = 7),
-          plot.title   = element_text(size = 9, face = 'plain')) +
+          plot.title = element_text(face = 'plain')) +
     labs(x = NULL, y = 'moving averages', title = STATION_NAME[[loc]])
 
   p_lo <- ggplot(pd$main, aes(x = datetime)) +
@@ -265,11 +266,8 @@ make_lomad_ggplot <- function(pd, loc) {
     facet_grid(~block_id, scales = 'free_x', space = 'free_x') +
     scale_x_datetime(breaks = function(x) mean(x), date_labels = '%b %Y') +
     ggthm +
-    theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, hjust = 1,
-                                      size = 6),
-          axis.title.y = element_text(size = 8),
-          axis.text.y  = element_text(size = 7),
-          strip.text   = element_blank()) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+          strip.text  = element_blank()) +
     labs(x = NULL, y = 'correlation')
 
   list(up = p_up, lo = p_lo)
@@ -439,7 +437,7 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
   geom_tile(data = filter(ras, rejected), aes(fill = station),
             height = 0.34, width = 1) +
   geom_text(data = lanes, aes(x = -2, y = lane, label = station),
-            inherit.aes = FALSE, hjust = 1, size = 2.5, colour = 'grey35') +
+            inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = 'grey35') +
   scale_fill_manual(values = pal,
                     labels = paste(names(pal), 'detection')) +
   scale_x_continuous(breaks = MONTH_MID, labels = month.abb,

@@ -149,8 +149,4 @@ LW_OBS  <- 0.30                         # 6-hourly presmoothed observations
 FIG_W   <- 7                            # export width, so scaling is uniform
 SHADE   <- "#B3D9FF"                    # flagged-window fill
 
-fig_theme <- function(base = 9) {
-  theme_minimal(base_size = base) +
-    theme(panel.grid.minor = element_blank(),
-          panel.grid.major = element_line(linewidth = 0.1, colour = "darkgray"))
-}
+source(here::here("figure-theme.R"))   # PT, ANNOT, fig_theme(), fig_sizes()

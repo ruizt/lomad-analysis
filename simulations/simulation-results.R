@@ -39,6 +39,7 @@ suppressPackageStartupMessages({
   library(ggh4x)
   library(patchwork)
 })
+source(here::here("figure-theme.R"))   # PT, ANNOT, fig_sizes()
 
 IMG_DIR <- "simulations/_img"
 TBL_DIR <- "simulations/_tbl"
@@ -112,17 +113,17 @@ y_lim <- y_lim + c(-y_pad, y_pad)
 
 # ---- Shared themes -----------------------------------------------------
 
-theme_top <- theme_minimal(base_size = 9) +
+theme_top <- theme_minimal(base_size = PT$title) +
   theme(
     legend.position  = "none",
     axis.title.x     = element_blank(),
     axis.text.x      = element_blank(),
     axis.ticks.x     = element_blank(),
-    plot.title       = element_text(size = 9, face = "bold"),
+    plot.title       = element_text(face = "bold"),
     panel.grid.minor = element_blank()
   )
 
-theme_bot <- theme_minimal(base_size = 9) +
+theme_bot <- theme_minimal(base_size = PT$title) +
   theme(
     panel.grid.minor = element_blank(),
     axis.text.x      = element_blank(),
@@ -217,7 +218,7 @@ comp_cross <- panel_top_struct(tr_cross, struct_title("cross"),
 
 fig_1x4 <- comp_dist | comp_rate | comp_smooth | comp_cross
 ggsave(file.path(IMG_DIR, "fig-trends.png"),
-         fig_1x4, width = 8.6, height = 2.5, units = "in", dpi = 400)
+         fig_1x4, width = 6, height = 2.5, units = "in", dpi = 400)
 
 })
 
@@ -250,7 +251,7 @@ p <- results_summary |>
   geom_ribbon(aes(ymin = ci_lo, ymax = ci_hi, fill = struct),
               alpha = 0.2, colour = NA) +
   geom_text(data = oracle_note, aes(x = d, y = detection, label = label),
-            inherit.aes = FALSE, hjust = 0, size = 2.8, colour = "grey30") +
+            inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey30") +
   scale_y_continuous(limits = c(0, 1)) +
   scale_colour_manual(values = STRUCT_PAL) +
   scale_fill_manual(values = STRUCT_PAL) +
@@ -264,15 +265,14 @@ p <- results_summary |>
   )) +
   labs(x = "Separation (d)", y = "Power",
        colour = "Structure", fill = "Structure") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = PT$title) +
   theme(legend.position = "right",
-        axis.text = element_text(size = 8),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
 
   ggsave(file.path(IMG_DIR, "fig-power.png"), p,
-         width = 9, height = 4, dpi = 450)
+         width = 6, height = 3, dpi = 450)
 
   p
 })
@@ -359,9 +359,9 @@ p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
               colour = "grey70", linewidth = 0.3) +
   geom_path(linewidth = 0.6, alpha = 0.85) +
   geom_text(data = oracle_note_loc, aes(x = xx, y = yy, label = label),
-            inherit.aes = FALSE, hjust = 1, size = 2.8, colour = "grey30") +
+            inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey30") +
   geom_text(data = auc_panel, aes(x = xx, y = yy, label = label),
-            inherit.aes = FALSE, hjust = 1, size = 2.6, colour = "grey20") +
+            inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey20") +
   facet_nested(phi ~ snr + s_win, labeller = labeller(
     phi   = function(x) paste0("phi == ", x),
     snr   = function(x) paste0("SNR == ", x),
@@ -373,9 +373,8 @@ p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
   scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
   scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
   labs(x = xlab, y = ylab, colour = "Structure") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = PT$title) +
   theme(legend.position = "right",
-        axis.text = element_text(size = 8),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
@@ -434,7 +433,7 @@ p_profile <- local({
                linewidth = 0.3) +
     geom_line(linewidth = 0.6, alpha = 0.9) +
     geom_text(data = oracle_note_prof, aes(x = mid, y = rate, label = label),
-              inherit.aes = FALSE, hjust = 1, size = 2.8, colour = "grey30") +
+              inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey30") +
     facet_nested(phi ~ snr + s_win, labeller = labeller(
       phi   = function(x) paste0("phi == ", x),
       snr   = function(x) paste0("SNR == ", x),
@@ -446,10 +445,9 @@ p_profile <- local({
     scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
     labs(x = "Windowed maximum separation", y = "Rejection probability",
          colour = "Structure") +
-    theme_minimal(base_size = 12) +
+    theme_minimal(base_size = PT$title) +
     theme(legend.position = "right",
-          axis.text = element_text(size = 8),
-          panel.grid.minor = element_blank(),
+            panel.grid.minor = element_blank(),
           panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
   ggsave(file.path(IMG_DIR, "fig-profile.png"), p,
@@ -488,20 +486,15 @@ p_profile <- local({
 # =============================================================================
 
 local({
-  # Each sub-figure is 9x4 on its own. Three of those is 12 inches tall, past a
-  # printable page, so the composite is built at the size it will be placed at
-  # and the text scaled to match rather than letting LaTeX shrink it.
-  shrink <- theme(axis.text    = element_text(size = 6),
-                  axis.title   = element_text(size = 8),
-                  strip.text   = element_text(size = 7),
-                  legend.text  = element_text(size = 8),
-                  legend.title = element_text(size = 9),
-                  plot.tag     = element_text(size = 11, face = "bold"))
+  # Sub-figure text is already at the shared sizes; the composite only needs
+  # its annotations brought back to them, since the standalone panels set
+  # their own.
+  shrink <- theme()
 
-  # In-panel annotations are positioned in data units with hjust = 1, so at a
-  # third of the standalone width they overrun the panel -- "mean AUC" was
-  # rendering as "ean AUC". Shrinking the text shrinks its extent.
-  shrink_annotations <- function(p, size = 1.9) {
+  # In-panel annotations sit at data coordinates with hjust = 1, so at a third
+  # of the standalone width they can overrun the panel -- "mean AUC" once
+  # rendered as "ean AUC".
+  shrink_annotations <- function(p, size = ANNOT) {
     for (i in seq_along(p$layers))
       if (inherits(p$layers[[i]]$geom, "GeomText"))
         p$layers[[i]]$aes_params$size <- size
@@ -539,11 +532,12 @@ local({
   results <- readRDS("simulations/validation/results/simulations-validation-results.rds")
 # ---- Shared theme ------------------------------------------------------------
 
-base_theme <- theme_bw(base_size = 10) +
+base_theme <- theme_bw(base_size = PT$title) +
   theme(
     panel.grid.minor = element_blank(),
     strip.background = element_rect(fill = "grey92")
-  )
+  ) +
+  fig_sizes()
 
 col_th  <- "firebrick"
 col_emp <- "grey60"
@@ -615,7 +609,6 @@ p_rho <- ggplot() +
     legend.background = element_blank(),
     legend.key = element_blank(),
     legend.title = element_blank(),
-    legend.text = element_text(size = 7),
     legend.key.size = unit(0.4, "cm")
   )
 
@@ -681,7 +674,6 @@ p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
     legend.background = element_blank(),
     legend.key = element_blank(),
     legend.title = element_blank(),
-    legend.text = element_text(size = 7),
     legend.key.size = unit(0.35, "cm")
   ) +
   guides(colour = guide_legend(override.aes = list(size = 1.5, alpha = 1)))
@@ -755,7 +747,7 @@ DDDEEE
 full_fig <- row_a + p_rho + p_v + p_qq + p_cov +
   plot_layout(design = design) +
   plot_annotation(
-    theme = theme(plot.tag = element_text(size = 12, face = "bold"))
+    theme = theme(plot.tag = element_text(size = PT$ltitle, face = "bold"))
   )
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),

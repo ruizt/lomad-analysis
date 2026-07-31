@@ -87,7 +87,7 @@ p_lo <- ggplot() +
 
 ggsave(file.path(img_out, "fig-mb-example.png"),
        p_up / p_lo + plot_layout(heights = c(1.35, 1)),
-       width = FIG_W, height = 4.2, dpi = 450)
+       width = 5, height = 3, dpi = 450)
 
 cat(sprintf("Wrote fig-mb-example.png -- %d rows, %s to %s, %d of %d flagged\n",
             nrow(morro_bay), as.Date(min(t_idx)), as.Date(max(t_idx)),

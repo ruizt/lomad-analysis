@@ -87,19 +87,19 @@ p_map <- ggplot() +
   geom_sf(data = stn, size = 2.4, colour = "#B22222") +
   # labels below their points, so the top-right corner stays clear for the inset
   geom_sf_text(data = stn, aes(label = station), nudge_y = -0.0045,
-               size = 2.8, colour = "#B22222", fontface = "bold") +
+               size = ANNOT, colour = "#B22222", fontface = "bold") +
   geom_polygon(data = STAR, aes(x, y), fill = "grey25", colour = "grey25",
                linewidth = 0.2) +
-  annotate("text", x = -120.8035, y = 35.3315, label = "N", size = 2.6,
+  annotate("text", x = -120.8035, y = 35.3315, label = "N", size = ANNOT,
            fontface = "bold", colour = "grey25") +
   coord_sf(xlim = BOX$x, ylim = BOX$y, expand = FALSE) +
   scale_x_continuous(breaks = c(-120.87, -120.83)) +
   scale_y_continuous(breaks = seq(35.32, 35.38, by = 0.02)) +
-  theme_minimal(base_size = 9) +
+  fig_theme() +
   theme(panel.grid = element_line(linewidth = 0.1, colour = "grey85"),
         panel.background = element_rect(fill = "grey88", colour = NA),
         panel.border = element_rect(fill = NA, colour = "grey40", linewidth = 0.3),
-        axis.title = element_blank(), axis.text = element_text(size = 6.5)) +
+        axis.title = element_blank()) +
   inset_element(inset, left = 0.60, bottom = 0.50, right = 0.99, top = 0.99)
 
 # ---- both stations over the example block ----------------------------------
@@ -161,7 +161,7 @@ p_cpl <- ggplot() +
   geom_segment(data = ann, aes(x = x0, xend = x1, y = ay, yend = ay),
                arrow = arrow(length = unit(0.055, "in"), type = "closed"),
                colour = "grey35", linewidth = 0.35) +
-  geom_text(data = ann, aes(mid, ay + 0.4, label = label), size = 3.2, colour = "grey20") +
+  geom_text(data = ann, aes(mid, ay + 0.4, label = label), size = ANNOT, colour = "grey20") +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
   # Station named on the right, matching the facet strips in the row above. A
@@ -196,7 +196,7 @@ p_cpl <- ggplot() +
 # site panel drops one rather than collecting it, which would take width from
 # the map.
 
-ggsave(file.path(img_out, "fig-mb-sites-coupling-v2.png"),
+ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
        (p_map + p_ser + plot_layout(widths = c(1, 1.7))) / p_cpl +
          plot_layout(heights = c(1, 1)),
        width = 6, height = 5, dpi = 450)
