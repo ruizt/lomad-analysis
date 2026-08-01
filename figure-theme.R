@@ -29,7 +29,7 @@ fig_sizes <- function() {
     strip.text   = ggplot2::element_text(size = PT$strip),
     legend.text  = ggplot2::element_text(size = PT$legend),
     legend.title = ggplot2::element_text(size = PT$ltitle),
-    plot.title   = ggplot2::element_text(size = PT$ltitle),
+    plot.title   = ggplot2::element_text(size = PT$title),
     plot.tag     = ggplot2::element_text(size = PT$ltitle))
 }
 
