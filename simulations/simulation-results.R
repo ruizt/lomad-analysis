@@ -126,7 +126,7 @@ panel_top_dist <- function(tr, title) {
     scale_linetype_manual(values = c(x_mean = "dashed", x1 = "solid", x2 = "solid")) +
     scale_alpha_manual(values = c(x_mean = 1, x1 = 0.9, x2 = 0.9)) +
     scale_y_continuous(limits = y_lim) +
-    labs(title = title, y = expression(nu[it])) +
+    labs(title = title, y = expression(mu[it])) +
     theme_top
 }
 
