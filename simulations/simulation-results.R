@@ -119,7 +119,7 @@ theme_top <- theme_minimal(base_size = PT$title) +
     axis.title.x     = element_blank(),
     axis.text.x      = element_blank(),
     axis.ticks.x     = element_blank(),
-    plot.title       = element_text(face = "bold"),
+    plot.title       = element_text(face = "plain"),
     panel.grid.minor = element_blank()
   )
 
@@ -253,6 +253,7 @@ p <- results_summary |>
   geom_text(data = oracle_note, aes(x = d, y = detection, label = label),
             inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey30") +
   scale_y_continuous(limits = c(0, 1)) +
+  scale_x_continuous(breaks = 0:2) +
   scale_colour_manual(values = STRUCT_PAL) +
   scale_fill_manual(values = STRUCT_PAL) +
   scale_linetype_manual(values = ESTIMATION_LTY) +
@@ -260,7 +261,7 @@ p <- results_summary |>
   facet_nested(phi ~ snr + n, labeller = labeller(
     phi = \(x) paste0("phi == ", x),
     snr = \(x) paste0("SNR == ", x),
-    n   = \(x) paste0("T==", x, "*', '~s[T]==", vapply(as.integer(x), s_win_fcn, numeric(1))),
+    n   = \(x) paste0("s[T] == ", vapply(as.integer(x), s_win_fcn, numeric(1))),
     .default = label_parsed
   )) +
   labs(x = "Separation (d)", y = "Power",
@@ -351,7 +352,7 @@ auc_panel <- auc |>
 # so it gets the same one-off inline note instead of a legend that would
 # otherwise apply, misleadingly, to every panel.
 oracle_note_loc <- data.frame(phi = 0.8, snr = 0.5, s_win = 50,
-                               xx = 0.95, yy = 0.05, label = "dashed = oracle")
+                               xx = 0.05, yy = 0.97, label = "dashed = oracle")
 
 p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
                     group = interaction(struct, method))) +
@@ -359,7 +360,7 @@ p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
               colour = "grey70", linewidth = 0.3) +
   geom_path(linewidth = 0.6, alpha = 0.85) +
   geom_text(data = oracle_note_loc, aes(x = xx, y = yy, label = label),
-            inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey30") +
+            inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey30") +
   geom_text(data = auc_panel, aes(x = xx, y = yy, label = label),
             inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey20") +
   facet_nested(phi ~ snr + s_win, labeller = labeller(
@@ -424,7 +425,7 @@ p_profile <- local({
   # size is far below the bin counts and a binomial interval would be badly
   # overconfident.
   oracle_note_prof <- data.frame(phi = 0.8, snr = 0.5, s_win = 50,
-                                 mid = C_MAX, rate = 0.95,
+                                 mid = 0, rate = 0.95,
                                  label = "dashed = oracle")
 
   p <- ggplot(prof, aes(mid, rate, colour = Structure, linetype = method,
@@ -433,7 +434,7 @@ p_profile <- local({
                linewidth = 0.3) +
     geom_line(linewidth = 0.6, alpha = 0.9) +
     geom_text(data = oracle_note_prof, aes(x = mid, y = rate, label = label),
-              inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey30") +
+              inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey30") +
     facet_nested(phi ~ snr + s_win, labeller = labeller(
       phi   = function(x) paste0("phi == ", x),
       snr   = function(x) paste0("SNR == ", x),
@@ -514,11 +515,11 @@ local({
     (shrink_annotations(p_local)   + shrink + drop_guide) /
     (shrink_annotations(p_profile) + shrink + drop_guide) +
     plot_layout(guides = "collect") +
-    plot_annotation(tag_levels = "a", tag_prefix = "(", tag_suffix = ")") &
+    plot_annotation(tag_levels = "A") &
     theme(legend.position = "bottom")
 
   out <- file.path(IMG_DIR, "fig-power-composite.png")
-  ggsave(out, composite, width = 6, height = 8.5, dpi = 450)
+  ggsave(out, composite, width = 6.5, height = 8, dpi = 450)
   cat(sprintf("\nWrote %s\n", out))
 })
 
@@ -532,10 +533,10 @@ local({
   results <- readRDS("simulations/validation/results/simulations-validation-results.rds")
 # ---- Shared theme ------------------------------------------------------------
 
-base_theme <- theme_bw(base_size = PT$title) +
+base_theme <- theme_minimal(base_size = PT$title) +
   theme(
     panel.grid.minor = element_blank(),
-    strip.background = element_rect(fill = "grey92")
+    strip.background = element_rect(fill = "grey92", colour = NA)
   ) +
   fig_sizes()
 
@@ -545,7 +546,22 @@ col_oracle   <- "#0072B2"
 col_pipeline <- "#D55E00"
 
 # ==============================================================================
-# Row (a): CLT QQ plots (oracle, faceted by s)
+# Row (a): the common trend
+# Regenerated rather than stored: sim_trends() is deterministic given the seed,
+# so this is exactly the trend the simulations ran on. d = 0, so both series
+# share it -- which is what makes every window in the study a true null.
+# ==============================================================================
+
+trend_v <- sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)$x1
+
+p_trend <- ggplot(data.frame(t = seq_along(trend_v), nu = trend_v),
+                  aes(t, nu)) +
+  geom_line(colour = "grey25", linewidth = 0.3) +
+  base_theme +
+  labs(x = NULL, y = expression(nu[t]))
+
+# ==============================================================================
+# Row (b): CLT QQ plots (oracle, faceted by s)
 # ==============================================================================
 
 clt_ids <- grep("^clt-", names(results), value = TRUE)
@@ -659,13 +675,13 @@ nn_e <- min(length(Z_oracle), length(Z_pipe))
 qq_e <- data.frame(
   theoretical = rep(qnorm(ppoints(nn_e)), 2),
   empirical   = c(sort(Z_oracle[seq_len(nn_e)]), sort(Z_pipe[seq_len(nn_e)])),
-  type        = rep(c("Oracle", "Pipeline"), each = nn_e)
+  type        = rep(c("Oracle", "End to end"), each = nn_e)
 )
 
 p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   geom_abline(slope = 1, intercept = 0, colour = col_th, linetype = "dashed") +
   geom_point(size = 0.6, alpha = 0.6) +
-  scale_colour_manual(values = c(Oracle = col_oracle, Pipeline = col_pipeline)) +
+  scale_colour_manual(values = c(Oracle = col_oracle, `End to end` = col_pipeline)) +
   labs(x = "Theoretical N(0,1)", y = expression("Empirical" ~ Z[t])) +
   base_theme +
   theme(
@@ -705,7 +721,7 @@ for (j in seq_len(n_pts)) {
     t = eval_pts[j], cov = c_p,
     lo = c_p - 1.96 * sqrt(c_p * (1 - c_p) / n_p),
     hi = c_p + 1.96 * sqrt(c_p * (1 - c_p) / n_p),
-    type = "Pipeline"
+    type = "End to end"
   )
 }
 cov_df <- do.call(rbind, cov_rows)
@@ -717,7 +733,7 @@ p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
   geom_errorbar(aes(ymin = lo, ymax = hi), width = 55,
                 position = dodge, linewidth = 0.5) +
   geom_point(size = 1.5, position = dodge) +
-  scale_colour_manual(values = c(Oracle = col_oracle, Pipeline = col_pipeline)) +
+  scale_colour_manual(values = c(Oracle = col_oracle, `End to end` = col_pipeline)) +
   labs(x = "Time", y = "95% coverage") +
   base_theme +
   theme(legend.position = "none")
@@ -730,28 +746,28 @@ row_c <- p_qq + p_cov
 
 # Use design layout so patchwork can align axes across rows.
 # Row tags are added via labs(tag) on the first panel of each row.
-row_a <- row_a + labs(tag = "a")
-p_rho <- p_rho + labs(tag = "b")
-p_qq  <- p_qq  + labs(tag = "c")
+p_trend <- p_trend + labs(tag = "A")
+row_a   <- row_a   + labs(tag = "B")
+p_rho   <- p_rho   + labs(tag = "C")
+p_qq    <- p_qq    + labs(tag = "D")
 
 design <- "
 AAAAAA
-AAAAAA
-BBBBCC
-BBBBCC
-DDDEEE
-DDDEEE
-DDDEEE
+BBBBBB
+BBBBBB
+CCCCDD
+CCCCDD
+EEEFFF
+EEEFFF
+EEEFFF
 "
 
-full_fig <- row_a + p_rho + p_v + p_qq + p_cov +
+full_fig <- p_trend + row_a + p_rho + p_v + p_qq + p_cov +
   plot_layout(design = design) +
-  plot_annotation(
-    theme = theme(plot.tag = element_text(size = PT$ltitle, face = "bold"))
-  )
+  plot_annotation()
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
-         full_fig, width = 6, height = 6, dpi = 300)
+         full_fig, width = 6, height = 7, dpi = 300)
 })
 
 cat("All figures written to ", IMG_DIR, "\n", sep = "")

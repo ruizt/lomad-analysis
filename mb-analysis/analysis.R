@@ -9,10 +9,13 @@ fs::dir_create(img_out)
 # ggplot theming
 source(here::here('figure-theme.R'))   # PT, ANNOT, fig_sizes()
 
-ggthm <- theme_bw(base_size = PT$title) +
+# theme_minimal like every other figure, with the panel border kept explicitly:
+# it is what theme_bw was supplying here, and the raster reads better framed.
+ggthm <- theme_minimal(base_size = PT$title) +
   theme(panel.grid.minor = element_blank(),
         panel.grid.major.x = element_blank(),
-        panel.grid.major.y = element_line(color = 'black', linewidth = 0.1)) +
+        panel.grid.major.y = element_line(color = 'black', linewidth = 0.1),
+        panel.border = element_rect(fill = NA, colour = 'grey40', linewidth = 0.3)) +
   fig_sizes()
 
 # --- Data -------------------------------------------------------------------

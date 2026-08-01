@@ -30,7 +30,7 @@ fig_sizes <- function() {
     legend.text  = ggplot2::element_text(size = PT$legend),
     legend.title = ggplot2::element_text(size = PT$ltitle),
     plot.title   = ggplot2::element_text(size = PT$ltitle),
-    plot.tag     = ggplot2::element_text(size = PT$ltitle, face = "bold"))
+    plot.tag     = ggplot2::element_text(size = PT$ltitle))
 }
 
 fig_theme <- function() {
