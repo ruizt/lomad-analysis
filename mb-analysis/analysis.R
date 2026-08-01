@@ -517,10 +517,8 @@ make_lomad_plot_data <- function(loc_name, results) {
   for (nm in names(bf)) {
     presm <- loc$blocks_presm[[nm]]
     fit   <- bf[[nm]]$fit
-    n     <- nrow(presm)
     dates <- presm$datetime
     bid   <- presm$block_id[[1]]
-    h     <- fit$inputs$h
 
     rejected <- replace_na(bf[[nm]]$tst$rejected, FALSE)
 
@@ -531,19 +529,21 @@ make_lomad_plot_data <- function(loc_name, results) {
       R = fit$R, rho = fit$rho, rejected = rejected
     )
 
-    rej_shifted <- rep(FALSE, n)
-    for (t in which(rejected))
-      rej_shifted[max(1L, t - (h - 1L)):t] <- TRUE
+    # A rejection at t is evidence about the window {t - s + 1, ..., t}, so the
+    # moving-average panel shades back to the start of that window. Same span
+    # the package uses, so this figure and fig-mb-example agree.
+    rej_shifted <- lomad:::.rejected_window_span(rejected, fit$inputs$s)
 
     shade_list[[paste0(nm, "_up")]] <- add_shade(rej_shifted, dates, bid, "upper")
     shade_list[[paste0(nm, "_lo")]] <- add_shade(rejected, dates, bid, "lower")
 
+    # The index the test first fires at, marked as-is: the shaded run already
+    # covers the window behind it.
     r_rej     <- rle(rejected)
     en_rej    <- cumsum(r_rej$lengths)
     entry_pos <- (en_rej - r_rej$lengths + 1L)[r_rej$values]
-    trig_t    <- pmax(1L, entry_pos - (h - 1L))
-    if (length(trig_t) > 0)
-      trigger_list[[nm]] <- tibble(block_id = bid, datetime = dates[trig_t])
+    if (length(entry_pos) > 0)
+      trigger_list[[nm]] <- tibble(block_id = bid, datetime = dates[entry_pos])
   }
 
   list(main = bind_rows(block_dfs), shade = bind_rows(shade_list),
