@@ -1,9 +1,7 @@
 ## simulation-results.R -- figures and tables for the simulation studies
 ##
-## The cheap stage of the pipeline: reads compiled summaries and precomputed
-## intermediates only, never the raw per-job files, so it runs in seconds and
-## can be re-run freely while drafting. The expensive stages are
-## simulations/<study>/collect-results.R and
+## Reads compiled summaries only, never raw per-job files, so it runs in
+## seconds. The expensive stages are simulations/<study>/collect-results.R and
 ## simulations/power/localization-sweep.R.
 ##
 ## Inputs
@@ -20,9 +18,6 @@
 ## Outputs -> simulations/_tbl/
 ##   tbl-localization-auc.csv         concordance AUC per design cell
 ##   tbl-localization-resolution.csv  separation at which rejection hits .50/.95
-##
-## Both output directories are _-prefixed and untracked: everything here
-## regenerates in seconds from the compiled results, which are tracked.
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/simulation-results.R
@@ -165,11 +160,11 @@ panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL, colour = "gray20") {
     theme_bot
 }
 
-# Abbreviation on its own line: "Random Separation (RS)" on one line is wider
-# than the panel and ggplot truncates it silently. The unstructured panel takes
-# a blank second line so all four titles are the same height.
+# On one line these overrun the panel and ggplot truncates without warning.
 struct_title <- function(code) paste0(STRUCT_FULL[[code]], "\n(", STRUCT_ABBR[[code]], ")")
 
+# Trailing newline keeps this title two lines tall like the others. Spacer
+# because w == 0 here, but the trend panels must stay the same height.
 comp_dist <- panel_top_dist(tr_dist, "Base trends\n") /
   plot_spacer() +
   plot_layout(heights = c(3, 1))
@@ -203,8 +198,8 @@ ggsave(file.path(IMG_DIR, "fig-trends.png"),
 p_power <- local({
   results_summary <- readRDS("simulations/power/results/simulations-power-summary.rds")
 
-# Oracle runs exist only at phi = 0.8, so the solid/dashed contrast gets an
-# inline note there rather than a legend covering panels it does not apply to.
+# Oracle runs exist only at phi = 0.8, so an inline note there rather than a
+# legend spanning panels it does not apply to.
 oracle_note <- data.frame(phi = 0.8, snr = 0.5, n = 200,
                            d = 0.05, detection = 0.97,
                            label = "dashed =\noracle")   # one line overruns
@@ -349,9 +344,8 @@ p_profile <- local({
     mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
            method    = factor(method, levels = c("estimated", "oracle")))
 
-  # No error bars: neighbouring windows overlap almost completely, so effective
-  # sample size is far below the bin counts and a binomial interval would be
-  # badly overconfident.
+  # No error bars: neighbouring windows overlap almost completely, so a
+  # binomial interval on the bin counts would be badly overconfident.
   p <- ggplot(prof, aes(mid, rate, colour = Structure, linetype = method,
                         group = interaction(struct, method))) +
     geom_hline(yintercept = 0.5, linetype = "dotted", colour = "grey70",
@@ -400,9 +394,9 @@ p_profile <- local({
 # =============================================================================
 
 local({
-  # guides = "collect" merges only identical guides, and panel A maps fill as
-  # well as colour, so its guide never matches. Suppress on B and C instead,
-  # via guides() so the trailing `&` cannot override it.
+  # guides = "collect" merges only identical guides and panel A also maps
+  # fill, so suppress on B and C instead -- via guides(), which the trailing
+  # `&` cannot override.
   drop_guide <- guides(colour = "none", fill = "none")
 
   composite <-
@@ -463,13 +457,13 @@ p_clt <- ggplot(qq_df, aes(theoretical, empirical)) +
   base_theme
 
 # ---- The common trend -------------------------------------------------------
-# Regenerated rather than stored: sim_trends() is deterministic given the seed.
-# d = 0, so both series share this trend and every window is a true null.
+# Regenerated, not stored: sim_trends() is deterministic given the seed. d = 0,
+# so both series share this trend and every window is a true null.
 
 trend_v <- sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)$x1
 
-# Shared with rho below. rho is undefined over the first window, so without a
-# common limit a given t would land at a different x in each panel.
+# Shared with rho, which is undefined over the first window: without a common
+# limit a given t lands at a different x in each panel.
 TLIM <- c(1, length(trend_v))
 
 p_trend <- ggplot(data.frame(t = seq_along(trend_v), nu = trend_v),
@@ -621,8 +615,7 @@ p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
   theme(legend.position = "none")
 
 # ---- Composite --------------------------------------------------------------
-# Three rows of equal height. The trend sits flush on top of rho, sharing its
-# time axis, so rho can be read against the trend that generates it.
+# Three rows of equal height, trend flush above rho on a shared time axis.
 
 full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
   p_v + (p_qq + labs(tag = "C")) + p_cov +
@@ -636,7 +629,7 @@ full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
   ))
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
-         full_fig, width = 6, height = 5.25, dpi = 300)
+         full_fig, width = 5, height = 5, dpi = 300)
 })
 
 cat("All figures written to ", IMG_DIR, "\n", sep = "")

@@ -529,16 +529,14 @@ make_lomad_plot_data <- function(loc_name, results) {
       R = fit$R, rho = fit$rho, rejected = rejected
     )
 
-    # A rejection at t is evidence about the window {t - s + 1, ..., t}, so the
-    # moving-average panel shades back to the start of that window. Same span
-    # the package uses, so this figure and fig-mb-example agree.
+    # A rejection at t concerns the window {t - s + 1, ..., t}, so shade back
+    # to its start. Same helper fig-mb-example uses.
     rej_shifted <- lomad:::.rejected_window_span(rejected, fit$inputs$s)
 
     shade_list[[paste0(nm, "_up")]] <- add_shade(rej_shifted, dates, bid, "upper")
     shade_list[[paste0(nm, "_lo")]] <- add_shade(rejected, dates, bid, "lower")
 
-    # The index the test first fires at, marked as-is: the shaded run already
-    # covers the window behind it.
+    # Where the test first fires; the shaded run covers the window behind it.
     r_rej     <- rle(rejected)
     en_rej    <- cumsum(r_rej$lengths)
     entry_pos <- (en_rej - r_rej$lengths + 1L)[r_rej$values]
