@@ -99,7 +99,6 @@ theme_top <- theme_minimal(base_size = PT$title) +
     axis.text.x      = element_blank(),
     axis.ticks.x     = element_blank(),
     plot.title       = element_text(face = "plain"),
-    plot.title.position = "plot",
     panel.grid.minor = element_blank()
   ) +
   fig_sizes()
@@ -166,9 +165,12 @@ panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL, colour = "gray20") {
     theme_bot
 }
 
-struct_title <- function(code) paste0(STRUCT_FULL[[code]], " (", STRUCT_ABBR[[code]], ")")
+# Abbreviation on its own line: "Random Separation (RS)" on one line is wider
+# than the panel and ggplot truncates it silently. The unstructured panel takes
+# a blank second line so all four titles are the same height.
+struct_title <- function(code) paste0(STRUCT_FULL[[code]], "\n(", STRUCT_ABBR[[code]], ")")
 
-comp_dist <- panel_top_dist(tr_dist, "Unstructured") /
+comp_dist <- panel_top_dist(tr_dist, "Unstructured\n") /
   panel_wt(tr_dist, ref_lines = c(0, 1), ylim = c(-0.1, 1.1)) +
   plot_layout(heights = c(3, 1))
 
