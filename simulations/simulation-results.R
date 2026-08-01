@@ -171,7 +171,7 @@ panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL, colour = "gray20") {
 struct_title <- function(code) paste0(STRUCT_FULL[[code]], "\n(", STRUCT_ABBR[[code]], ")")
 
 comp_dist <- panel_top_dist(tr_dist, "Base trends\n") /
-  panel_wt(tr_dist, ref_lines = c(0, 1), ylim = c(-0.1, 1.1)) +
+  plot_spacer() +
   plot_layout(heights = c(3, 1))
 
 comp_rate <- panel_top_struct(tr_rate, struct_title("rate"),
