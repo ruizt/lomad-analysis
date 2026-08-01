@@ -275,9 +275,6 @@ p <- results_summary |>
         panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
 
-  ggsave(file.path(IMG_DIR, "fig-power.png"), p,
-         width = 6, height = 3, dpi = 450)
-
   p
 })
 
@@ -376,10 +373,6 @@ p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
         panel.grid.minor = element_blank(),
         panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
-ggsave(file.path(IMG_DIR, "fig-localization.png"), p,
-       width = 9, height = 4, dpi = 450)
-cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig-localization.png")))
-
 
 p
 })
@@ -441,10 +434,6 @@ p_profile <- local({
     theme(legend.position = "right",
             panel.grid.minor = element_blank(),
           panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
-
-  ggsave(file.path(IMG_DIR, "fig-profile.png"), p,
-         width = 9, height = 4, dpi = 450)
-  cat(sprintf("\nWrote %s\n", file.path(IMG_DIR, "fig-profile.png")))
 
   # Separation at which the test becomes more likely than not to fire, and at
   # which it becomes near-certain -- the headline numbers from this figure.
@@ -745,25 +734,47 @@ row_c <- p_qq + p_cov
 # The trend spans the same columns as rho rather than the full width, so the
 # two time axes line up and rho_t can be read against the trend that generates
 # it. Costs the top right corner, which carries nothing.
-p_trend <- p_trend + labs(tag = "A")
-row_a   <- row_a   + labs(tag = "B")
-p_rho   <- p_rho   + labs(tag = "C")
-p_qq    <- p_qq    + labs(tag = "D")
 
-design <- "
+# ---- Option 1: four rows of equal height ------------------------------------
+
+opt1 <- (p_trend + labs(tag = "A")) + (row_a + labs(tag = "B")) +
+  (p_rho + labs(tag = "C")) + p_v + (p_qq + labs(tag = "D")) + p_cov +
+  plot_layout(design = "
 AAAA##
 BBBBBB
-BBBBBB
-CCCCDD
 CCCCDD
 EEEFFF
-EEEFFF
-EEEFFF
-"
+")
 
-full_fig <- p_trend + row_a + p_rho + p_v + p_qq + p_cov +
-  plot_layout(design = design) +
-  plot_annotation()
+ggsave(file.path(IMG_DIR, "fig-validation-opt1.png"), opt1,
+       width = 6, height = 7, dpi = 300)
+
+# ---- Option 2: trend folded onto the rho panel ------------------------------
+# Same three-row rhythm, with the trend as a strip directly above rho: no x
+# axis of its own and no margin between them, so it reads as context for the
+# panel below rather than a result in its own right.
+
+p_trend2 <- p_trend +
+  scale_y_continuous(breaks = c(-2, 0, 2)) +
+  theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5)) +
+  labs(tag = "B")
+p_rho2 <- p_rho + theme(plot.margin = margin(0, 5.5, 5.5, 5.5))
+
+opt2 <- (row_a + labs(tag = "A")) + p_trend2 + p_rho2 + p_v +
+  (p_qq + labs(tag = "C")) + p_cov +
+  plot_layout(design = c(
+    area(1,  1,  7, 6),   # A  QQ facets
+    area(8,  1,  9, 4),   # B  trend
+    area(10, 1, 14, 4),   # C  rho
+    area(8,  5, 14, 6),   # D  V
+    area(15, 1, 21, 3),   # E  end-to-end QQ
+    area(15, 4, 21, 6)    # F  coverage
+  ))
+
+ggsave(file.path(IMG_DIR, "fig-validation-opt2.png"), opt2,
+       width = 6, height = 5.25, dpi = 300)
+
+full_fig <- opt1
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
          full_fig, width = 6, height = 7, dpi = 300)

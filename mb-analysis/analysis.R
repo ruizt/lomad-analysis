@@ -441,8 +441,10 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
             height = 0.34, width = 1) +
   geom_text(data = lanes, aes(x = -2, y = lane, label = station),
             inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = 'grey35') +
-  scale_fill_manual(values = pal,
-                    labels = paste(names(pal), 'detection')) +
+  # Labelled by a function, not a vector: values= is matched by name but
+  # labels= is matched by position, so a literal vector here follows the
+  # scale's own (alphabetical) break order and swaps the two stations.
+  scale_fill_manual(values = pal, labels = \(x) paste(x, 'detection')) +
   scale_x_continuous(breaks = MONTH_MID, labels = month.abb,
                      limits = X_LIM, oob = scales::oob_keep,
                      expand = X_EXPAND) +
@@ -468,9 +470,9 @@ p_seas <- seas |>
                 axis.ticks = element_blank(),
                 panel.border = element_blank(),
                 panel.grid.major.y = element_line(linewidth = 0.1, color = 'darkgrey')) +
-  labs(x = NULL, y = 'Detections \n(%)')
+  labs(x = NULL, y = 'Detections (%)')
 
-plt_seas <- p_seas / p_ras + plot_layout(heights = c(1.5, 5))
+plt_seas <- p_seas / p_ras + plot_layout(heights = c(1.9, 5))
 ggsave(paste0(img_out, '/fig-mb-seasonality.png'), plt_seas,
        width = 6, height = 4, dpi = 200)
 print(plt_seas)

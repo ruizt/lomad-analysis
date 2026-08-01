@@ -201,4 +201,4 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
          plot_layout(heights = c(1, 1)),
        width = 6, height = 5, dpi = 450)
 
-cat("Wrote fig-mb-sites-coupling-v2.png\n")
+cat("Wrote fig-mb-sites-coupling.png\n")
