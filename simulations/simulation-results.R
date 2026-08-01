@@ -170,7 +170,7 @@ panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL, colour = "gray20") {
 # a blank second line so all four titles are the same height.
 struct_title <- function(code) paste0(STRUCT_FULL[[code]], "\n(", STRUCT_ABBR[[code]], ")")
 
-comp_dist <- panel_top_dist(tr_dist, "Unstructured\n") /
+comp_dist <- panel_top_dist(tr_dist, "Base trends\n") /
   panel_wt(tr_dist, ref_lines = c(0, 1), ylim = c(-0.1, 1.1)) +
   plot_layout(heights = c(3, 1))
 
