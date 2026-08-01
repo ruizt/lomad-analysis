@@ -470,7 +470,7 @@ p_ex_up <- ggplot() +
         legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
         legend.key.width = unit(0.22, "in"),
         axis.text.x = element_blank(), axis.text.y = element_blank()) +
-  labs(x = NULL, y = "Moving averages")
+  labs(x = NULL, y = "Moving average")
 
 # The band runs between rho and the critical value below which R is flagged.
 # Both move with t, which is why the deepest dip in R need not be the flagged
@@ -503,7 +503,7 @@ make_lomad_plot_data <- function(loc_name, results) {
   loc <- results[[loc_name]]
   bf  <- loc$block_fits
 
-  block_dfs <- shade_list <- trigger_list <- list()
+  block_dfs <- shade_list <- list()
 
   add_shade <- function(flag_vec, dates, bid, panel_label) {
     r  <- rle(flag_vec)
@@ -535,17 +535,9 @@ make_lomad_plot_data <- function(loc_name, results) {
 
     shade_list[[paste0(nm, "_up")]] <- add_shade(rej_shifted, dates, bid, "upper")
     shade_list[[paste0(nm, "_lo")]] <- add_shade(rejected, dates, bid, "lower")
-
-    # Where the test first fires; the shaded run covers the window behind it.
-    r_rej     <- rle(rejected)
-    en_rej    <- cumsum(r_rej$lengths)
-    entry_pos <- (en_rej - r_rej$lengths + 1L)[r_rej$values]
-    if (length(entry_pos) > 0)
-      trigger_list[[nm]] <- tibble(block_id = bid, datetime = dates[entry_pos])
   }
 
-  list(main = bind_rows(block_dfs), shade = bind_rows(shade_list),
-       triggers = bind_rows(trigger_list))
+  list(main = bind_rows(block_dfs), shade = bind_rows(shade_list))
 }
 
 # Returns the two panels rather than a composed plot, so both stations stack.
@@ -556,8 +548,6 @@ make_lomad_ggplot <- function(pd, loc) {
     geom_rect(data = filter(pd$shade, panel == "upper"), inherit.aes = FALSE,
               aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
               fill = shade_col) +
-    geom_vline(data = pd$triggers, aes(xintercept = datetime),
-               color = "grey50", linetype = "dashed", linewidth = 0.5) +
     geom_line(aes(y = o2), color = rgb(0, 0, 1, 0.2)) +
     geom_line(aes(y = ph), color = rgb(1, 0, 0, 0.2)) +
     geom_line(aes(y = ma1), color = "blue", linewidth = 0.3) +
@@ -569,7 +559,7 @@ make_lomad_ggplot <- function(pd, loc) {
           axis.ticks.x = element_blank(),
           strip.text   = element_blank(),
           plot.title = element_text(face = "plain")) +
-    labs(x = NULL, y = "moving averages", title = STATION_NAME[[loc]])
+    labs(x = NULL, y = "moving average", title = STATION_NAME[[loc]])
 
   p_lo <- ggplot(pd$main, aes(x = datetime)) +
     geom_rect(data = filter(pd$shade, panel == "lower"), inherit.aes = FALSE,
@@ -596,7 +586,7 @@ panels <- unlist(lapply(names(loc_results), function(loc) {
 plt_fits <- wrap_plots(panels, ncol = 1) +
   plot_layout(heights = rep(c(2, 1), length(panels) / 2))
 ggsave(file.path(img_out, "sfig-mb-detections.png"), plt_fits,
-       width = 10, height = 5, dpi = 200)
+       width = 10, height = 5, dpi = 450)
 
 
 # =============================================================================
@@ -613,9 +603,10 @@ pal <- c(BM = "#C44E52", BH = "#4C72B0")
 MONTH_END   <- cumsum(c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31))
 MONTH_START <- c(0, head(MONTH_END, -1))
 MONTH_MID   <- (MONTH_START + MONTH_END + 1) / 2
-X_EXPAND    <- expansion(mult = c(0.045, 0.01))   # gutter holds the lane labels
-X_LIM       <- c(-2, 366)   # shared, not just breaks: expand() is relative to
+X_EXPAND    <- expansion(mult = c(0.01, 0.045))   # right gutter holds the lane labels
+X_LIM       <- c(0, 367)    # shared, not just breaks: expand() is relative to
                             # each panel's own range, which differs
+LANE_X      <- 367          # just past the last tile's edge
 
 ras <- wv |>
   mutate(year    = year(datetime), doy = yday(datetime),
@@ -628,8 +619,8 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
   geom_tile(fill = "grey86", height = 0.34, width = 1) +
   geom_tile(data = filter(ras, rejected), aes(fill = station),
             height = 0.34, width = 1) +
-  geom_text(data = lanes, aes(x = -2, y = lane, label = station),
-            inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey35") +
+  geom_text(data = lanes, aes(x = LANE_X, y = lane, label = station),
+            inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey35") +
   # Labelled by a function, not a vector: values= is matched by name but
   # labels= is matched by position, so a literal vector would follow the
   # scale's own (alphabetical) break order and swap the two stations.
@@ -664,7 +655,7 @@ p_seas <- seas |>
 
 plt_seas <- p_seas / p_ras + plot_layout(heights = c(1.9, 5))
 ggsave(file.path(img_out, "fig-mb-seasonality.png"), plt_seas,
-       width = 6, height = 4, dpi = 200)
+       width = 5, height = 3.5, dpi = 450)
 
 # Only when someone is watching: printing under Rscript opens a device and
 # leaves an Rplots.pdf behind.
