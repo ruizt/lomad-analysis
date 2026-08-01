@@ -47,9 +47,9 @@ dir.create(TBL_DIR, showWarnings = FALSE, recursive = TRUE)
 
 # Keyed by internal code, not display label: a named vector spliced into
 # another named vector via c() gets its names silently mangled.
-STRUCT_FULL <- c(rate = "Fixed Rate", smooth = "Stoch. Modulation",
-                  cross = "Stoch. Blending")
-STRUCT_ABBR <- c(rate = "FR", smooth = "SM", cross = "SB")
+STRUCT_FULL <- c(rate = "Fixed Rate", smooth = "Random Separation",
+                  cross = "Random Mixing")
+STRUCT_ABBR <- c(rate = "FR", smooth = "RS", cross = "RM")
 STRUCT_HEX  <- c(rate = "#009E73", smooth = "#0072B2", cross = "#D55E00")
 STRUCT_PAL  <- setNames(STRUCT_HEX, STRUCT_ABBR[names(STRUCT_HEX)])
 
@@ -99,6 +99,7 @@ theme_top <- theme_minimal(base_size = PT$title) +
     axis.text.x      = element_blank(),
     axis.ticks.x     = element_blank(),
     plot.title       = element_text(face = "plain"),
+    plot.title.position = "plot",
     panel.grid.minor = element_blank()
   ) +
   fig_sizes()
@@ -476,7 +477,7 @@ p_trend <- ggplot(data.frame(t = seq_along(trend_v), nu = trend_v),
   scale_y_continuous(breaks = c(-2, 0, 2)) +
   base_theme +
   theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5)) +
-  labs(x = NULL, y = expression(nu[t]), title = "Trend")
+  labs(x = NULL, y = expression(nu[t]), title = "Shared trend")
 
 # ---- Proposition 1 moment accuracy, oracle, s = 150 -------------------------
 
