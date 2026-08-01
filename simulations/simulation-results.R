@@ -218,7 +218,7 @@ comp_cross <- panel_top_struct(tr_cross, struct_title("cross"),
 
 fig_1x4 <- comp_dist | comp_rate | comp_smooth | comp_cross
 ggsave(file.path(IMG_DIR, "fig-trends.png"),
-         fig_1x4, width = 6, height = 2.5, units = "in", dpi = 400)
+         fig_1x4, width = 6.5, height = 2.5, units = "in", dpi = 400)
 
 })
 
@@ -238,7 +238,8 @@ library(ggh4x)
 # that would otherwise apply, misleadingly, to every panel.
 oracle_note <- data.frame(phi = 0.8, snr = 0.5, n = 200,
                            d = 0.05, detection = 0.97,
-                           label = "dashed = oracle")
+                           # two lines: one runs past the panel edge at this width
+                          label = "dashed =\noracle")
 
 p <- results_summary |>
   mutate(struct = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR)) |>
@@ -251,8 +252,9 @@ p <- results_summary |>
   geom_ribbon(aes(ymin = ci_lo, ymax = ci_hi, fill = struct),
               alpha = 0.2, colour = NA) +
   geom_text(data = oracle_note, aes(x = d, y = detection, label = label),
-            inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey30") +
-  scale_y_continuous(limits = c(0, 1)) +
+            inherit.aes = FALSE, hjust = 0, vjust = 1, lineheight = 0.95,
+            size = ANNOT, colour = "grey30") +
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
   scale_x_continuous(breaks = 0:2) +
   scale_colour_manual(values = STRUCT_PAL) +
   scale_fill_manual(values = STRUCT_PAL) +
@@ -268,6 +270,7 @@ p <- results_summary |>
        colour = "Structure", fill = "Structure") +
   theme_minimal(base_size = PT$title) +
   theme(legend.position = "right",
+        panel.spacing = unit(8, "pt"),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
@@ -348,19 +351,12 @@ auc_panel <- auc |>
   summarise(xx = 0.95, yy = 0.2, k = n(),
             label = sprintf("AUC = %.3f", mean(auc)), .groups = "drop")
 
-# Oracle only exists at phi = 0.8 here too (same as the power-curve figure),
-# so it gets the same one-off inline note instead of a legend that would
 # otherwise apply, misleadingly, to every panel.
-oracle_note_loc <- data.frame(phi = 0.8, snr = 0.5, s_win = 50,
-                               xx = 0.05, yy = 0.97, label = "dashed = oracle")
-
 p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
                     group = interaction(struct, method))) +
   geom_abline(slope = 1, intercept = 0, linetype = "dotted",
               colour = "grey70", linewidth = 0.3) +
   geom_path(linewidth = 0.6, alpha = 0.85) +
-  geom_text(data = oracle_note_loc, aes(x = xx, y = yy, label = label),
-            inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey30") +
   geom_text(data = auc_panel, aes(x = xx, y = yy, label = label),
             inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey20") +
   facet_nested(phi ~ snr + s_win, labeller = labeller(
@@ -376,6 +372,7 @@ p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
   labs(x = xlab, y = ylab, colour = "Structure") +
   theme_minimal(base_size = PT$title) +
   theme(legend.position = "right",
+        panel.spacing = unit(8, "pt"),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
@@ -424,17 +421,11 @@ p_profile <- local({
   # completely (at s = 150 neighbours share 149 points), so effective sample
   # size is far below the bin counts and a binomial interval would be badly
   # overconfident.
-  oracle_note_prof <- data.frame(phi = 0.8, snr = 0.5, s_win = 50,
-                                 mid = 0, rate = 0.95,
-                                 label = "dashed = oracle")
-
   p <- ggplot(prof, aes(mid, rate, colour = Structure, linetype = method,
                         group = interaction(struct, method))) +
     geom_hline(yintercept = 0.5, linetype = "dotted", colour = "grey70",
                linewidth = 0.3) +
     geom_line(linewidth = 0.6, alpha = 0.9) +
-    geom_text(data = oracle_note_prof, aes(x = mid, y = rate, label = label),
-              inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey30") +
     facet_nested(phi ~ snr + s_win, labeller = labeller(
       phi   = function(x) paste0("phi == ", x),
       snr   = function(x) paste0("SNR == ", x),
@@ -534,10 +525,7 @@ local({
 # ---- Shared theme ------------------------------------------------------------
 
 base_theme <- theme_minimal(base_size = PT$title) +
-  theme(
-    panel.grid.minor = element_blank(),
-    strip.background = element_rect(fill = "grey92", colour = NA)
-  ) +
+  theme(panel.grid.minor = element_blank()) +
   fig_sizes()
 
 col_th  <- "firebrick"
@@ -554,9 +542,15 @@ col_pipeline <- "#D55E00"
 
 trend_v <- sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)$x1
 
+# Shared with the rho panel below. Matching panel widths is not enough to make
+# the two readable against each other: rho is undefined for the first window,
+# so on its own scale a given time lands at a different x in each panel.
+TLIM <- c(1, length(trend_v))
+
 p_trend <- ggplot(data.frame(t = seq_along(trend_v), nu = trend_v),
                   aes(t, nu)) +
   geom_line(colour = "grey25", linewidth = 0.3) +
+  coord_cartesian(xlim = TLIM) +
   base_theme +
   labs(x = NULL, y = expression(nu[t]))
 
@@ -617,6 +611,7 @@ p_rho <- ggplot() +
             aes(x, y, colour = label)) +
   scale_colour_manual(values = c("Empirical" = "grey30",
                                   "Theoretical" = col_th)) +
+  coord_cartesian(xlim = TLIM) +
   labs(x = "Time", y = expression(rho[t])) +
   base_theme +
   theme(
@@ -746,13 +741,17 @@ row_c <- p_qq + p_cov
 
 # Use design layout so patchwork can align axes across rows.
 # Row tags are added via labs(tag) on the first panel of each row.
+#
+# The trend spans the same columns as rho rather than the full width, so the
+# two time axes line up and rho_t can be read against the trend that generates
+# it. Costs the top right corner, which carries nothing.
 p_trend <- p_trend + labs(tag = "A")
 row_a   <- row_a   + labs(tag = "B")
 p_rho   <- p_rho   + labs(tag = "C")
 p_qq    <- p_qq    + labs(tag = "D")
 
 design <- "
-AAAAAA
+AAAA##
 BBBBBB
 BBBBBB
 CCCCDD
