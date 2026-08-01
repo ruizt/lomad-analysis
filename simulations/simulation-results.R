@@ -47,8 +47,8 @@ dir.create(TBL_DIR, showWarnings = FALSE, recursive = TRUE)
 
 # Keyed by internal code, not display label: a named vector spliced into
 # another named vector via c() gets its names silently mangled.
-STRUCT_FULL <- c(rate = "Fixed Rate", smooth = "Stochastic Modulation",
-                  cross = "Stochastic Blending")
+STRUCT_FULL <- c(rate = "Fixed Rate", smooth = "Stoch. Modulation",
+                  cross = "Stoch. Blending")
 STRUCT_ABBR <- c(rate = "FR", smooth = "SM", cross = "SB")
 STRUCT_HEX  <- c(rate = "#009E73", smooth = "#0072B2", cross = "#D55E00")
 STRUCT_PAL  <- setNames(STRUCT_HEX, STRUCT_ABBR[names(STRUCT_HEX)])
@@ -188,7 +188,7 @@ comp_cross <- panel_top_struct(tr_cross, struct_title("cross"),
 
 fig_1x4 <- comp_dist | comp_rate | comp_smooth | comp_cross
 ggsave(file.path(IMG_DIR, "fig-trends.png"),
-         fig_1x4, width = 6.5, height = 2.5, units = "in", dpi = 400)
+         fig_1x4, width = 6.5, height = 2, units = "in", dpi = 400)
 
 })
 
@@ -476,7 +476,7 @@ p_trend <- ggplot(data.frame(t = seq_along(trend_v), nu = trend_v),
   scale_y_continuous(breaks = c(-2, 0, 2)) +
   base_theme +
   theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5)) +
-  labs(x = NULL, y = expression(nu[t]))
+  labs(x = NULL, y = expression(nu[t]), title = "Trend")
 
 # ---- Proposition 1 moment accuracy, oracle, s = 150 -------------------------
 
@@ -504,7 +504,7 @@ p_rho <- ggplot() +
                                   "Theoretical" = col_th)) +
   scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(NA, 1)) +
   coord_cartesian(xlim = TLIM) +
-  labs(x = "Time", y = expression(rho[t])) +
+  labs(x = "Time", y = expression(rho[t]), title = "Local correlation (s = 150)") +
   base_theme +
   theme(
     legend.position = c(1,1),
@@ -514,7 +514,7 @@ p_rho <- ggplot() +
     legend.title = element_blank(),
     legend.direction = "horizontal",
     legend.key.size = unit(0.4, "cm"),
-    plot.margin = margin(0, 5.5, 5.5, 5.5)
+    plot.margin = margin(3, 5.5, 5.5, 5.5)
   )
 
 r_var   <- results[["var-s150"]]
