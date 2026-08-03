@@ -76,8 +76,8 @@ e2e_sums       <- acov_sums(e2e_acov_filt1, e2e_acov_filt2)
 e2e_s          <- 150
 # Use noiseless ma_trend directly — no bias correction needed in oracle setting
 e2e_tau_sq     <- compute_tau_sq(ma_trend, e2e_s)
-e2e_rho_oracle <- compute_rho(e2e_tau_sq, e2e_sigma1, e2e_sigma2)
-e2e_V_oracle   <- compute_V(e2e_tau_sq, e2e_sigma1, e2e_sigma2,
+e2e_rho_oracle <- compute_rho(e2e_tau_sq, e2e_tau_sq, e2e_sigma1, e2e_sigma2)
+e2e_V_oracle   <- compute_V(e2e_tau_sq, e2e_tau_sq, e2e_sigma1, e2e_sigma2,
                               e2e_sums$L1, e2e_sums$L2,
                               e2e_sums$Q1, e2e_sums$Q2, e2e_sums$Q12)
 e2e_eval_pts   <- c(500, 850, 1000, 1400, 1600)
@@ -180,8 +180,8 @@ if (exp_type == "clt") {
   }, numeric(1))
 
   tau_sq <- compute_tau_sq(ma_trend, s_val)
-  rho_t  <- compute_rho(tau_sq, sigma1_sq, sigma2_sq)
-  V_t    <- compute_V(tau_sq, sigma1_sq, sigma2_sq,
+  rho_t  <- compute_rho(tau_sq, tau_sq, sigma1_sq, sigma2_sq)
+  V_t    <- compute_V(tau_sq, tau_sq, sigma1_sq, sigma2_sq,
                        cov_sums$L1, cov_sums$L2,
                        cov_sums$Q1, cov_sums$Q2, cov_sums$Q12)
 
@@ -207,7 +207,7 @@ if (exp_type == "clt") {
 
   R_mean <- ifelse(R_count > 0, R_accum / R_count, NA_real_)
   tau_sq <- compute_tau_sq(ma_trend, s_val)
-  rho_th <- compute_rho(tau_sq, sigma1_sq, sigma2_sq)
+  rho_th <- compute_rho(tau_sq, tau_sq, sigma1_sq, sigma2_sq)
 
   result <- list(
     experiment = experiment, s = s_val, S = S, seed0 = seed0,
@@ -225,7 +225,7 @@ if (exp_type == "clt") {
   }
 
   tau_sq <- compute_tau_sq(ma_trend, s_val)
-  V_th   <- compute_V(tau_sq, sigma1_sq, sigma2_sq,
+  V_th   <- compute_V(tau_sq, tau_sq, sigma1_sq, sigma2_sq,
                        cov_sums$L1, cov_sums$L2,
                        cov_sums$Q1, cov_sums$Q2, cov_sums$Q12)
 
