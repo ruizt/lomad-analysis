@@ -12,7 +12,7 @@
 ##
 ## Outputs -> simulations/_img/
 ##   fig-trends.png             methods of simulating trend separation
-##   fig-power-composite.png    power, concordance and profile stacked
+##   fig-power.png    power, concordance and profile stacked
 ##   fig-validation.png         finite-sample accuracy of the CLT
 ##
 ## Outputs -> simulations/_tbl/
@@ -186,13 +186,13 @@ comp_cross <- panel_top_struct(tr_cross, struct_title("cross"),
 
 fig_1x4 <- comp_dist | comp_rate | comp_smooth | comp_cross
 ggsave(file.path(IMG_DIR, "fig-trends.png"),
-         fig_1x4, width = 6.5, height = 2, units = "in", dpi = 400)
+         fig_1x4, width = 6.5, height = 2, units = "in", dpi = 450)
 
 })
 
 
 # =============================================================================
-# fig-power-composite.png, panel A -- power against L2 separation d
+# fig-power.png, panel A -- power against L2 separation d
 # =============================================================================
 
 p_power <- local({
@@ -242,7 +242,7 @@ p <- results_summary |>
 
 
 # =============================================================================
-# fig-power-composite.png, panel B -- concordance between rejections and
+# fig-power.png, panel B -- concordance between rejections and
 # true local separation
 # =============================================================================
 
@@ -319,7 +319,7 @@ p
 
 
 # =============================================================================
-# fig-power-composite.png, panel C -- rejection probability against true
+# fig-power.png, panel C -- rejection probability against true
 # windowed separation, and tbl-localization-resolution.csv
 # =============================================================================
 
@@ -390,7 +390,7 @@ p_profile <- local({
 
 
 # =============================================================================
-# fig-power-composite.png -- the three panel sets stacked
+# fig-power.png -- the three panel sets stacked
 # =============================================================================
 
 local({
@@ -407,7 +407,7 @@ local({
     plot_annotation(tag_levels = "A") &
     theme(legend.position = "bottom")
 
-  out <- file.path(IMG_DIR, "fig-power-composite.png")
+  out <- file.path(IMG_DIR, "fig-power.png")
   ggsave(out, composite, width = 6.5, height = 8, dpi = 450)
   cat(sprintf("\nWrote %s\n", out))
 })
@@ -530,7 +530,8 @@ p_v <- ggplot(v_df, aes(V_theory, V_emp)) +
   geom_point(colour = "black", size = 1.2, alpha = 0.4) +
   coord_equal(xlim = rng, ylim = rng) +
   labs(x = expression("Theoretical" ~ V[t]),
-       y = expression(s %.% Var(R[t]))) +
+       y = expression(s %.% Var(R[t])),
+       title = "Variance (s = 150)") +
   base_theme
 
 # ---- End to end, s = 150 ----------------------------------------------------
@@ -553,13 +554,13 @@ nn_e <- min(length(Z_oracle), length(Z_pipe))
 qq_e <- data.frame(
   theoretical = rep(qnorm(ppoints(nn_e)), 2),
   empirical   = c(sort(Z_oracle[seq_len(nn_e)]), sort(Z_pipe[seq_len(nn_e)])),
-  type        = rep(c("Oracle", "End to end"), each = nn_e)
+  type        = rep(c("Oracle", "End-to-end"), each = nn_e)
 )
 
 p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   geom_abline(slope = 1, intercept = 0, colour = col_th) +
   geom_point(size = 0.6, alpha = 0.6) +
-  scale_colour_manual(values = c(Oracle = col_oracle, `End to end` = col_pipeline)) +
+  scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
   labs(x = "Theoretical N(0,1)", y = expression("Empirical" ~ Z[t])) +
   base_theme +
   theme(
@@ -597,7 +598,7 @@ for (j in seq_len(n_pts)) {
     t = eval_pts[j], cov = c_p,
     lo = c_p - 1.96 * sqrt(c_p * (1 - c_p) / n_p),
     hi = c_p + 1.96 * sqrt(c_p * (1 - c_p) / n_p),
-    type = "End to end"
+    type = "End-to-end"
   )
 }
 cov_df <- do.call(rbind, cov_rows)
@@ -609,7 +610,7 @@ p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
   geom_errorbar(aes(ymin = lo, ymax = hi), width = 55,
                 position = dodge, linewidth = 0.5) +
   geom_point(size = 1.5, position = dodge) +
-  scale_colour_manual(values = c(Oracle = col_oracle, `End to end` = col_pipeline)) +
+  scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
   labs(x = "Time", y = "95% coverage") +
   base_theme +
   theme(legend.position = "none")
@@ -629,7 +630,7 @@ full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
   ))
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
-         full_fig, width = 5, height = 5, dpi = 300)
+         full_fig, width = 6, height = 6, dpi = 450)
 })
 
 cat("All figures written to ", IMG_DIR, "\n", sep = "")
