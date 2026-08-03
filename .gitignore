@@ -58,3 +58,6 @@ rsconnect/
 
 # stray device output from Rscript
 Rplots.pdf
+
+# scratch: one-off diagnostics, not theory checks
+_tmp/
