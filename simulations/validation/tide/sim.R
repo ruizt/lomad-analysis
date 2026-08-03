@@ -141,12 +141,17 @@ run_rep_var <- function(s, seed, eval_pts) {
   R
 }
 
-run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05) {
+# `b` scales the second trend: nu_2 = b * nu_1. Any b > 0 satisfies the affine
+# null, so the test must stay calibrated while tau_2^2 = b^2 tau_1^2. This is
+# the one configuration the rest of the study cannot produce -- every other arm
+# uses the same trend for both series, so tau_1 == tau_2 and the two-tau path
+# is never exercised.
+run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05, b = 1) {
   set.seed(seed)
   z1 <- arima.sim(model = list(ar = e2e_ar1), n = n_obs, sd = e2e_sd1)
   z2 <- arima.sim(model = list(ar = e2e_ar2), n = n_obs, sd = e2e_sd2)
   y1 <- trend + z1
-  y2 <- trend + z2
+  y2 <- b * trend + z2
 
   fit <- suppressMessages(lomad_fit(y1, y2, h = h_win, s = s))
   tst <- suppressMessages(lomad_test(fit, alpha = alpha))
@@ -236,10 +241,11 @@ if (exp_type == "clt") {
     V_theory   = V_th[eval_pts]
   )
 
-} else if (exp_type == "e2e") {
+} else if (exp_type == "e2e" || exp_type == "scale") {
+  b_scale <- if (exp_type == "scale") 3 else 1
   e2e_results <- vector("list", S)
   for (i in seq_along(seeds)) {
-    e2e_results[[i]] <- run_rep_e2e(s_val, seeds[i], e2e_eval_pts)
+    e2e_results[[i]] <- run_rep_e2e(s_val, seeds[i], e2e_eval_pts, b = b_scale)
     if (i %% 100 == 0) cat(sprintf("  %d / %d\n", i, S))
   }
 
@@ -263,8 +269,17 @@ if (exp_type == "clt") {
     rho_est_mat = rho_mat,
     V_est_mat   = V_mat,
     Z_est_mat   = Z_mat,
-    rho_oracle  = e2e_rho_oracle[e2e_eval_pts],
-    V_oracle    = e2e_V_oracle[e2e_eval_pts]
+    b_scale     = b_scale,
+    rho_oracle  = {
+      t1 <- compute_tau_sq(ma_trend, s_val)
+      compute_rho(t1, b_scale^2 * t1, e2e_sigma1, e2e_sigma2)[e2e_eval_pts]
+    },
+    V_oracle    = {
+      t1 <- compute_tau_sq(ma_trend, s_val)
+      compute_V(t1, b_scale^2 * t1, e2e_sigma1, e2e_sigma2,
+                e2e_sums$L1, e2e_sums$L2,
+                e2e_sums$Q1, e2e_sums$Q2, e2e_sums$Q12)[e2e_eval_pts]
+    }
   )
 
 } else {
