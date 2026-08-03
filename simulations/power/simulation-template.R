@@ -102,8 +102,10 @@ run_rep <- function(d, struct, n, phi, snr, seed, oracle = FALSE) {
   # 1 once the displacement is orthogonalised and rescaled.
   eta1 <- as.numeric(stats::filter(sim$y1 - sim$x1, kern, sides = 1))
   eta2 <- as.numeric(stats::filter(sim$y2 - sim$x2, kern, sides = 1))
-  tau_w <- function(z) mean(vapply(s_win:n, function(tt)
-    var(z[(tt - s_win + 1L):tt]), numeric(1)), na.rm = TRUE)
+  # compute_tau_sq() is the package's own Var_W, with the population
+  # denominator the proof uses, so lambda_k here is definitionally the
+  # lambda_k of Proposition 1 rather than a near-equivalent.
+  tau_w <- function(z) mean(compute_tau_sq(z, s_win), na.rm = TRUE)
   lam1 <- tau_w(t1s) / var(eta1, na.rm = TRUE)
   lam2 <- tau_w(t2s) / var(eta2, na.rm = TRUE)
 
