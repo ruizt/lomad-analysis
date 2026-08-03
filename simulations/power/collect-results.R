@@ -41,6 +41,11 @@ results_summary <- results |>
     detection = mean(detected, na.rm = TRUE),
     ci_lo     = qbeta(0.025, sum(detected), S - sum(detected) + 1),
     ci_hi     = qbeta(0.975, sum(detected) + 1, S - sum(detected)),
+    # realized effect size and SNRs, averaged over replicates in the cell
+    delta_sup = mean(delta_sup, na.rm = TRUE),
+    delta_bar = mean(delta_bar, na.rm = TRUE),
+    lambda1   = mean(lambda1, na.rm = TRUE),
+    lambda2   = mean(lambda2, na.rm = TRUE),
     .groups   = "drop"
   )
 
