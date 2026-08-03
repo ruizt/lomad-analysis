@@ -4,20 +4,31 @@
 ## separation, and at what magnitude of separation does that alignment hold?
 ##
 ## DESIGN (threshold sweep). For each window W_t = {t - s + 1, ..., t} the
-## true local separation is summarised by the windowed maximum
-##       m_t = max_{u in W_t} |nu_1u - nu_2u| ,
+## true local separation is the affine-invariant window separation
+##       delta_t = sqrt(1 - r_t^2),   r_t = Corr_{W_t}(nu_1^(h), nu_2^(h)) ,
+## i.e. the RMS separation between the trends after they are optimally aligned
+## over location and positive scale. It is dimensionless and lies in [0, 1].
+##
+## This replaces the windowed maximum m_t = max |nu_1u - nu_2u| used before the
+## null became affine similarity. m_t is in data units and is not affine
+## invariant, so a window where nu_2 = a + b*nu_1 -- null by construction --
+## can have arbitrarily large m_t. Scoring on it credits the test for missing
+## windows it is correct to miss. On the three structures the sweep runs, m_t
+## and delta_t agree only weakly: Spearman 0.14 (FR), 0.39 (RS), 0.35 (RM),
+## and 6-21% of the windows m_t ranks most separated are among the least
+## separated by delta_t.
 ## computed from the true simulated trends. A window counts as decoupled when
 ## m_t > c. Sweeping c traces a curve: at small c almost every window counts
 ## as decoupled, at large c almost none, and the two error rates trade off
 ## against each other in between. Each point on the curve is one value of c.
 ##
-##   sens(c) = P(rejected  | m_t >  c)     "of the windows separated by at
+##   sens(c) = P(rejected  | delta_t >  c)  "of the windows separated by at
 ##                                          least c, how many did we flag?"
-##   spec(c) = P(!rejected | m_t <= c)     "of the windows separated by less
+##   spec(c) = P(!rejected | delta_t <= c)  "of the windows separated by less
 ##                                          than c, how many did we pass?"
 ##
 ## ORIENTATION. Set ORIENT below:
-##   "predictive" (default) — precision P(m_t > c | rejected) against 1 - NPV,
+##   "predictive" (default) — precision P(delta_t > c | rejected) against 1 - NPV,
 ##                            conditioning on the test's decision. Because the
 ##                            sweep asks how well the rejections line up with
 ##                            separation of at least magnitude c, conditioning
@@ -27,9 +38,9 @@
 ##   "conventional"         — sens/spec as defined above, conditioning on the
 ##                            truth instead.
 ##
-## In the predictive orientation both axes are P(m_t > c | .) conditioned on
+## In the predictive orientation both axes are P(delta_t > c | .) conditioned on
 ## rejection and on non-rejection, so sweeping c traces a genuine ROC: the
-## true separation m_t is the score and rejection status is the class label.
+## true separation delta_t is the score and rejection status is the class label.
 ## Its area therefore carries the standard reading — the probability that a
 ## randomly chosen rejected window has larger true separation than a randomly
 ## chosen non-rejected one — a concordance measure of localization. The area
@@ -60,7 +71,7 @@ RAW_DIR <- "simulations/power/results/_raw"
 OUT_DIR <- "simulations/power/results"
 
 ORIENT   <- "predictive"            # or "conventional"
-MMAX     <- 1.0                     # top of the separation grid
+MMAX     <- 1.0                     # delta_t lies in [0, 1] by construction
 NBIN     <- 1000L                   # separation-grid resolution
 C_MAX    <- 0.30                    # plot the sweep over c in [0, C_MAX]
 C_MARKS  <- c(0.01, 0.02, 0.05, 0.10, 0.20)  # c values annotated on the curve
@@ -72,20 +83,6 @@ dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 h_win_fcn <- function(n) max(5L, floor(n / 200L))
 s_win_fcn <- function(n) min(60L * h_win_fcn(n), floor(n / 4L))
-
-## Trailing rolling maximum, van Herk / Gil-Werman (O(n), verified against
-## a brute-force implementation).
-runmax_trailing <- function(x, s) {
-  n <- length(x); if (s <= 1L) return(x)
-  m  <- ceiling(n / s) * s
-  xp <- c(x, rep(-Inf, m - n))
-  M  <- matrix(xp, nrow = s)
-  Fw <- as.vector(matrixStats::colCummaxs(M))
-  Bw <- as.vector(matrixStats::colCummaxs(M[s:1, , drop = FALSE])[s:1, , drop = FALSE])
-  out <- rep(NA_real_, n); idx <- s:n
-  out[idx] <- pmax(Bw[idx - s + 1L], Fw[idx])
-  out
-}
 
 parse_meta <- function(f) {
   bn <- sub("-series\\.rds$", "", basename(f))
@@ -130,7 +127,9 @@ for (i in seq_len(nrow(meta))) {
   for (rep in x) {
     if (is.null(rep)) next
     vi <- rep$vi; if (!length(vi)) next
-    mx <- runmax_trailing(rep$sep, s_win)[vi]
+    if (is.null(rep$delta_t))
+      stop("Series file predates delta_t; re-run the sweep to regenerate.")
+    mx <- rep$delta_t[vi]
     rj <- rep$rejected[vi]
     ok <- is.finite(mx) & !is.na(rj)
     if (!any(ok)) next

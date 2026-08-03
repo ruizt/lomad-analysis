@@ -250,7 +250,9 @@ p_local <- local({
   L      <- readRDS("simulations/power/results/simulations-power-localization.rds")
   sweep  <- L$sweep
   ORIENT <- L$orient
-  C_MAX   <- 0.30
+  # delta_t is on [0, 1], not in data units as m_t was. Provisional: the
+  # display range wants revisiting once the re-scored sweep exists.
+  C_MAX   <- 1.00
   MIN_N   <- 10000L
 
   if (ORIENT == "conventional") {
@@ -326,8 +328,8 @@ p
 p_profile <- local({
   sweep <- readRDS("simulations/power/results/simulations-power-localization.rds")$sweep
 
-  BW    <- 0.01               # separation bin width
-  C_MAX <- 0.30               # matches panel B's plotted range
+  BW    <- 0.02               # separation bin width (50 bins over [0, 1])
+  C_MAX <- 1.00               # matches panel B's plotted range
   EDGES <- seq(BW, C_MAX, by = BW)
 
   # sens(c) * n_above(c) counts rejected windows above the cut, so differencing
@@ -360,7 +362,7 @@ p_profile <- local({
     scale_linetype_manual(values = ESTIMATION_LTY) +
     guides(linetype = guide_none()) +
     scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-    labs(x = "Windowed maximum separation", y = "Rejection probability",
+    labs(x = expression("Window separation " * delta[t]), y = "Rejection probability",
          colour = "Structure") +
     theme_minimal(base_size = PT$title) +
     theme(legend.position = "right",

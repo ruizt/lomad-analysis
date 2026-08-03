@@ -30,7 +30,9 @@ alpha <- 0.05
 S     <- 20
 
 d_vals     <- c(0, 0.25, 0.5, 0.75, 1, 1.5)
-structs <- c("dist", "smooth", "cross", "rate")
+# "dist" generates the base trends but is not a coupling structure and has
+# never appeared in a figure; it was a quarter of the job budget.
+structs <- c("smooth", "cross", "rate")
 n_vals   <- c(200L, 400L, 600L)
 phi_vals <- c(0.3, 0.5, 0.8)
 snr_vals <- c(0.5, 1.5)
