@@ -96,7 +96,12 @@ e2e_rho_oracle <- compute_rho(e2e_tau_sq, e2e_tau2_sq, e2e_sigma1, e2e_sigma2)
 e2e_V_oracle   <- compute_V(e2e_tau_sq, e2e_tau2_sq, e2e_sigma1, e2e_sigma2,
                               e2e_sums$L1, e2e_sums$L2,
                               e2e_sums$Q1, e2e_sums$Q2, e2e_sums$Q12)
-e2e_eval_pts   <- c(500, 850, 1000, 1400, 1600)
+# Four fixed evaluation points spanning a range of local population
+# correlations. t = 630 replaces the original t = 500, whose window is nearly
+# flat: lambda_1 there is 0.011, the null predicts rho = 0.03, and the test
+# provably has no power, which is not a calibration result. The original
+# t = 1000 is dropped for the same reason in milder form (lambda_1 = 0.18).
+e2e_eval_pts <- c(630, 850, 1400, 1600)
 
 # ---- run_rep functions -------------------------------------------------------
 

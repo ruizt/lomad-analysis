@@ -479,19 +479,21 @@ trend_df <- rbind(
   data.frame(t = seq_along(trend_v), nu = b_scale * trend_v, k = "2")
 )
 
-p_trend <- ggplot(trend_df, aes(t, nu, colour = k)) +
-  geom_line(linewidth = 0.3) +
-  scale_colour_manual(values = c(`1` = "grey30", `2` = col_th),
-                      labels = c(expression(nu[1*t]), expression(nu[2*t]))) +
+# Line type, not colour. Red is theory and grey is empirical throughout the
+# rest of this figure, and blue/orange are oracle and end-to-end; a fifth and
+# sixth colour here would collide with all of that. The two trends are the
+# same curve up to scale, so a linetype contrast separates them without
+# adding to the palette.
+# Both solid, same colour, no legend: which line is which follows from the
+# title and the amplitudes, so a key would only add ink.
+p_trend <- ggplot(trend_df, aes(t, nu, group = k)) +
+  geom_line(linewidth = 0.3, colour = col_th) +
   coord_cartesian(xlim = TLIM) +
   base_theme +
   theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5),
-        legend.position = c(1, 1), legend.justification = c(1, 1),
-        legend.background = element_blank(), legend.key = element_blank(),
-        legend.title = element_blank(), legend.direction = "horizontal",
-        legend.key.size = unit(0.4, "cm")) +
+        legend.position = "none") +
   labs(x = NULL, y = expression(nu[it]),
-       title = bquote("Trends," ~ nu[2*t] == .(b_scale) * nu[1*t]))
+       title = bquote("Trends" ~ (nu[2*t] == .(b_scale) * nu[1*t])))
 
 # ---- Proposition 1 moment accuracy, oracle, s = 150 -------------------------
 
@@ -559,37 +561,39 @@ s_val    <- r_e2e$s
 eval_pts <- r_e2e$eval_pts
 n_pts    <- length(eval_pts)
 
-j_mid    <- which(eval_pts == 1000)
-R_j      <- r_e2e$R_mat[, j_mid]
-rho_or   <- r_e2e$rho_oracle[j_mid]
-V_or     <- r_e2e$V_oracle[j_mid]
-Z_oracle <- sqrt(s_val) * (R_j - rho_or) / sqrt(V_or)
-Z_oracle <- Z_oracle[!is.na(Z_oracle)]
-Z_pipe   <- r_e2e$Z_est_mat[, j_mid]
-Z_pipe   <- Z_pipe[!is.na(Z_pipe)]
-
-nn_e <- min(length(Z_oracle), length(Z_pipe))
-qq_e <- data.frame(
-  theoretical = rep(qnorm(ppoints(nn_e)), 2),
-  empirical   = c(sort(Z_oracle[seq_len(nn_e)]), sort(Z_pipe[seq_len(nn_e)])),
-  type        = rep(c("Oracle", "End-to-end"), each = nn_e)
-)
+# Every evaluation point, not one of them. Showing a single window hid three
+# and made the choice of which look arbitrary.
+qq_e <- do.call(rbind, lapply(seq_along(eval_pts), function(j) {
+  Zo <- sqrt(s_val) * (r_e2e$R_mat[, j] - r_e2e$rho_oracle[j]) / sqrt(r_e2e$V_oracle[j])
+  Zo <- Zo[is.finite(Zo)]
+  Zp <- r_e2e$Z_est_mat[, j]; Zp <- Zp[is.finite(Zp)]
+  nn <- min(length(Zo), length(Zp))
+  data.frame(
+    theoretical = rep(qnorm(ppoints(nn)), 2),
+    empirical   = c(sort(Zo[seq_len(nn)]), sort(Zp[seq_len(nn)])),
+    type        = rep(c("Oracle", "End-to-end"), each = nn),
+    t           = eval_pts[j]
+  )
+}))
+qq_e$t <- factor(qq_e$t, levels = sort(eval_pts),
+                 labels = paste("t =", sort(eval_pts)))
 
 p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   geom_abline(slope = 1, intercept = 0, colour = col_th) +
-  geom_point(size = 0.6, alpha = 0.6) +
+  geom_point(size = 0.35, alpha = 0.5) +
+  facet_wrap(~ t, nrow = 1) +
   scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
   labs(x = "Theoretical N(0,1)", y = expression("Empirical" ~ Z[t])) +
   base_theme +
   theme(
-    legend.position = c(0.02, 0.98),
+    legend.position = c(0.005, 0.99),
     legend.justification = c(0, 1),
     legend.background = element_blank(),
     legend.key = element_blank(),
     legend.title = element_blank(),
-    legend.key.size = unit(0.35, "cm")
+    legend.key.size = unit(0.3, "cm")
   ) +
-  guides(colour = guide_legend(override.aes = list(size = 1.5, alpha = 1)))
+  guides(colour = guide_legend(override.aes = list(size = 1.2, alpha = 1)))
 
 cov_rows <- vector("list", 2 * n_pts)
 for (j in seq_len(n_pts)) {
@@ -643,12 +647,12 @@ full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
     area(7,  1,  9, 4),   # B  trend
     area(10, 1, 12, 4),   #    rho
     area(7,  5, 12, 6),   #    V
-    area(13, 1, 18, 3),   # C  end-to-end QQ
-    area(13, 4, 18, 6)    #    coverage
+    area(13, 1, 17, 6),   # C  end-to-end QQ, faceted by evaluation point
+    area(18, 1, 22, 6)    #    coverage
   ))
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
-         full_fig, width = 6, height = 6, dpi = 450)
+         full_fig, width = 6, height = 7.5, dpi = 450)
 })
 
 cat("All figures written to ", IMG_DIR, "\n", sep = "")
