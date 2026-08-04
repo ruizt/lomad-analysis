@@ -27,13 +27,28 @@ n_obs <- 2000
 h_win <- 20
 
 # Shared trend via sim_trends (common trend, d = 0)
+# Two trends that are equal under affine transformation: nu_2 = B_SCALE * nu_1
+# with B_SCALE > 0, so H_0 holds by construction while tau_2^2 = B_SCALE^2
+# tau_1^2. The equal-amplitude case B_SCALE = 1 is a special case in which the
+# revised Proposition 1 collapses to its predecessor -- and in which a
+# cross-pairing error in V is undetectable, since tau_2^2 sigma_1^4 L_1 and
+# tau_1^2 sigma_1^4 L_1 coincide. At B_SCALE = 2 the correct and swapped forms
+# differ by 53%, so the study can actually see the error it is most at risk of.
+#
+# Only the scale matters. Correlation is location invariant, so an offset
+# nu_2 = a + b nu_1 changes R, tau, rho and V not at all; the location half of
+# the affine null needs no simulation.
+B_SCALE <- 2
+
 tr     <- sim_trends(n = n_obs, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)
 trend  <- tr$x1
+trend2 <- B_SCALE * trend
 
 # Noiseless MA-smoothed trend — used for oracle tau_sq everywhere.
 # Because d = 0 (shared trend), this equals filter(trend, ...) directly;
 # no bias correction is needed.
-ma_trend <- as.numeric(stats::filter(trend, rep(1 / h_win, h_win), sides = 1))
+ma_trend  <- as.numeric(stats::filter(trend,  rep(1 / h_win, h_win), sides = 1))
+ma_trend2 <- as.numeric(stats::filter(trend2, rep(1 / h_win, h_win), sides = 1))
 
 # Oracle ARMA(1,1) noise (Figures 1–2)
 oracle_ar1 <- 0.6;  oracle_ma1 <- 0.3;   oracle_sd1 <- 0.8
@@ -75,9 +90,10 @@ e2e_sigma2     <- e2e_acov_filt2[1]
 e2e_sums       <- acov_sums(e2e_acov_filt1, e2e_acov_filt2)
 e2e_s          <- 150
 # Use noiseless ma_trend directly — no bias correction needed in oracle setting
-e2e_tau_sq     <- compute_tau_sq(ma_trend, e2e_s)
-e2e_rho_oracle <- compute_rho(e2e_tau_sq, e2e_tau_sq, e2e_sigma1, e2e_sigma2)
-e2e_V_oracle   <- compute_V(e2e_tau_sq, e2e_tau_sq, e2e_sigma1, e2e_sigma2,
+e2e_tau_sq     <- compute_tau_sq(ma_trend,  e2e_s)
+e2e_tau2_sq    <- compute_tau_sq(ma_trend2, e2e_s)
+e2e_rho_oracle <- compute_rho(e2e_tau_sq, e2e_tau2_sq, e2e_sigma1, e2e_sigma2)
+e2e_V_oracle   <- compute_V(e2e_tau_sq, e2e_tau2_sq, e2e_sigma1, e2e_sigma2,
                               e2e_sums$L1, e2e_sums$L2,
                               e2e_sums$Q1, e2e_sums$Q2, e2e_sums$Q12)
 e2e_eval_pts   <- c(500, 850, 1000, 1400, 1600)
@@ -91,7 +107,7 @@ run_rep_clt <- function(s, seed, eval_t = 600) {
   z2 <- arima.sim(model = list(ar = oracle_ar2, ma = oracle_ma2),
                   n = n_obs, sd = oracle_sd2)
   y1 <- trend + z1
-  y2 <- trend + z2
+  y2 <- trend2 + z2
   m1 <- as.numeric(stats::filter(y1, rep(1 / h_win, h_win), sides = 1))
   m2 <- as.numeric(stats::filter(y2, rep(1 / h_win, h_win), sides = 1))
   idx <- (eval_t - s + 1):eval_t
@@ -106,7 +122,7 @@ run_rep_rho <- function(s, seed) {
   z2 <- arima.sim(model = list(ar = oracle_ar2, ma = oracle_ma2),
                   n = n_obs, sd = oracle_sd2)
   y1 <- trend + z1
-  y2 <- trend + z2
+  y2 <- trend2 + z2
   m1 <- as.numeric(stats::filter(y1, rep(1 / h_win, h_win), sides = 1))
   m2 <- as.numeric(stats::filter(y2, rep(1 / h_win, h_win), sides = 1))
 
@@ -127,7 +143,7 @@ run_rep_var <- function(s, seed, eval_pts) {
   z2 <- arima.sim(model = list(ar = oracle_ar2, ma = oracle_ma2),
                   n = n_obs, sd = oracle_sd2)
   y1 <- trend + z1
-  y2 <- trend + z2
+  y2 <- trend2 + z2
   m1 <- as.numeric(stats::filter(y1, rep(1 / h_win, h_win), sides = 1))
   m2 <- as.numeric(stats::filter(y2, rep(1 / h_win, h_win), sides = 1))
 
@@ -146,12 +162,12 @@ run_rep_var <- function(s, seed, eval_pts) {
 # the one configuration the rest of the study cannot produce -- every other arm
 # uses the same trend for both series, so tau_1 == tau_2 and the two-tau path
 # is never exercised.
-run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05, b = 1) {
+run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05) {
   set.seed(seed)
   z1 <- arima.sim(model = list(ar = e2e_ar1), n = n_obs, sd = e2e_sd1)
   z2 <- arima.sim(model = list(ar = e2e_ar2), n = n_obs, sd = e2e_sd2)
   y1 <- trend + z1
-  y2 <- b * trend + z2
+  y2 <- trend2 + z2
 
   fit <- suppressMessages(lomad_fit(y1, y2, h = h_win, s = s))
   tst <- suppressMessages(lomad_test(fit, alpha = alpha))
@@ -184,9 +200,10 @@ if (exp_type == "clt") {
     run_rep_clt(s_val, sd, eval_t = 600)
   }, numeric(1))
 
-  tau_sq <- compute_tau_sq(ma_trend, s_val)
-  rho_t  <- compute_rho(tau_sq, tau_sq, sigma1_sq, sigma2_sq)
-  V_t    <- compute_V(tau_sq, tau_sq, sigma1_sq, sigma2_sq,
+  tau_sq  <- compute_tau_sq(ma_trend,  s_val)
+  tau2_sq <- compute_tau_sq(ma_trend2, s_val)
+  rho_t  <- compute_rho(tau_sq, tau2_sq, sigma1_sq, sigma2_sq)
+  V_t    <- compute_V(tau_sq, tau2_sq, sigma1_sq, sigma2_sq,
                        cov_sums$L1, cov_sums$L2,
                        cov_sums$Q1, cov_sums$Q2, cov_sums$Q12)
 
@@ -211,8 +228,9 @@ if (exp_type == "clt") {
   }
 
   R_mean <- ifelse(R_count > 0, R_accum / R_count, NA_real_)
-  tau_sq <- compute_tau_sq(ma_trend, s_val)
-  rho_th <- compute_rho(tau_sq, tau_sq, sigma1_sq, sigma2_sq)
+  tau_sq  <- compute_tau_sq(ma_trend,  s_val)
+  tau2_sq <- compute_tau_sq(ma_trend2, s_val)
+  rho_th <- compute_rho(tau_sq, tau2_sq, sigma1_sq, sigma2_sq)
 
   result <- list(
     experiment = experiment, s = s_val, S = S, seed0 = seed0,
@@ -229,8 +247,9 @@ if (exp_type == "clt") {
     if (i %% 100 == 0) cat(sprintf("  %d / %d\n", i, S))
   }
 
-  tau_sq <- compute_tau_sq(ma_trend, s_val)
-  V_th   <- compute_V(tau_sq, tau_sq, sigma1_sq, sigma2_sq,
+  tau_sq  <- compute_tau_sq(ma_trend,  s_val)
+  tau2_sq <- compute_tau_sq(ma_trend2, s_val)
+  V_th   <- compute_V(tau_sq, tau2_sq, sigma1_sq, sigma2_sq,
                        cov_sums$L1, cov_sums$L2,
                        cov_sums$Q1, cov_sums$Q2, cov_sums$Q12)
 
@@ -241,11 +260,10 @@ if (exp_type == "clt") {
     V_theory   = V_th[eval_pts]
   )
 
-} else if (exp_type == "e2e" || exp_type == "scale") {
-  b_scale <- if (exp_type == "scale") 3 else 1
+} else if (exp_type == "e2e") {
   e2e_results <- vector("list", S)
   for (i in seq_along(seeds)) {
-    e2e_results[[i]] <- run_rep_e2e(s_val, seeds[i], e2e_eval_pts, b = b_scale)
+    e2e_results[[i]] <- run_rep_e2e(s_val, seeds[i], e2e_eval_pts)
     if (i %% 100 == 0) cat(sprintf("  %d / %d\n", i, S))
   }
 
@@ -269,17 +287,9 @@ if (exp_type == "clt") {
     rho_est_mat = rho_mat,
     V_est_mat   = V_mat,
     Z_est_mat   = Z_mat,
-    b_scale     = b_scale,
-    rho_oracle  = {
-      t1 <- compute_tau_sq(ma_trend, s_val)
-      compute_rho(t1, b_scale^2 * t1, e2e_sigma1, e2e_sigma2)[e2e_eval_pts]
-    },
-    V_oracle    = {
-      t1 <- compute_tau_sq(ma_trend, s_val)
-      compute_V(t1, b_scale^2 * t1, e2e_sigma1, e2e_sigma2,
-                e2e_sums$L1, e2e_sums$L2,
-                e2e_sums$Q1, e2e_sums$Q2, e2e_sums$Q12)[e2e_eval_pts]
-    }
+    b_scale     = B_SCALE,
+    rho_oracle  = e2e_rho_oracle[e2e_eval_pts],
+    V_oracle    = e2e_V_oracle[e2e_eval_pts]
   )
 
 } else {
