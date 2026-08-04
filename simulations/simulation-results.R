@@ -634,6 +634,7 @@ p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
                 position = dodge, linewidth = 0.5) +
   geom_point(size = 1.5, position = dodge) +
   scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
+  coord_cartesian(xlim = TLIM) +
   labs(x = "Time", y = "95% coverage") +
   base_theme +
   theme(
@@ -662,8 +663,8 @@ full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
     # Row C runs taller than A and B: the QQ facets are square, so their size
     # is set by whichever of width or height binds first, and at an equal span
     # it was height -- the panels came out a third of their width.
-    area(13, 1, 21, 3),   # C  coverage
-    area(13, 4, 21, 6)    #    end-to-end QQ, faceted 2x2 by evaluation point
+    area(13, 1, 21, 4),   # C  coverage, on panel B's time axis
+    area(13, 5, 21, 6)    #    end-to-end QQ, faceted 2x2 by evaluation point
   ))
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
