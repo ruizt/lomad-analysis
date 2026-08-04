@@ -578,16 +578,28 @@ qq_e <- do.call(rbind, lapply(seq_along(eval_pts), function(j) {
 qq_e$t <- factor(qq_e$t, levels = sort(eval_pts),
                  labels = paste("t =", sort(eval_pts)))
 
+QQ_LIM   <- 3.5
+QQ_CLIP_N <- sum(abs(qq_e$empirical) > QQ_LIM)
+cat(sprintf("QQ: %d of %d points (%.3f%%) clipped at |Z| > %.1f\n",
+            QQ_CLIP_N, nrow(qq_e), 100 * QQ_CLIP_N / nrow(qq_e), QQ_LIM))
+
 p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   geom_abline(slope = 1, intercept = 0, colour = col_th) +
   geom_point(size = 0.35, alpha = 0.5) +
-  facet_wrap(~ t, nrow = 1) +
+  facet_wrap(~ t, nrow = 2) +
   scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
+  # Square panels on a common symmetric range. A handful of lower-tail points
+  # fall outside and are clipped rather than allowed to set the scale for all
+  # four facets; QQ_CLIP_N below reports how many, for the caption.
+  coord_cartesian(xlim = c(-QQ_LIM, QQ_LIM), ylim = c(-QQ_LIM, QQ_LIM)) +
   labs(x = "Theoretical N(0,1)", y = expression("Empirical" ~ Z[t])) +
   base_theme +
   theme(
-    legend.position = c(0.005, 0.99),
-    legend.justification = c(0, 1),
+    aspect.ratio = 1,
+    # Below the facets. Any in-panel corner collides: the outlying lower tail
+    # stretches the y range, so the curves run through every empty region.
+    legend.position = "bottom",
+    legend.margin = margin(t = -4),
     legend.background = element_blank(),
     legend.key = element_blank(),
     legend.title = element_blank(),
@@ -647,12 +659,15 @@ full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
     area(7,  1,  9, 4),   # B  trend
     area(10, 1, 12, 4),   #    rho
     area(7,  5, 12, 6),   #    V
-    area(13, 1, 17, 6),   # C  end-to-end QQ, faceted by evaluation point
-    area(18, 1, 22, 6)    #    coverage
+    # Row C is given more height than rows A and B: the QQ facets are square,
+    # so their size is set by whichever of width or height binds first, and at
+    # the old span it was height -- the panels came out a third of their width.
+    area(13, 1, 22, 3),   # C  end-to-end QQ, faceted 2x2 by evaluation point
+    area(13, 4, 22, 6)    #    coverage
   ))
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
-         full_fig, width = 6, height = 7.5, dpi = 450)
+         full_fig, width = 6, height = 7.25, dpi = 450)
 })
 
 cat("All figures written to ", IMG_DIR, "\n", sep = "")
