@@ -458,9 +458,15 @@ p_clt <- ggplot(qq_df, aes(theoretical, empirical)) +
   labs(x = "Theoretical N(0,1)", y = expression("Empirical" ~ Z[t])) +
   base_theme
 
-# ---- The common trend -------------------------------------------------------
-# Regenerated, not stored: sim_trends() is deterministic given the seed. d = 0,
-# so both series share this trend and every window is a true null.
+# ---- The two trends ---------------------------------------------------------
+# Regenerated, not stored: sim_trends() is deterministic given the seed. The
+# scale factor comes from the results rather than being hard-coded, so the
+# panel cannot drift from the study that produced the numbers beside it.
+# nu_2 = b * nu_1 with b > 0 satisfies H_0, so every window is a true null
+# despite the two series differing in amplitude.
+
+b_scale <- results[["e2e-s150"]]$b_scale
+if (is.null(b_scale)) stop("results predate b_scale; re-run the validation study")
 
 trend_v <- sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)$x1
 
@@ -468,14 +474,24 @@ trend_v <- sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)$
 # limit a given t lands at a different x in each panel.
 TLIM <- c(1, length(trend_v))
 
-p_trend <- ggplot(data.frame(t = seq_along(trend_v), nu = trend_v),
-                  aes(t, nu)) +
-  geom_line(colour = col_th, linewidth = 0.3) +
+trend_df <- rbind(
+  data.frame(t = seq_along(trend_v), nu = trend_v,          k = "1"),
+  data.frame(t = seq_along(trend_v), nu = b_scale * trend_v, k = "2")
+)
+
+p_trend <- ggplot(trend_df, aes(t, nu, colour = k)) +
+  geom_line(linewidth = 0.3) +
+  scale_colour_manual(values = c(`1` = "grey30", `2` = col_th),
+                      labels = c(expression(nu[1*t]), expression(nu[2*t]))) +
   coord_cartesian(xlim = TLIM) +
-  scale_y_continuous(breaks = c(-2, 0, 2)) +
   base_theme +
-  theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5)) +
-  labs(x = NULL, y = expression(nu[t]), title = "Shared trend")
+  theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5),
+        legend.position = c(1, 1), legend.justification = c(1, 1),
+        legend.background = element_blank(), legend.key = element_blank(),
+        legend.title = element_blank(), legend.direction = "horizontal",
+        legend.key.size = unit(0.4, "cm")) +
+  labs(x = NULL, y = expression(nu[it]),
+       title = bquote("Trends," ~ nu[2*t] == .(b_scale) * nu[1*t]))
 
 # ---- Proposition 1 moment accuracy, oracle, s = 150 -------------------------
 
