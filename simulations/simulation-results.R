@@ -594,18 +594,7 @@ p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   coord_cartesian(xlim = c(-QQ_LIM, QQ_LIM), ylim = c(-QQ_LIM, QQ_LIM)) +
   labs(x = "Theoretical N(0,1)", y = expression("Empirical" ~ Z[t])) +
   base_theme +
-  theme(
-    aspect.ratio = 1,
-    # Below the facets. Any in-panel corner collides: the outlying lower tail
-    # stretches the y range, so the curves run through every empty region.
-    legend.position = "bottom",
-    legend.margin = margin(t = -4),
-    legend.background = element_blank(),
-    legend.key = element_blank(),
-    legend.title = element_blank(),
-    legend.key.size = unit(0.3, "cm")
-  ) +
-  guides(colour = guide_legend(override.aes = list(size = 1.2, alpha = 1)))
+  theme(aspect.ratio = 1, legend.position = "none")
 
 cov_rows <- vector("list", 2 * n_pts)
 for (j in seq_len(n_pts)) {
@@ -647,27 +636,38 @@ p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
   scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
   labs(x = "Time", y = "95% coverage") +
   base_theme +
-  theme(legend.position = "none")
+  theme(
+    # The two panels of row C share a colour scale, so one key serves both. It
+    # goes here rather than on the QQ, whose square panels have no free corner.
+    legend.position = c(0.99, 0.99),
+    legend.justification = c(1, 1),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    legend.title = element_blank(),
+    legend.key.size = unit(0.3, "cm"),
+    legend.text = element_text(size = 7)
+  ) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # ---- Composite --------------------------------------------------------------
 # Three rows of equal height, trend flush above rho on a shared time axis.
 
 full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
-  p_v + (p_qq + labs(tag = "C")) + p_cov +
+  p_v + (p_cov + labs(tag = "C")) + p_qq +
   plot_layout(design = c(
     area(1,  1,  6, 6),   # A  CLT QQ facets
     area(7,  1,  9, 4),   # B  trend
     area(10, 1, 12, 4),   #    rho
     area(7,  5, 12, 6),   #    V
-    # Row C is given more height than rows A and B: the QQ facets are square,
-    # so their size is set by whichever of width or height binds first, and at
-    # the old span it was height -- the panels came out a third of their width.
-    area(13, 1, 22, 3),   # C  end-to-end QQ, faceted 2x2 by evaluation point
-    area(13, 4, 22, 6)    #    coverage
+    # Row C runs taller than A and B: the QQ facets are square, so their size
+    # is set by whichever of width or height binds first, and at an equal span
+    # it was height -- the panels came out a third of their width.
+    area(13, 1, 21, 3),   # C  coverage
+    area(13, 4, 21, 6)    #    end-to-end QQ, faceted 2x2 by evaluation point
   ))
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
-         full_fig, width = 6, height = 7.25, dpi = 450)
+         full_fig, width = 6, height = 6.9, dpi = 450)
 })
 
 cat("All figures written to ", IMG_DIR, "\n", sep = "")
