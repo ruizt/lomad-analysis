@@ -490,7 +490,7 @@ p_trend <- ggplot(trend_df, aes(t, nu, group = k)) +
   geom_line(linewidth = 0.3, colour = col_th) +
   coord_cartesian(xlim = TLIM) +
   base_theme +
-  theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5),
+  theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 6, 5.5),
         legend.position = "none") +
   labs(x = NULL, y = expression(nu[it]),
        title = bquote("Trends" ~ (nu[2*t] == .(b_scale) * nu[1*t])))
@@ -655,18 +655,18 @@ lam_df <- rbind(
   data.frame(t = seq_along(r_e2e$lambda2), lam = r_e2e$lambda2, k = "2")
 )
 lam_df <- lam_df[is.finite(lam_df$lam) & lam_df$lam > 0, ]
+lam_df$lam <- log10(lam_df$lam)
 lam_ratio <- round(median(r_e2e$lambda2 / r_e2e$lambda1, na.rm = TRUE), 2)
 
 p_lam <- ggplot(lam_df, aes(t, lam, group = k)) +
   geom_line(linewidth = 0.3, colour = col_th) +
-  # Three breaks, two decades apart, spanning the realized range (0.001 to 41).
-  scale_y_continuous(trans = "log10", breaks = c(0.001, 0.1, 10),
-                     labels = c("0.001", "0.1", "10")) +
+  # Three breaks, two decades apart, spanning the realized range.
+  scale_y_continuous(breaks = c(-3, -1, 1)) +
   coord_cartesian(xlim = TLIM) +
   base_theme +
-  theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5),
+  theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 6, 5.5),
         legend.position = "none") +
-  labs(x = NULL, y = expression(lambda[kt]),
+  labs(x = NULL, y = expression(log[10] ~ lambda[kt]),
        title = bquote("Local SNR" ~ (lambda[2*t] == .(lam_ratio) * lambda[1*t])))
 
 p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
