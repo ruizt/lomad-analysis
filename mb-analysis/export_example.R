@@ -84,7 +84,9 @@ cat(sprintf("Wrote %s: %d rows, %s .. %s (%.0f KB)\n", out, nrow(morro_bay),
 vg <- function(x, l) mean((x[(l + 1):length(x)] - x[1:(length(x) - l)])^2) / 2
 f <- suppressWarnings(suppressMessages(
   lomad::lomad_fit(morro_bay$o2, morro_bay$ph, h = 4, s = 60)))
-vt <- which(!is.na(f$trend)); r <- morro_bay$o2[vt] - f$trend[vt]
+# Series 1 against its own smoothed trend: there is no shared trend to
+# subtract, and the fit estimates noise this way too.
+vt <- which(!is.na(f$ma1)); r <- morro_bay$o2[vt] - f$ma1[vt]
 tst <- suppressMessages(lomad::lomad_test(f, alpha = 0.05))
 cat(sprintf("  V2/V1 = %.2f, phi_hat = (%.3f, %.3f), rejections = %d\n",
             vg(r, 2) / vg(r, 1), f$noise$series1$ar, f$noise$series2$ar,

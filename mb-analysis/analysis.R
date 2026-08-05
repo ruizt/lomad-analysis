@@ -434,7 +434,7 @@ ex_tst <- lomad_test(ex_fit, alpha = ALPHA)
 stopifnot(
   nrow(morro_bay) == 208L,
   as.Date(min(morro_bay$datetime)) == as.Date("2022-08-24"),
-  sum(ex_tst$rejected, na.rm = TRUE) == 52L
+  sum(ex_tst$rejected, na.rm = TRUE) == 15L
 )
 
 ex_rej <- replace(ex_tst$rejected, is.na(ex_tst$rejected), FALSE)
@@ -451,7 +451,7 @@ shade_up <- runs(lomad:::.rejected_window_span(ex_rej, S_WIN))
 shade_lo <- runs(ex_rej)
 
 ex_d <- tibble(datetime = t_idx, DO = ex_fit$ma1, pH = ex_fit$ma2,
-               trend = ex_fit$trend, R = ex_fit$R, rho = ex_fit$rho,
+               R = ex_fit$R, rho = ex_fit$rho,
                crit = ex_fit$rho + qnorm(ex_tst$alpha_eff) * sqrt(ex_fit$V / S_WIN))
 ex_ma <- ex_d |> select(datetime, DO, pH) |>
   pivot_longer(-datetime, names_to = "var", values_to = "z")
@@ -459,8 +459,6 @@ ex_ma <- ex_d |> select(datetime, DO, pH) |>
 p_ex_up <- ggplot() +
   geom_rect(data = shade_up, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
             fill = SHADE, alpha = 0.45) +
-  geom_line(data = ex_d, aes(datetime, trend), colour = "grey45",
-            linewidth = LW_MA * 0.8) +
   geom_line(data = ex_ma, aes(datetime, z, colour = var), linewidth = LW_MA) +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +

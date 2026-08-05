@@ -30,7 +30,9 @@ alpha <- 0.05
 S     <- 20
 
 d_vals     <- c(0, 0.25, 0.5, 0.75, 1, 1.5)
-structs <- c("dist", "smooth", "cross", "rate")
+# "dist" generates the base trends but is not a coupling structure and has
+# never appeared in a figure; it was a quarter of the job budget.
+structs <- c("smooth", "cross", "rate")
 n_vals   <- c(200L, 400L, 600L)
 phi_vals <- c(0.3, 0.5, 0.8)
 snr_vals <- c(0.5, 1.5)
@@ -78,6 +80,37 @@ run_rep <- function(d, struct, n, phi, snr, seed, oracle = FALSE) {
     noise_ov <- list(ar = phi, sigma2 = var(innov1))
   }
 
+  # Realized affine effect size on the windows the test uses, from the true
+  # noise-free trends smoothed exactly as the observed series are. d is a
+  # design knob; delta_t = sqrt(1 - r_t^2) is what the test actually has power
+  # against, so it is recorded rather than assumed.
+  kern <- rep(1 / h_win, h_win)
+  t1s  <- as.numeric(stats::filter(trends$x1, kern, sides = 1))
+  t2s  <- as.numeric(stats::filter(trends$x2, kern, sides = 1))
+  r_t  <- rep(NA_real_, n)
+  for (tt in s_win:n) {
+    ww <- (tt - s_win + 1L):tt
+    a <- t1s[ww]; b <- t2s[ww]
+    if (anyNA(a) || anyNA(b) || sd(a) == 0 || sd(b) == 0) next
+    r_t[tt] <- suppressWarnings(stats::cor(a, b))
+  }
+  delta_t <- sqrt(pmax(0, 1 - r_t^2))
+
+  # Realized per-series SNR, on sim_noise_pair()'s definition: smoothed signal
+  # variance over smoothed noise variance. Measured on the test window s_win
+  # rather than the 2h calibration window, so the level sits above `snr` -- a
+  # longer window sees more of the trend's variation. The ratio lambda1/lambda2
+  # is the quantity of interest and is unaffected by that choice; it should be
+  # 1 once the displacement is orthogonalised and rescaled.
+  eta1 <- as.numeric(stats::filter(sim$y1 - sim$x1, kern, sides = 1))
+  eta2 <- as.numeric(stats::filter(sim$y2 - sim$x2, kern, sides = 1))
+  # compute_tau_sq() is the package's own Var_W, with the population
+  # denominator the proof uses, so lambda_k here is definitionally the
+  # lambda_k of Proposition 1 rather than a near-equivalent.
+  tau_w <- function(z) mean(compute_tau_sq(z, s_win), na.rm = TRUE)
+  lam1 <- tau_w(t1s) / var(eta1, na.rm = TRUE)
+  lam2 <- tau_w(t2s) / var(eta2, na.rm = TRUE)
+
   # Fit
   fit <- tryCatch(
     lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win, noise_override = noise_ov),
@@ -87,7 +120,9 @@ run_rep <- function(d, struct, n, phi, snr, seed, oracle = FALSE) {
     return(list(
       summary = data.frame(d = d, struct = struct, n = n,
                            phi = phi, snr = snr, seed = seed,
-                           detected = NA),
+                           detected = NA,
+                           delta_sup = NA_real_, delta_bar = NA_real_,
+                           lambda1 = NA_real_, lambda2 = NA_real_),
       series = NULL
     ))
   }
@@ -101,9 +136,13 @@ run_rep <- function(d, struct, n, phi, snr, seed, oracle = FALSE) {
   list(
     summary = data.frame(d = d, n = n, phi = phi, snr = snr,
                          struct = struct, seed = seed,
-                         detected = any(tst$rejected, na.rm = TRUE)),
+                         detected = any(tst$rejected, na.rm = TRUE),
+                         delta_sup = suppressWarnings(max(delta_t, na.rm = TRUE)),
+                         delta_bar = mean(delta_t, na.rm = TRUE),
+                         lambda1 = lam1, lambda2 = lam2),
     series = list(w = w,
                   sep = abs(trends$x1 - trends$x2),
+                  delta_t = delta_t,
                   vi = fit$valid_idx,
                   p_raw = tst$p_values,
                   p_adj = tst$p_adj,
