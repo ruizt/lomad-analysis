@@ -362,11 +362,16 @@ p_profile <- local({
     scale_linetype_manual(values = ESTIMATION_LTY) +
     guides(linetype = guide_none()) +
     scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
+    # Six facet columns leave no room for the default five breaks: the labels
+    # collide across panel boundaries, running "1.00" into the next "0.00".
+    scale_x_continuous(breaks = c(0, 0.5, 1), labels = c("0.0", "0.5", "1.0"),
+                       expand = expansion(mult = 0.12)) +
     labs(x = expression("Window separation " * delta[t]), y = "Rejection probability",
          colour = "Structure") +
     theme_minimal(base_size = PT$title) +
     theme(legend.position = "right",
-            panel.grid.minor = element_blank(),
+          panel.spacing.x = unit(0.5, "lines"),
+          panel.grid.minor = element_blank(),
           panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
 
   res <- prof |>
