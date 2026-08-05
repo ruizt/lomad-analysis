@@ -96,12 +96,13 @@ e2e_rho_oracle <- compute_rho(e2e_tau_sq, e2e_tau2_sq, e2e_sigma1, e2e_sigma2)
 e2e_V_oracle   <- compute_V(e2e_tau_sq, e2e_tau2_sq, e2e_sigma1, e2e_sigma2,
                               e2e_sums$L1, e2e_sums$L2,
                               e2e_sums$Q1, e2e_sums$Q2, e2e_sums$Q12)
-# Four fixed evaluation points spanning a range of local population
-# correlations. t = 630 replaces the original t = 500, whose window is nearly
-# flat: lambda_1 there is 0.011, the null predicts rho = 0.03, and the test
-# provably has no power, which is not a calibration result. The original
-# t = 1000 is dropped for the same reason in milder form (lambda_1 = 0.18).
-e2e_eval_pts <- c(630, 850, 1400, 1600)
+# Four evaluation points at even 500-unit spacing, chosen by position rather
+# than by their local quantities so the set carries no selection. They span
+# lambda_1 from 0.024 to 1.402 and rho from 0.059 to 0.730. t = 1900 sits in a
+# near-flat window where the test has little power; a dense sweep over every
+# 5th t shows coverage there is closest to nominal, so including it costs
+# nothing in calibration terms and widens the range on display.
+e2e_eval_pts <- c(400, 900, 1400, 1900)
 
 # ---- run_rep functions -------------------------------------------------------
 
@@ -294,7 +295,12 @@ if (exp_type == "clt") {
     Z_est_mat   = Z_mat,
     b_scale     = B_SCALE,
     rho_oracle  = e2e_rho_oracle[e2e_eval_pts],
-    V_oracle    = e2e_V_oracle[e2e_eval_pts]
+    V_oracle    = e2e_V_oracle[e2e_eval_pts],
+    # Full-length, so the figure can draw local SNR over t without repeating
+    # the noise constants. lambda_2 is a fixed multiple of lambda_1 here --
+    # b^2 sigma_1^2 / sigma_2^2, since both trends are one curve up to scale.
+    lambda1     = e2e_tau_sq  / e2e_sigma1,
+    lambda2     = e2e_tau2_sq / e2e_sigma2
   )
 
 } else {

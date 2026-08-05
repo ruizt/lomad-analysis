@@ -455,7 +455,7 @@ p_clt <- ggplot(qq_df, aes(theoretical, empirical)) +
   geom_abline(slope = 1, intercept = 0, colour = col_th, linewidth = 0.5) +
   geom_point(colour = "black", alpha = 0.15, size = 0.9) +
   facet_wrap(~ s_label, nrow = 1) +
-  labs(x = "Theoretical N(0,1)", y = expression("Empirical" ~ Z[t])) +
+  labs(x = "N(0, 1) quantile", y = expression(Z[t] ~ "quantile")) +
   base_theme
 
 # ---- The two trends ---------------------------------------------------------
@@ -592,7 +592,7 @@ p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   # fall outside and are clipped rather than allowed to set the scale for all
   # four facets; QQ_CLIP_N below reports how many, for the caption.
   coord_cartesian(xlim = c(-QQ_LIM, QQ_LIM), ylim = c(-QQ_LIM, QQ_LIM)) +
-  labs(x = "Theoretical N(0,1)", y = expression("Empirical" ~ Z[t])) +
+  labs(x = "N(0, 1) quantile", y = expression(Z[t] ~ "quantile")) +
   base_theme +
   theme(aspect.ratio = 1, legend.position = "none")
 
@@ -628,7 +628,49 @@ cov_df <- do.call(rbind, cov_rows)
 
 dodge <- position_dodge(width = 50)
 
+# MOCKUP ONLY. Reads the dense sweep from _tmp/, which is scratch and not a
+# reproducible input. To keep this, e2e_eval_pts in validation/tide/sim.R has
+# to carry the dense grid so the band arrives with the rest of the results.
+BAND_FILE <- "_tmp/coverage-band.rds"
+band_df <- if (file.exists(BAND_FILE)) readRDS(BAND_FILE) else NULL
+
+band_layers <- if (!is.null(band_df)) list(
+  geom_ribbon(data = band_df, inherit.aes = FALSE,
+              aes(x = t, ymin = cov - 1.96 * se, ymax = cov + 1.96 * se,
+                  fill = type), alpha = 0.10),
+  geom_line(data = band_df, inherit.aes = FALSE,
+            aes(x = t, y = cov, colour = type), alpha = 0.30, linewidth = 0.3),
+  scale_fill_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline),
+                    guide = "none")
+) else list()
+
+# Local SNR over t, above coverage on a shared axis, as the trend sits above
+# rho in row B. Coverage tracks SNR, so the strip is what makes the coverage
+# panel readable rather than a scatter of four unexplained points. Both series
+# are drawn: lambda_2 is a constant multiple of lambda_1 by construction, and
+# showing only one would imply a single SNR governs the test when the
+# experiment cannot separate them.
+lam_df <- rbind(
+  data.frame(t = seq_along(r_e2e$lambda1), lam = r_e2e$lambda1, k = "1"),
+  data.frame(t = seq_along(r_e2e$lambda2), lam = r_e2e$lambda2, k = "2")
+)
+lam_df <- lam_df[is.finite(lam_df$lam) & lam_df$lam > 0, ]
+lam_ratio <- round(median(r_e2e$lambda2 / r_e2e$lambda1, na.rm = TRUE), 2)
+
+p_lam <- ggplot(lam_df, aes(t, lam, group = k)) +
+  geom_line(linewidth = 0.3, colour = col_th) +
+  # Three breaks, two decades apart, spanning the realized range (0.001 to 41).
+  scale_y_continuous(trans = "log10", breaks = c(0.001, 0.1, 10),
+                     labels = c("0.001", "0.1", "10")) +
+  coord_cartesian(xlim = TLIM) +
+  base_theme +
+  theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 0, 5.5),
+        legend.position = "none") +
+  labs(x = NULL, y = expression(lambda[kt]),
+       title = bquote("Local SNR" ~ (lambda[2*t] == .(lam_ratio) * lambda[1*t])))
+
 p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
+  band_layers +
   geom_hline(yintercept = 0.95, linetype = "dashed", colour = col_th) +
   geom_errorbar(aes(ymin = lo, ymax = hi), width = 55,
                 position = dodge, linewidth = 0.5) +
@@ -654,7 +696,7 @@ p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
 # Three rows of equal height, trend flush above rho on a shared time axis.
 
 full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
-  p_v + (p_cov + labs(tag = "C")) + p_qq +
+  p_v + (p_lam + labs(tag = "C")) + p_cov + p_qq +
   plot_layout(design = c(
     area(1,  1,  6, 6),   # A  CLT QQ facets
     area(7,  1,  9, 4),   # B  trend
@@ -663,8 +705,9 @@ full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
     # Row C runs taller than A and B: the QQ facets are square, so their size
     # is set by whichever of width or height binds first, and at an equal span
     # it was height -- the panels came out a third of their width.
-    area(13, 1, 21, 4),   # C  coverage, on panel B's time axis
-    area(13, 5, 21, 6)    #    end-to-end QQ, faceted 2x2 by evaluation point
+    area(13,  1, 15, 4),  # C  local SNR, flush above coverage
+    area(16,  1, 21, 4),  #    coverage, on panel B's time axis
+    area(13,  5, 21, 6)   #    end-to-end QQ, faceted 2x2 by evaluation point
   ))
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
