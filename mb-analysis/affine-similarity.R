@@ -11,9 +11,11 @@
 ## Outputs -> mb-analysis/_img/
 ##   fig-affine-similarity.png
 ##
-## Region indices come from a Python prototype and are half-open there, so
-## `[i1:i2]` is `(i1 + 1):i2` here. Region A matches the prototype only on that
-## reading -- closed indexing shifts corr from 0.615 to 0.627.
+## Both regions are exactly S_WIN = 60 points, i.e. one 15-day analysis window,
+## so what the figure shows is the scale the test actually operates on. They
+## were selected by sweeping every 60-point window in the record for high local
+## correlation together with either a level offset or an amplitude ratio far
+## from one, rather than chosen by eye.
 ##
 ## Usage (from the repo root):
 ##   Rscript mb-analysis/affine-similarity.R
@@ -31,9 +33,12 @@ S_WIN <- 60L     # 15-day correlation window
 LOC   <- "BS1"
 BLOCK <- 23      # longest block
 
-A_IDX <- c(1235L, 1374L)   # location offset dominant
-B_IDX <- c(1375L, 1472L)   # scale difference dominant
-CTX   <- c(1235L, 1612L)   # display range for the context panel
+# One analysis window each. A: corr 0.873, kappa 0.94 -- amplitudes match and
+# the separation is almost pure level. B: corr 0.859, kappa 1.98 -- the series
+# track but pH swings twice as far.
+A_IDX <- c(2313L, 2372L)   # 2025-09-15 to 2025-09-30, location offset dominant
+B_IDX <- c(2564L, 2623L)   # 2025-11-17 to 2025-12-02, scale difference dominant
+CTX   <- c(2270L, 2670L)   # context spanning both, with margin
 
 FILL_A <- "#D9EAD3"        # light green / light purple: distinct from the
 FILL_B <- "#EAD9F0"        # blue and red the series themselves use
