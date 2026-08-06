@@ -129,36 +129,47 @@ p_a <- ggplot() +
         legend.direction = "horizontal", legend.background = element_blank(),
         legend.key.size = unit(0.35, "cm"))
 
-zoom <- ps[regA$i1:regA$i2, ]
+# Each region gets an as-observed panel and a realigned one. b_hat is fitted
+# over the whole region, not per window; the method never estimates b.
+region_row <- function(r, show_y) {
+  z <- ps[r$i1:r$i2, ]
 
-p_b <- ggplot(long_ma(zoom), aes(datetime, value, colour = Series)) +
-  geom_line(linewidth = LW_MA) +
-  scale_colour_manual(values = VAR_PAL, guide = "none") +
-  scale_x_datetime(date_labels = "%b %d") +
-  labs(x = NULL, y = "Standardized units",
-       title = "Region A, as observed") +
-  fig_theme()
+  p_raw <- ggplot(long_ma(z), aes(datetime, value, colour = Series)) +
+    geom_line(linewidth = LW_MA) +
+    scale_colour_manual(values = VAR_PAL, guide = "none") +
+    scale_x_datetime(date_labels = "%b %d") +
+    labs(x = NULL, y = if (show_y) "Standardized units" else NULL,
+         title = sprintf("Region %s, as observed", r$label),
+         subtitle = " ") +
+    fig_theme() +
+    theme(plot.subtitle = element_text(size = PT$annot))
 
-# pH mapped through the region's own affine fit: (pH - a) / b
-zoom_r <- zoom |> mutate(ma_ph = (ma_ph - regA$a) / regA$b)
+  z_adj <- z |> mutate(ma_ph = (ma_ph - r$a) / r$b)
+  p_adj <- ggplot(long_ma(z_adj), aes(datetime, value, colour = Series)) +
+    geom_line(linewidth = LW_MA) +
+    scale_colour_manual(values = VAR_PAL, guide = "none") +
+    scale_x_datetime(date_labels = "%b %d") +
+    # In the subtitle, not annotated inside: region B's trace reaches the top
+    # left corner. Numbers are quoted so plotmath keeps the trailing zero --
+    # unquoted, `1.70` is evaluated and renders as 1.7.
+    labs(x = NULL, y = NULL,
+         title = sprintf("Region %s, realigned", r$label),
+         subtitle = bquote(hat(a) == .(sprintf("%.2f", r$a)) * "," ~
+                           hat(b) == .(sprintf("%.2f", r$b)))) +
+    fig_theme() +
+    theme(plot.subtitle = element_text(size = PT$annot, colour = "grey25"))
 
-p_c <- ggplot(long_ma(zoom_r), aes(datetime, value, colour = Series)) +
-  geom_line(linewidth = LW_MA) +
-  annotate("text", x = min(zoom$datetime), y = Inf, hjust = 0, vjust = 1.6,
-           size = ANNOT, colour = "grey25",
-           label = sprintf("hat(a) == %.2f * ',' ~ hat(b) == %.2f", regA$a, regA$b),
-           parse = TRUE) +
-  scale_colour_manual(values = VAR_PAL, guide = "none") +
-  scale_x_datetime(date_labels = "%b %d") +
-  labs(x = NULL, y = NULL,
-       title = expression("Region A, pH mapped through " * (pH - hat(a)) / hat(b))) +
-  fig_theme()
+  list(raw = p_raw, adj = p_adj)
+}
 
-fig <- p_a / (p_b | p_c) +
-  plot_layout(heights = c(1, 1.05)) +
+rowA <- region_row(regA, TRUE)
+rowB <- region_row(regB, TRUE)
+
+fig <- p_a / (rowA$raw | rowA$adj) / (rowB$raw | rowB$adj) +
+  plot_layout(heights = c(1, 1, 1)) +
   plot_annotation(tag_levels = "a", tag_prefix = "(", tag_suffix = ")",
                   theme = theme(plot.tag = element_text(size = PT$ltitle)))
 
 ggsave(file.path(img_out, "fig-affine-similarity.png"), fig,
-       width = 6.5, height = 4.6, dpi = 450)
+       width = 6.5, height = 6.6, dpi = 450)
 cat(sprintf("\nWrote %s\n", file.path(img_out, "fig-affine-similarity.png")))
