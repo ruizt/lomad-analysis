@@ -439,7 +439,7 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
 
 AFF_LOC <- "BS1"; AFF_BLK <- 23
 AFF_W   <- list(W1 = c(1393L, 1476L), W2 = c(2149L, 2232L))
-AFF_CTX <- c(1L, 2742L)   # the whole block: the windows are six months apart
+AFF_CTX <- c(1284L, 2742L)   # 2025 only; both windows fall inside it
 AFF_FILL <- c(W1 = "#D9EAD3", W2 = "#EAD9F0")   # clear of the DO/pH colours
 
 aff <- aligned |>
