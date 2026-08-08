@@ -425,17 +425,21 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
 # amplitude, and the affine map that would remove them is local, not global.
 # Motivates the affine-invariant null against a pointwise-equality null.
 #
-# Two windows of equal width, 84 points (21 days), separated by a 7-day gap.
-# Both were chosen by an exhaustive scan over widths and positions within the
-# displayed range rather than by eye. Shorter and separated beats longer and
-# adjacent on both windows -- the previous 140-point adjacent pair gave 45% and
-# 40% RMS reduction against 52% and 64% here, because each long window spanned
-# a change in the relationship and the single fitted map suited neither half.
+# Two windows of equal width, 84 points (21 days), one in winter and one in
+# summer. Chosen by scanning the block for the pair that each fit well on its
+# own and badly on the other, which is the property the figure is about: the
+# affine map is local, so no global one would do.
+#
+# Adjacent windows will not show this. Any two windows a few weeks apart in
+# this record have near-identical maps -- the best such pair loses only 11
+# points of RMS reduction when the maps are swapped, so a reader could
+# reasonably conclude one global map suffices. Across seasons the maps invert:
+# b_t goes 1.71 to 0.86 and a_t changes sign.
 # =============================================================================
 
 AFF_LOC <- "BS1"; AFF_BLK <- 23
-AFF_W   <- list(W1 = c(1283L, 1366L), W2 = c(1395L, 1478L))
-AFF_CTX <- c(1235L, 1612L)
+AFF_W   <- list(W1 = c(1393L, 1476L), W2 = c(2149L, 2232L))
+AFF_CTX <- c(1L, 2742L)   # the whole block: the windows are six months apart
 AFF_FILL <- c(W1 = "#D9EAD3", W2 = "#EAD9F0")   # clear of the DO/pH colours
 
 aff <- aligned |>
@@ -469,6 +473,19 @@ for (k in names(aff_f)) {
   cat(sprintf("%s  %s to %s  corr %.3f | kappa %.2f | a_t %+.2f | b_t %.2f | RMS %.3f -> %.3f (%.0f%%)\n",
               k, as.Date(f$t1), as.Date(f$t2), f$corr, f$kappa, f$a, f$b,
               f$rms0, f$rms1, 100 * (1 - f$rms1 / f$rms0)))
+}
+# Each window's map applied to the other. This is the locality claim in
+# numbers: a map fitted where it belongs removes about 59% of the separation,
+# and the same map a season away adds to it.
+for (k in names(aff_f)) {
+  o <- setdiff(names(aff_f), k)
+  d <- aligned |> filter(location == AFF_LOC, block_id == AFF_BLK) |>
+    arrange(datetime) |> slice(AFF_W[[k]][1]:AFF_W[[k]][2])
+  ok <- is.finite(d$ma1) & is.finite(d$ma2); x <- d$ma1[ok]; y <- d$ma2[ok]
+  g <- aff_f[[o]]
+  cat(sprintf("  %s under %s's map: RMS %.3f -> %.3f (%+.0f%%)\n", k, o,
+              sqrt(mean((y - x)^2)), sqrt(mean(((y - g$a) / g$b - x)^2)),
+              100 * (1 - sqrt(mean(((y - g$a) / g$b - x)^2)) / sqrt(mean((y - x)^2)))))
 }
 
 aff_band <- tibble(Region = names(aff_f),
