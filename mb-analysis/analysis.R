@@ -425,14 +425,16 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
 # amplitude, and the affine map that would remove them is local, not global.
 # Motivates the affine-invariant null against a pointwise-equality null.
 #
-# Two adjacent windows of equal width in the longest block. W2 is 140 points to
-# match W1 rather than the 98 that maximise the contrast: at 98 its correlation
-# is 0.834 and the map removes 58% of the RMS separation, against 0.774 and 40%
-# here. The stronger 140-point windows nearby all overlap W1.
+# Two windows of equal width, 84 points (21 days), separated by a 7-day gap.
+# Both were chosen by an exhaustive scan over widths and positions within the
+# displayed range rather than by eye. Shorter and separated beats longer and
+# adjacent on both windows -- the previous 140-point adjacent pair gave 45% and
+# 40% RMS reduction against 52% and 64% here, because each long window spanned
+# a change in the relationship and the single fitted map suited neither half.
 # =============================================================================
 
 AFF_LOC <- "BS1"; AFF_BLK <- 23
-AFF_W   <- list(W1 = c(1235L, 1374L), W2 = c(1375L, 1514L))
+AFF_W   <- list(W1 = c(1283L, 1366L), W2 = c(1395L, 1478L))
 AFF_CTX <- c(1235L, 1612L)
 AFF_FILL <- c(W1 = "#D9EAD3", W2 = "#EAD9F0")   # clear of the DO/pH colours
 
