@@ -497,7 +497,7 @@ aff_row <- function(k) {
   raw <- ggplot(aff_long(z), aes(datetime, value, colour = Series)) +
     geom_line(linewidth = LW_MA) +
     scale_colour_manual(values = VAR_PAL, guide = "none") +
-    scale_x_datetime(date_labels = "%b %d") +
+    scale_x_datetime(date_labels = "%b %d", breaks = scales::breaks_pretty(3)) +
     labs(x = NULL, y = "Standardized units",
          title = sprintf("Window %s (original)", k), subtitle = " ") +
     fig_theme() + theme(plot.subtitle = element_text(size = PT$annot))
@@ -506,7 +506,7 @@ aff_row <- function(k) {
   adj <- ggplot(aff_long(z, (z$ma2 - f$a) / f$b), aes(datetime, value, colour = Series)) +
     geom_line(linewidth = LW_MA) +
     scale_colour_manual(values = VAR_PAL, guide = "none") +
-    scale_x_datetime(date_labels = "%b %d") +
+    scale_x_datetime(date_labels = "%b %d", breaks = scales::breaks_pretty(3)) +
     labs(x = NULL, y = NULL, title = sprintf("Window %s (realigned)", k),
          subtitle = bquote(hat(a)[t] == .(sprintf("%.2f", f$a)) * "," ~
                            hat(b)[t] == .(sprintf("%.2f", f$b)))) +
@@ -523,7 +523,7 @@ ggsave(file.path(img_out, "fig-affine-similarity.png"),
          ((aff_r2$raw + labs(tag = "C")) | aff_r2$adj) +
          plot_layout(heights = c(1, 1, 1)) &
          theme(plot.tag = element_text(size = PT$ltitle)),
-       width = 6.5, height = 6.6, dpi = 450)
+       width = 5, height = 5, dpi = 450)
 
 
 # =============================================================================
