@@ -7,6 +7,7 @@
 ##
 ## Outputs -> mb-analysis/_img/
 ##   fig-mb-sites-coupling.png   site map, both stations, coupled -> decoupled
+##   fig-affine-similarity.png   local level and amplitude differences
 ##   fig-mb-example.png          the vignette's worked example
 ##   fig-mb-seasonality.png      monthly detection rate over a phenology raster
 ##   sfig-mb-detections.png      every fitted block, both stations
@@ -416,6 +417,113 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
        (p_map + p_ser + plot_layout(widths = c(1, 1.7))) / p_cpl +
          plot_layout(heights = c(1, 1)),
        width = 6, height = 5, dpi = 450)
+
+
+# =============================================================================
+# fig-affine-similarity.png
+# Global standardization does not remove local differences in level and
+# amplitude, and the affine map that would remove them is local, not global.
+# Motivates the affine-invariant null against a pointwise-equality null.
+#
+# Two adjacent windows of equal width in the longest block. W2 is 140 points to
+# match W1 rather than the 98 that maximise the contrast: at 98 its correlation
+# is 0.834 and the map removes 58% of the RMS separation, against 0.774 and 40%
+# here. The stronger 140-point windows nearby all overlap W1.
+# =============================================================================
+
+AFF_LOC <- "BS1"; AFF_BLK <- 23
+AFF_W   <- list(W1 = c(1235L, 1374L), W2 = c(1375L, 1514L))
+AFF_CTX <- c(1235L, 1612L)
+AFF_FILL <- c(W1 = "#D9EAD3", W2 = "#EAD9F0")   # clear of the DO/pH colours
+
+aff <- aligned |>
+  filter(location == AFF_LOC, block_id == AFF_BLK) |>
+  arrange(datetime)
+
+# a_t, b_t from OLS of the pH moving average on the DO moving average over the
+# window. The method never estimates b; this shows what an affine map absorbs.
+aff_fit <- function(ix) {
+  d  <- aff[ix[1]:ix[2], ]
+  ok <- is.finite(d$ma1) & is.finite(d$ma2)
+  x  <- d$ma1[ok]; y <- d$ma2[ok]
+  m  <- stats::lm(y ~ x)
+  a  <- unname(coef(m)[1]); b <- unname(coef(m)[2])
+  list(a = a, b = b, corr = cor(x, y), kappa = sd(y) / sd(x),
+       t1 = d$datetime[1], t2 = d$datetime[nrow(d)],
+       rms0 = sqrt(mean((y - x)^2)),
+       rms1 = sqrt(mean(((y - a) / b - x)^2)))
+}
+aff_long <- function(d, ph = d$ma2) {
+  bind_rows(tibble(datetime = d$datetime, value = d$ma1, Series = "DO"),
+            tibble(datetime = d$datetime, value = ph,    Series = "pH")) |>
+    filter(is.finite(value))
+}
+
+aff_f <- lapply(AFF_W, aff_fit)
+
+cat("\n========== Affine similarity windows ==========\n")
+for (k in names(aff_f)) {
+  f <- aff_f[[k]]
+  cat(sprintf("%s  %s to %s  corr %.3f | kappa %.2f | a_t %+.2f | b_t %.2f | RMS %.3f -> %.3f (%.0f%%)\n",
+              k, as.Date(f$t1), as.Date(f$t2), f$corr, f$kappa, f$a, f$b,
+              f$rms0, f$rms1, 100 * (1 - f$rms1 / f$rms0)))
+}
+
+aff_band <- tibble(Region = names(aff_f),
+                   xmin = as.POSIXct(sapply(aff_f, \(f) f$t1), origin = "1970-01-01"),
+                   xmax = as.POSIXct(sapply(aff_f, \(f) f$t2), origin = "1970-01-01"))
+
+p_aff_ctx <- ggplot() +
+  geom_rect(data = aff_band,
+            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = Region),
+            alpha = 0.55) +
+  geom_line(data = aff_long(aff[AFF_CTX[1]:AFF_CTX[2], ]),
+            aes(datetime, value, colour = Series), linewidth = LW_MA) +
+  geom_text(data = aff_band,
+            aes(x = xmin + (xmax - xmin) / 2, y = Inf, label = Region),
+            vjust = 1.4, size = ANNOT, colour = "grey25") +
+  scale_fill_manual(values = AFF_FILL, guide = "none") +
+  scale_colour_manual(values = VAR_PAL) +
+  scale_x_datetime(date_labels = "%b %d") +
+  labs(x = NULL, y = "Standardized units", colour = NULL,
+       title = "Globally standardized 24h moving averages") +
+  fig_theme() +
+  theme(legend.position = c(0.99, 0.02), legend.justification = c(1, 0),
+        legend.direction = "horizontal", legend.background = element_blank(),
+        legend.key.size = unit(0.35, "cm"))
+
+aff_row <- function(k) {
+  f <- aff_f[[k]]; z <- aff[AFF_W[[k]][1]:AFF_W[[k]][2], ]
+  raw <- ggplot(aff_long(z), aes(datetime, value, colour = Series)) +
+    geom_line(linewidth = LW_MA) +
+    scale_colour_manual(values = VAR_PAL, guide = "none") +
+    scale_x_datetime(date_labels = "%b %d") +
+    labs(x = NULL, y = "Standardized units",
+         title = sprintf("Window %s (original)", k), subtitle = " ") +
+    fig_theme() + theme(plot.subtitle = element_text(size = PT$annot))
+  # Coefficients are quoted inside the expression so plotmath keeps a trailing
+  # zero; unquoted, 1.70 is evaluated and renders as 1.7.
+  adj <- ggplot(aff_long(z, (z$ma2 - f$a) / f$b), aes(datetime, value, colour = Series)) +
+    geom_line(linewidth = LW_MA) +
+    scale_colour_manual(values = VAR_PAL, guide = "none") +
+    scale_x_datetime(date_labels = "%b %d") +
+    labs(x = NULL, y = NULL, title = sprintf("Window %s (realigned)", k),
+         subtitle = bquote(hat(a)[t] == .(sprintf("%.2f", f$a)) * "," ~
+                           hat(b)[t] == .(sprintf("%.2f", f$b)))) +
+    fig_theme() +
+    theme(plot.subtitle = element_text(size = PT$annot, colour = "grey25"))
+  list(raw = raw, adj = adj)
+}
+aff_r1 <- aff_row("W1"); aff_r2 <- aff_row("W2")
+
+# Tags mark rows, not panels: patchwork's tag_levels would letter all five.
+ggsave(file.path(img_out, "fig-affine-similarity.png"),
+       (p_aff_ctx + labs(tag = "A")) /
+         ((aff_r1$raw + labs(tag = "B")) | aff_r1$adj) /
+         ((aff_r2$raw + labs(tag = "C")) | aff_r2$adj) +
+         plot_layout(heights = c(1, 1, 1)) &
+         theme(plot.tag = element_text(size = PT$ltitle)),
+       width = 6.5, height = 6.6, dpi = 450)
 
 
 # =============================================================================
