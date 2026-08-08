@@ -425,21 +425,19 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
 # amplitude, and the affine map that would remove them is local, not global.
 # Motivates the affine-invariant null against a pointwise-equality null.
 #
-# Two windows of equal width, 84 points (21 days), one in winter and one in
-# summer. Chosen by scanning the block for the pair that each fit well on its
-# own and badly on the other, which is the property the figure is about: the
-# affine map is local, so no global one would do.
+# Two calendar months, April and September 2025, a season apart. The point is
+# that the affine map is local: b_t crosses 1 between them, 1.47 to 0.83, so
+# pH swings half again as far as DO in April and slightly less than it in
+# September.
 #
-# Adjacent windows will not show this. Any two windows a few weeks apart in
-# this record have near-identical maps -- the best such pair loses only 11
-# points of RMS reduction when the maps are swapped, so a reader could
-# reasonably conclude one global map suffices. Across seasons the maps invert:
-# b_t goes 1.71 to 0.86 and a_t changes sign.
+# Windows a few weeks apart will not show this -- anywhere in this record two
+# such windows have near-identical maps, and the best pair loses only 11 points
+# of RMS reduction when the maps are swapped. Separation has to be seasonal.
 # =============================================================================
 
 AFF_LOC <- "BS1"; AFF_BLK <- 23
-AFF_W   <- list(W1 = c(1393L, 1476L), W2 = c(2149L, 2232L))
-AFF_CTX <- c(1284L, 2742L)   # 2025 only; both windows fall inside it
+AFF_W   <- list(W1 = c(1644L, 1763L), W2 = c(2256L, 2375L))   # April, September
+AFF_CTX <- c(1520L, 2619L)   # 2025-03-01 to 2025-12-01
 AFF_FILL <- c(W1 = "#D9EAD3", W2 = "#EAD9F0")   # clear of the DO/pH colours
 
 aff <- aligned |>
