@@ -428,7 +428,9 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
 # Two windows a season apart: 28 Jan - 18 Feb and the month of September. The
 # point is that the affine map is local -- b_t crosses 1 between them, so pH
 # swings well over half again as far as DO in the first and slightly less than
-# it in the second. The two differ in width, 84 points against 120.
+# it in the second. Both are 84 points, 21 days. W2 was trimmed from the left
+# rather than the right: the last three weeks of September give correlation
+# 0.834, where the first three give 0.415 and the realignment barely holds.
 #
 # Windows a few weeks apart will not show this -- anywhere in this record two
 # such windows have near-identical maps, and the best pair loses only 11 points
@@ -436,7 +438,7 @@ ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
 # =============================================================================
 
 AFF_LOC <- "BS1"; AFF_BLK <- 23
-AFF_W   <- list(W1 = c(1393L, 1476L), W2 = c(2256L, 2375L))
+AFF_W   <- list(W1 = c(1393L, 1476L), W2 = c(2292L, 2375L))   # 84 points each
 AFF_CTX <- c(1284L, 2619L)   # 2025-01-01 to 2025-12-01, spanning both windows
 AFF_FILL <- c(W1 = "#D9EAD3", W2 = "#EAD9F0")   # clear of the DO/pH colours
 
