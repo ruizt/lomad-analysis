@@ -601,6 +601,9 @@ p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   base_theme +
   theme(aspect.ratio = 1, legend.position = "none")
 
+# lomad_test forms p = pnorm(Z) and rejects when p <= alpha, so only the lower
+# tail fires. Two-sided coverage would let an inflated lower tail cancel a
+# deflated upper one; at s = 80 in panel A that cancellation is total.
 cov_rows <- vector("list", 2 * n_pts)
 for (j in seq_len(n_pts)) {
   rho_j <- r_e2e$rho_oracle[j]
@@ -608,12 +611,12 @@ for (j in seq_len(n_pts)) {
 
   Zo  <- sqrt(s_val) * (r_e2e$R_mat[, j] - rho_j) / sqrt(V_j)
   Zo  <- Zo[!is.na(Zo)]
-  c_o <- mean(abs(Zo) < qnorm(0.975))
+  c_o <- mean(Zo < qnorm(alpha))
   n_o <- length(Zo)
 
   Zp  <- r_e2e$Z_est_mat[, j]
   Zp  <- Zp[!is.na(Zp)]
-  c_p <- mean(abs(Zp) < qnorm(0.975))
+  c_p <- mean(Zp < qnorm(alpha))
   n_p <- length(Zp)
 
   cov_rows[[j]]         <- data.frame(
@@ -633,25 +636,24 @@ cov_df <- do.call(rbind, cov_rows)
 
 dodge <- position_dodge(width = 50)
 
-# MOCKUP ONLY. Reads the dense sweep from _tmp/, which is scratch and not a
-# reproducible input. To keep this, e2e_eval_pts in validation/tide/sim.R has
-# to carry the dense grid so the band arrives with the rest of the results.
-BAND_FILE <- "_tmp/coverage-band.rds"
-band_df <- if (file.exists(BAND_FILE)) readRDS(BAND_FILE) else NULL
+# The dense grid is computed by the validation runner and travels with the
+# results, so the band is reproducible from the repo.
+band_df <- r_e2e$band
+band_df$se05 <- sqrt(band_df$t05 * (1 - band_df$t05) / band_df$n)
 
 band_layers <- if (!is.null(band_df)) list(
   geom_ribbon(data = band_df, inherit.aes = FALSE,
-              aes(x = t, ymin = cov - 1.96 * se, ymax = cov + 1.96 * se,
+              aes(x = t, ymin = t05 - 1.96 * se05, ymax = t05 + 1.96 * se05,
                   fill = type), alpha = 0.10),
   geom_line(data = band_df, inherit.aes = FALSE,
-            aes(x = t, y = cov, colour = type), alpha = 0.30, linewidth = 0.3),
+            aes(x = t, y = t05, colour = type), alpha = 0.30, linewidth = 0.3),
   scale_fill_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline),
                     guide = "none")
 ) else list()
 
-# Local SNR over t, above coverage on a shared axis, as the trend sits above
-# rho in row B. Coverage tracks SNR, so the strip is what makes the coverage
-# panel readable rather than a scatter of four unexplained points. Both series
+# Local SNR over t, above the error panel on a shared axis, as the trend sits
+# above rho in row B. The rejection rate tracks SNR, so the strip is what makes
+# that panel readable rather than a scatter of four points. Both series
 # are drawn: lambda_2 is a constant multiple of lambda_1 by construction, and
 # showing only one would imply a single SNR governs the test when the
 # experiment cannot separate them.
@@ -676,13 +678,13 @@ p_lam <- ggplot(lam_df, aes(t, lam, group = k)) +
 
 p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
   band_layers +
-  geom_hline(yintercept = 0.95, linetype = "dashed", colour = col_th) +
+  geom_hline(yintercept = alpha, linetype = "dashed", colour = col_th) +
   geom_errorbar(aes(ymin = lo, ymax = hi), width = 55,
                 position = dodge, linewidth = 0.5) +
   geom_point(size = 1.5, position = dodge) +
   scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
   coord_cartesian(xlim = TLIM) +
-  labs(x = "Time", y = "95% coverage") +
+  labs(x = "Time", y = "Type I error") +
   base_theme +
   theme(
     # The two panels of row C share a colour scale, so one key serves both. It

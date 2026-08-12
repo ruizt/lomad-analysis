@@ -168,6 +168,11 @@ run_rep_var <- function(s, seed, eval_pts) {
 # the one configuration the rest of the study cannot produce -- every other arm
 # uses the same trend for both series, so tau_1 == tau_2 and the two-tau path
 # is never exercised.
+# Dense grid for the band in the figure. lomad_fit already runs over the whole
+# series, so extracting 367 points instead of 4 costs about 0.4%; keeping the
+# band in results/ is what makes the figure reproducible from the repo.
+e2e_band_pts <- seq(h_win + e2e_s, n_obs, by = 5L)
+
 run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05) {
   set.seed(seed)
   z1 <- arima.sim(model = list(ar = e2e_ar1), n = n_obs, sd = e2e_sd1)
@@ -178,13 +183,20 @@ run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05) {
   fit <- suppressMessages(lomad_fit(y1, y2, h = h_win, s = s))
   tst <- suppressMessages(lomad_test(fit, alpha = alpha))
 
-  data.frame(
-    t        = eval_pts,
-    R        = fit$R[eval_pts],
-    rho_hat  = fit$rho[eval_pts],
-    V_hat    = fit$V[eval_pts],
-    Z_pipe   = tst$Z[eval_pts],
-    rejected = tst$rejected[eval_pts]
+  # One fit serves both: the four evaluation points and the dense band grid.
+  list(
+    eval = data.frame(
+      t        = eval_pts,
+      R        = fit$R[eval_pts],
+      rho_hat  = fit$rho[eval_pts],
+      V_hat    = fit$V[eval_pts],
+      Z_pipe   = tst$Z[eval_pts],
+      rejected = tst$rejected[eval_pts]
+    ),
+    band = data.frame(
+      R      = fit$R[e2e_band_pts],
+      Z_pipe = tst$Z[e2e_band_pts]
+    )
   )
 }
 
@@ -280,11 +292,36 @@ if (exp_type == "clt") {
   Z_mat   <- matrix(NA_real_, S, n_pts)
 
   for (i in seq_along(e2e_results)) {
-    R_mat[i, ]   <- e2e_results[[i]]$R
-    rho_mat[i, ] <- e2e_results[[i]]$rho_hat
-    V_mat[i, ]   <- e2e_results[[i]]$V_hat
-    Z_mat[i, ]   <- e2e_results[[i]]$Z_pipe
+    R_mat[i, ]   <- e2e_results[[i]]$eval$R
+    rho_mat[i, ] <- e2e_results[[i]]$eval$rho_hat
+    V_mat[i, ]   <- e2e_results[[i]]$eval$V_hat
+    Z_mat[i, ]   <- e2e_results[[i]]$eval$Z_pipe
   }
+  e2e_results_band <- lapply(e2e_results, `[[`, "band")
+
+  # Per-window rejection rates over the dense grid. The test forms
+  # p = pnorm(Z) and rejects when p <= alpha, so only the lower tail fires;
+  # two-sided coverage would let an inflated lower tail cancel a deflated
+  # upper one.
+  bR <- matrix(NA_real_, S, length(e2e_band_pts))
+  bZ <- bR
+  for (i in seq_along(e2e_results_band)) {
+    bR[i, ] <- e2e_results_band[[i]]$R
+    bZ[i, ] <- e2e_results_band[[i]]$Z_pipe
+  }
+  e2e_band <- do.call(rbind, lapply(seq_along(e2e_band_pts), function(j) {
+    tt <- e2e_band_pts[j]
+    Zo <- sqrt(s_val) * (bR[, j] - e2e_rho_oracle[tt]) / sqrt(e2e_V_oracle[tt])
+    Zo <- Zo[is.finite(Zo)]
+    Zp <- bZ[, j]; Zp <- Zp[is.finite(Zp)]
+    f <- function(Z, ty) data.frame(
+      t = tt, lambda1 = e2e_tau_sq[tt] / e2e_sigma1, rho = e2e_rho_oracle[tt],
+      cov = mean(abs(Z) < stats::qnorm(0.975)),
+      t05 = mean(Z < stats::qnorm(0.05)),
+      t01 = mean(Z < stats::qnorm(0.01)),
+      n = length(Z), type = ty)
+    rbind(f(Zo, "Oracle"), f(Zp, "End-to-end"))
+  }))
 
   result <- list(
     experiment  = experiment, s = s_val, S = S, seed0 = seed0,
@@ -300,7 +337,8 @@ if (exp_type == "clt") {
     # the noise constants. lambda_2 is a fixed multiple of lambda_1 here --
     # b^2 sigma_1^2 / sigma_2^2, since both trends are one curve up to scale.
     lambda1     = e2e_tau_sq  / e2e_sigma1,
-    lambda2     = e2e_tau2_sq / e2e_sigma2
+    lambda2     = e2e_tau2_sq / e2e_sigma2,
+    band        = e2e_band
   )
 
 } else {
