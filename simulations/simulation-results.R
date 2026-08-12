@@ -460,7 +460,7 @@ p_clt <- ggplot(qq_df, aes(theoretical, empirical)) +
   geom_abline(slope = 1, intercept = 0, colour = col_th, linewidth = 0.5) +
   geom_point(colour = "black", alpha = 0.15, size = 0.9) +
   facet_wrap(~ s_label, nrow = 1) +
-  labs(x = "N(0, 1) quantile", y = expression(Z[t] ~ "quantile")) +
+  labs(x = "N(0, 1) quantile", y = expression(G[t] ~ "quantile")) +
   base_theme
 
 # ---- The two trends ---------------------------------------------------------
@@ -597,7 +597,7 @@ p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   # fall outside and are clipped rather than allowed to set the scale for all
   # four facets; QQ_CLIP_N below reports how many, for the caption.
   coord_cartesian(xlim = c(-QQ_LIM, QQ_LIM), ylim = c(-QQ_LIM, QQ_LIM)) +
-  labs(x = "N(0, 1) quantile", y = expression(Z[t] ~ "quantile")) +
+  labs(x = "N(0, 1) quantile", y = expression(G[t] ~ "quantile")) +
   base_theme +
   theme(aspect.ratio = 1, legend.position = "none")
 
