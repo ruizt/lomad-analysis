@@ -689,8 +689,11 @@ p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
   theme(
     # The two panels of row C share a colour scale, so one key serves both. It
     # goes here rather than on the QQ, whose square panels have no free corner.
-    legend.position = c(0.99, 0.99),
-    legend.justification = c(1, 1),
+    # Left of centre: the top right is taken by the t = 1900 intervals, and the
+    # band peaks near t = 1050 and t = 1750, leaving the t = 600-900 stretch as
+    # the only quiet part of the upper panel.
+    legend.position = c(0.28, 0.99),
+    legend.justification = c(0, 1),
     legend.background = element_blank(),
     legend.key = element_blank(),
     legend.title = element_blank(),
