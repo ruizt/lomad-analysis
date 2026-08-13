@@ -170,9 +170,7 @@ files are small enough to track, so a fresh clone can rebuild every figure
 without downloading anything.
 
 `tide/` holds everything that talks to the cluster. `collect-results.R` sits
-outside it because it only reads local files. `job.yaml` is the one copy of the
-Job spec: `submit_sweep.sh` and `test_one_job.sh` fill its placeholders with
-`envsubst`, so the spec cannot drift between the sweep and the smoke test.
+outside it because it only reads local files.
 
 ------------------------------------------------------------------------
 
