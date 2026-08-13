@@ -45,8 +45,11 @@ structs  <- c("rs", "rm", "fr")
 # and never appears in a figure. Base grid gives median delta_t of roughly
 # 0, 0.20 and 0.45; see _notes/delta-calibration.md.
 d_base   <- c(0, 0.60, 1.55)
-d_factor <- c(rs = 1.00, rm = 0.60, fr = 0.45)
+d_factor <- c(rs = 1.00, rm = 0.60)
 d_vals   <- lapply(d_factor, function(f) round(f * d_base, 2))
+# fr saturates near delta_t = 0.43, so it takes its own grid rather than a
+# constant times the base one
+d_vals$fr <- c(0, 0.5, 1.7)
 
 struct_params <- list(
   dist = list(),
@@ -59,8 +62,17 @@ struct_params <- list(
   # amplified by ~2/(1-phi)^2, so at phi = 0.8 the fixed-rate structure loses
   # almost all detection. The gaussian pulse is matched on width and smooth at
   # onset; it still trails the stochastic structures but is no longer anomalous.
-  fr   = list(rate = 0.01, bump = "gaussian")
+  fr   = list(bump = "gaussian")   # `rate` is set per cell, see fr_rate()
 )
+
+  # rate = 0.4/s, not a constant: .make_w_rate() derives its pulse width as
+  # 1/(rate^2 n), so at fixed rate the events shrink as the design scales up --
+  # 4 points at s = 100, narrower than the h = 5 smoother, which erases the
+  # episode before the test sees it while still leaking into the residuals and
+  # inflating phi_hat. This holds the pulse at s/4 and the count at 10 for every
+  # s, and recovers detection at high separation from 0.02 to 0.80 in the
+  # phi = 0.7 cell.
+fr_rate <- function(s_win) 0.4 / s_win
 
 # ---- Single-replicate function ----------------------------------------------
 
@@ -71,7 +83,8 @@ run_rep <- function(d, struct, s_win, phi, snr, seed) {
   trends <- do.call(sim_trends,
     c(list(n = n, d = d, method = struct, nb = nb, seed = seed,
            affine_s = s_win, affine_cap = affine_cap, affine_bw = affine_bw),
-      struct_params[[struct]]))
+      struct_params[[struct]],
+      if (struct == "fr") list(rate = fr_rate(s_win))))
 
   sim <- sim_noise_pair(trends, h = h_win, lambda_target = snr,
                         ar.coefs = phi, seed = seed + 1L)

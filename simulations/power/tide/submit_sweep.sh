@@ -47,7 +47,7 @@ d_values_for() {
   case "$1" in
     rs) echo "0 0.60 1.55" ;;
     rm) echo "0 0.36 0.93" ;;
-    fr) echo "0 0.27 0.70" ;;
+    fr) echo "0 0.5 1.7" ;;
     *)  echo "error: no d grid for structure '$1'" >&2; exit 1 ;;
   esac
 }
