@@ -394,10 +394,6 @@ p_cpl <- ggplot() +
   geom_text(data = ann, aes(mid, ay + 0.4, label = label), size = ANNOT, colour = "grey20") +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
-  # a duplicated axis with no breaks or labels is just a right-hand title,
-  # matching the facet strips in the row above
-  scale_y_continuous(sec.axis = dup_axis(name = "Bay Mouth (BM)",
-                                         breaks = NULL, labels = NULL)) +
   coord_cartesian(ylim = c(min(cpl_d$DO, cpl_d$pH, na.rm = TRUE), ay + 0.85)) +
   fig_panel(PANEL_FILL, grid = "grey65") +
   theme(legend.position = c(0.995, 0.98), legend.justification = c(1, 1),
@@ -409,7 +405,7 @@ p_cpl <- ggplot() +
         # by the map's latitude labels, which patchwork matches across rows
         axis.title.y       = element_text(margin = margin(r = 1), vjust = 0),
         axis.title.y.right = element_text(margin = margin(l = 1))) +
-  labs(x = NULL, y = "Moving average")
+  labs(x = NULL, y = NULL)
 
 # The lower panel carries its own legend, so the site row drops one rather than
 # collecting it, which would take width from the map.

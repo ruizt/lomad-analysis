@@ -42,19 +42,17 @@ if (length(sum_files) == 0) {
        "\nCheck that the PVC is mounted and all jobs have completed.")
 }
 
-tag <- function(f) if (grepl("-oracle", f)) "oracle" else "estimated"
+results <- lapply(sum_files, function(f) readRDS(f)$results) |> bind_rows()
 
-results <- lapply(sum_files, function(f) {
-  readRDS(f)$results |> mutate(method = tag(f))
-}) |> bind_rows()
-
-# Window files carry no cell metadata of their own -- they are keyed by seed,
-# which the summary rows already identify -- so the cell is joined back on.
-cells <- results |> distinct(seed, struct, d, s, n, snr, phi, method)
-
+# Window files carry no cell metadata of their own, and cannot be joined on
+# `seed`: sim.R derives its seeds from `d` alone, so every (s, snr, phi) cell
+# sharing a `d` draws the *same* seeds. Each window file is therefore paired
+# with the summary file of the same name, and the cell taken from there.
 windows <- lapply(win_files, function(f) {
-  readRDS(f) |> mutate(method = tag(f))
-}) |> bind_rows() |> inner_join(cells, by = c("seed", "method"))
+  meta <- readRDS(sub("-windows\\.rds$", ".rds", f))
+  readRDS(f) |> mutate(struct = meta$struct, d = meta$d, s = meta$s,
+                       n = meta$n, snr = meta$snr, phi = meta$phi)
+}) |> bind_rows()
 
 # ---- Local power curves -----------------------------------------------------
 
@@ -63,7 +61,7 @@ windows <- lapply(win_files, function(f) {
 curves <- windows |>
   filter(is.finite(delta), is.finite(rejected)) |>
   mutate(bin = cut(delta, DELTA_BREAKS, include.lowest = TRUE)) |>
-  group_by(struct, s, n, snr, phi, method, bin) |>
+  group_by(struct, s, n, snr, phi, bin) |>
   summarise(
     windows    = n(),
     rejection  = mean(rejected),
@@ -87,7 +85,7 @@ auc_of <- function(score, label) {
 
 auc <- windows |>
   filter(is.finite(delta), is.finite(rejected)) |>
-  group_by(struct, s, n, snr, phi, method) |>
+  group_by(struct, s, n, snr, phi) |>
   summarise(
     windows   = n(),
     rejection = mean(rejected),

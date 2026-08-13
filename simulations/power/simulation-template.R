@@ -35,7 +35,7 @@ affine_cap <- 0.015     # per-window; the most that holds H_0 in the worst cell
 affine_bw  <- 0.5
 
 s_vals   <- c(50L, 100L, 150L)
-phi_vals <- c(0.3, 0.5, 0.8)
+phi_vals <- c(0.3, 0.5, 0.7)
 snr_vals <- c(0.5, 1.5)
 structs  <- c("rs", "rm", "fr")
 
@@ -62,11 +62,9 @@ struct_params <- list(
   fr   = list(rate = 0.01, bump = "gaussian")
 )
 
-THIN <- 5L              # windows overlap by s - 1, so neighbours are redundant
-
 # ---- Single-replicate function ----------------------------------------------
 
-run_rep <- function(d, struct, s_win, phi, snr, seed, oracle = FALSE) {
+run_rep <- function(d, struct, s_win, phi, snr, seed) {
   set.seed(seed)
   n <- N_OVER_S * s_win
 
@@ -77,14 +75,6 @@ run_rep <- function(d, struct, s_win, phi, snr, seed, oracle = FALSE) {
 
   sim <- sim_noise_pair(trends, h = h_win, lambda_target = snr,
                         ar.coefs = phi, seed = seed + 1L)
-
-  # Oracle: bypass noise estimation with the true AR params
-  noise_ov <- NULL
-  if (oracle) {
-    z1 <- sim$y1 - sim$x1
-    innov1 <- z1[-1] - phi * z1[-length(z1)]
-    noise_ov <- list(ar = phi, sigma2 = var(innov1))
-  }
 
   # Ground truth. delta_t is measured on the noise-free trends smoothed exactly
   # as the observed series are, by least squares within each window -- the same
@@ -109,7 +99,7 @@ run_rep <- function(d, struct, s_win, phi, snr, seed, oracle = FALSE) {
   b_range <- diff(range(trends$b))
 
   fit <- tryCatch(
-    lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win, noise_override = noise_ov),
+    lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win),
     error = function(e) NULL
   )
   if (is.null(fit)) {
@@ -125,8 +115,7 @@ run_rep <- function(d, struct, s_win, phi, snr, seed, oracle = FALSE) {
 
   tst <- lomad_test(fit, alpha = alpha)
 
-  vi   <- fit$valid_idx
-  keep <- vi[seq(1L, length(vi), by = THIN)]
+  keep <- fit$valid_idx
 
   # Schema matches tide/sim.R exactly: collect-results.R assumes it. p_raw is
   # kept so the study can be rethresholded at another alpha without regenerating
@@ -135,8 +124,8 @@ run_rep <- function(d, struct, s_win, phi, snr, seed, oracle = FALSE) {
     summary = data.frame(d = d, struct = struct, s = s_win, n = n,
                          phi = phi, snr = snr, seed = seed,
                          detected = any(tst$rejected, na.rm = TRUE),
-                         n_win = length(vi),
-                         delta_med = median(delta_t[vi], na.rm = TRUE),
+                         n_win = length(keep),
+                         delta_med = median(delta_t[keep], na.rm = TRUE),
                          lambda1 = lam1, lambda2 = lam2, b_range = b_range),
     windows = data.frame(
       seed     = seed,

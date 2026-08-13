@@ -7,15 +7,11 @@
 #
 # Required variables:
 #   JOB_NAME NAMESPACE IMAGE CONFIGMAP
-#   SIM_D SIM_STRUCTURE SIM_S SIM_SNR SIM_PHI SIM_REPS SIM_SEED SIM_ORACLE
+#   SIM_D SIM_STRUCTURE SIM_S SIM_SNR SIM_PHI SIM_REPS SIM_SEED
 #
 # SIM_S is the correlation window; sim.R derives the series length n = 25 s
 # from it. SIM_REPS is the replicate count (it was called SIM_S before the
 # window became the design factor).
-#
-# SIM_ORACLE is "TRUE" or "FALSE"; sim.R reads it with as.logical(), and it
-# doubles as the `oracle` label so the two sweeps can be told apart with
-#   kubectl get jobs -n cal-poly-ruiz -l oracle=TRUE
 
 apiVersion: batch/v1
 kind: Job
@@ -29,7 +25,6 @@ metadata:
     s: "${SIM_S}"
     snr: "${SIM_SNR}"
     phi: "${SIM_PHI}"
-    oracle: "${SIM_ORACLE}"
 spec:
   backoffLimit: 1
   template:
@@ -61,8 +56,6 @@ spec:
               value: "${SIM_REPS}"
             - name: SIM_SEED
               value: "${SIM_SEED}"
-            - name: SIM_ORACLE
-              value: "${SIM_ORACLE}"
             - name: SIM_OUT_DIR
               value: "/jobs/output"
           volumeMounts:

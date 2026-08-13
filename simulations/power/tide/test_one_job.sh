@@ -29,7 +29,6 @@ export SIM_D="1.0"
 export SIM_S="100"
 export SIM_SNR="0.5"
 export SIM_PHI="0.8"
-export SIM_ORACLE="FALSE"
 export SIM_REPS=5       # deliberately small: this is a smoke test
 export SIM_SEED=2847
 
@@ -44,7 +43,7 @@ kubectl create configmap "${CONFIGMAP}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Submitting ${JOB_NAME} (reps=${SIM_REPS}) ..."
-envsubst '${JOB_NAME} ${NAMESPACE} ${IMAGE} ${CONFIGMAP} ${SIM_D} ${SIM_STRUCTURE} ${SIM_S} ${SIM_SNR} ${SIM_PHI} ${SIM_REPS} ${SIM_SEED} ${SIM_ORACLE}' \
+envsubst '${JOB_NAME} ${NAMESPACE} ${IMAGE} ${CONFIGMAP} ${SIM_D} ${SIM_STRUCTURE} ${SIM_S} ${SIM_SNR} ${SIM_PHI} ${SIM_REPS} ${SIM_SEED}' \
   < "${JOB_TEMPLATE}" | kubectl apply -n "${NAMESPACE}" -f -
 
 echo ""

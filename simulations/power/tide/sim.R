@@ -10,7 +10,7 @@
 ##
 ## Outputs per cell:
 ##   {cell}.rds         — metadata + per-replicate summary
-##   {cell}-windows.rds — per-window (delta_t, lambda, p_raw, rejected), thinned
+##   {cell}-windows.rds — per-window (delta_t, lambda, p_raw, rejected)
 ##
 ## Environment variables:
 ##   SIM_D         — separation knob, already scaled for the structure
@@ -20,7 +20,6 @@
 ##   SIM_PHI       — AR(1) coefficient (default: 0.5)
 ##   SIM_REPS      — number of replicates (default: 200)
 ##   SIM_SEED      — base seed (default: 2847)
-##   SIM_ORACLE    — use true noise params, bypassing estimation (default: FALSE)
 ##   SIM_OUT_DIR   — output directory (default: /jobs/output)
 ##
 ## Test locally:
@@ -40,7 +39,6 @@ snr     <- as.numeric(Sys.getenv("SIM_SNR",       "1.5"))
 phi     <- as.numeric(Sys.getenv("SIM_PHI",       "0.5"))
 S       <- as.integer(Sys.getenv("SIM_REPS",      "200"))
 seed0   <- as.integer(Sys.getenv("SIM_SEED",      "2847"))
-oracle  <- as.logical(Sys.getenv("SIM_ORACLE",    "FALSE"))
 out_dir <- Sys.getenv("SIM_OUT_DIR", "/jobs/output")
 
 # ---- Fixed parameters (must match simulation-template.R) --------------------
@@ -81,11 +79,6 @@ struct_params <- list(
   fr   = list(rate = 0.01, bump = "gaussian")
 )
 
-# Windows overlap by s - 1 points, so neighbouring records carry almost the
-# same information. Storing every THIN-th one costs nothing in the pooled
-# estimates and keeps the per-cell file small enough to move around.
-THIN <- 5L
-
 # ---- run_rep(): the authoritative simulation logic --------------------------
 # This is what runs on the cluster and produces the archived results.
 # simulation-template.R mirrors it for local inspection; change this first,
@@ -101,14 +94,6 @@ run_rep <- function(d, struct, seed) {
 
   sim <- sim_noise_pair(trends, h = h_win, lambda_target = snr,
                         ar.coefs = phi, seed = seed + 1L)
-
-  # Oracle: bypass noise estimation with true AR params
-  noise_ov <- NULL
-  if (oracle) {
-    z1 <- sim$y1 - sim$x1
-    innov1 <- z1[-1] - phi * z1[-length(z1)]
-    noise_ov <- list(ar = phi, sigma2 = var(innov1))
-  }
 
   # Ground truth. delta_t is measured on the noise-free trends smoothed exactly
   # as the observed series are, by least squares within each window -- the same
@@ -134,7 +119,7 @@ run_rep <- function(d, struct, seed) {
   b_range <- diff(range(trends$b))
 
   fit <- tryCatch(
-    lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win, noise_override = noise_ov),
+    lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win),
     error = function(e) NULL
   )
   if (is.null(fit)) {
@@ -150,15 +135,14 @@ run_rep <- function(d, struct, seed) {
 
   tst <- lomad_test(fit, alpha = alpha)
 
-  vi   <- fit$valid_idx
-  keep <- vi[seq(1L, length(vi), by = THIN)]
+  keep <- fit$valid_idx
 
   list(
     summary = data.frame(d = d, struct = struct, s = s_win, n = n,
                          phi = phi, snr = snr, seed = seed,
                          detected = any(tst$rejected, na.rm = TRUE),
-                         n_win = length(vi),
-                         delta_med = median(delta_t[vi], na.rm = TRUE),
+                         n_win = length(keep),
+                         delta_med = median(delta_t[keep], na.rm = TRUE),
                          lambda1 = lam1, lambda2 = lam2, b_range = b_range),
     # p_raw is kept so the whole study can be rethresholded at another alpha
     # without regenerating anything; rejected is what BY gave at `alpha`.
@@ -186,16 +170,15 @@ windows <- bind_rows(lapply(reps, `[[`, "windows"))
 # ---- Save results -----------------------------------------------------------
 
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-basename <- sprintf("%s_d%s_s%d_snr%s_phi%s%s",
+basename <- sprintf("%s_d%s_s%d_snr%s_phi%s",
                     struct,
                     gsub("\\.", "-", format(d,   nsmall = 2)),
                     s_win,
                     gsub("\\.", "-", format(snr, nsmall = 1)),
-                    gsub("\\.", "-", format(phi, nsmall = 1)),
-                    if (oracle) "-oracle" else "")
+                    gsub("\\.", "-", format(phi, nsmall = 1)))
 
 saveRDS(list(d = d, struct = struct, s = s_win, n = n, snr = snr, phi = phi,
-             S = S, seed0 = seed0, thin = THIN,
+             S = S, seed0 = seed0,
              affine_cap = affine_cap, affine_bw = affine_bw,
              results = results),
         file.path(out_dir, paste0(basename, ".rds")))

@@ -38,7 +38,7 @@ read -r -a STRUCTURES <<< "${STRUCTS:-rs rm fr}"
 # instead of confounding the two.
 WINDOW_SIZES=(50 100 150)
 SNR_VALUES=(0.5 1.5)
-PHI_VALUES=(0.3 0.5 0.8)
+PHI_VALUES=(0.3 0.5 0.7)
 
 # d is a generator knob, not an effect size: the same d gives ~2x different
 # local separation across structures. It is scaled per structure onto a common
@@ -62,26 +62,22 @@ kubectl create configmap "${CONFIGMAP}" \
 echo ""
 
 # ---- Submit one Job from the template ----------------------------------------
-# Expects SIM_STRUCTURE, SIM_D, SIM_S, SIM_SNR, SIM_PHI, SIM_ORACLE exported.
+# Expects SIM_STRUCTURE, SIM_D, SIM_S, SIM_SNR, SIM_PHI exported.
 
 submit_job() {
-  local label_d label_snr label_phi suffix
+  local label_d label_snr label_phi
   label_d=${SIM_D//./-}
   label_snr=${SIM_SNR//./-}
   label_phi=${SIM_PHI//./-}
-  suffix=""
-  [ "${SIM_ORACLE}" = "TRUE" ] && suffix="-oracle"
 
-  export JOB_NAME="lomad-power-${SIM_STRUCTURE}-d${label_d}-s${SIM_S}-snr${label_snr}-phi${label_phi}${suffix}"
+  export JOB_NAME="lomad-power-${SIM_STRUCTURE}-d${label_d}-s${SIM_S}-snr${label_snr}-phi${label_phi}"
 
   echo "Submitting ${JOB_NAME} ..."
-  envsubst '${JOB_NAME} ${NAMESPACE} ${IMAGE} ${CONFIGMAP} ${SIM_D} ${SIM_STRUCTURE} ${SIM_S} ${SIM_SNR} ${SIM_PHI} ${SIM_REPS} ${SIM_SEED} ${SIM_ORACLE}' \
+  envsubst '${JOB_NAME} ${NAMESPACE} ${IMAGE} ${CONFIGMAP} ${SIM_D} ${SIM_STRUCTURE} ${SIM_S} ${SIM_SNR} ${SIM_PHI} ${SIM_REPS} ${SIM_SEED}' \
     < "${JOB_TEMPLATE}" | kubectl apply -n "${NAMESPACE}" -f -
 }
 
-# ---- Main sweep (estimated noise) --------------------------------------------
-
-export SIM_ORACLE="FALSE"
+# ---- Main sweep --------------------------------------------------------------
 
 for SIM_STRUCTURE in "${STRUCTURES[@]}"; do
   read -r -a D_VALUES <<< "$(d_values_for "${SIM_STRUCTURE}")"
@@ -97,30 +93,7 @@ for SIM_STRUCTURE in "${STRUCTURES[@]}"; do
   done
 done
 
-# ---- Oracle sweep (phi = 0.8 only) -------------------------------------------
-# Isolates estimation error from test behaviour: sim.R bypasses noise
-# estimation and uses the true AR(1) parameters. See design.md.
-
-echo ""
-echo "Submitting oracle jobs (phi = 0.8 only) ..."
-
-export SIM_ORACLE="TRUE"
-export SIM_PHI="0.8"
-
-for SIM_STRUCTURE in "${STRUCTURES[@]}"; do
-  read -r -a D_VALUES <<< "$(d_values_for "${SIM_STRUCTURE}")"
-  for SIM_D in "${D_VALUES[@]}"; do
-    for SIM_S in "${WINDOW_SIZES[@]}"; do
-      for SIM_SNR in "${SNR_VALUES[@]}"; do
-        export SIM_STRUCTURE SIM_D SIM_S SIM_SNR
-        submit_job
-      done
-    done
-  done
-done
-
 echo ""
 echo "All jobs submitted. Monitor with:"
 echo "  kubectl get jobs -n ${NAMESPACE} -l app=lomad-power"
-echo "  kubectl get jobs -n ${NAMESPACE} -l oracle=TRUE      # oracle arm only"
 echo "  kubectl logs -n ${NAMESPACE} job/<job-name>"

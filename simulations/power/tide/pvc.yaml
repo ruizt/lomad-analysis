@@ -16,4 +16,7 @@ spec:
   accessModes: [ReadWriteMany]
   resources:
     requests:
-      storage: 2Gi
+      # 162 cells x 500 replicates, one row per window with no thinning:
+      # ~14 MB at s = 50, ~28 MB at s = 100, ~41 MB at s = 150, so ~4.5 GB for
+      # the sweep. 7Gi leaves room to rerun a subset in place before fetching.
+      storage: 7Gi
