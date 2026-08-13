@@ -94,6 +94,13 @@ validation/
     └── fetch.sh        ← copies results from PVC to local machine
 ```
 
+`_`-prefixed entries are gitignored and archived on Zenodo; the compiled `.rds`
+files are small enough to track, so a fresh clone can rebuild every figure
+without downloading anything.
+
+`tide/` holds everything that talks to the cluster. `collect-results.R` sits
+outside it because it only reads local files.
+
 ---
 
 ## Workflow
