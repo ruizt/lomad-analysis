@@ -60,7 +60,7 @@ K_GRID  <- c(4, 3, 2.5, 2)
 # at its noise-determined ceiling everywhere and every window is a true null.
 
 null_block <- function(n, seed) {
-  tr <- sim_trends(n, d = 0, method = "smooth", bw = 50, seed = seed)
+  tr <- sim_trends(n, d = 0, method = "rs", bw = 50, seed = seed)
   sm <- suppressMessages(sim_noise_pair(
     tr, h = H_WIN, lambda_target = LAMBDA,
     ar.coefs = PHI1, s = S_WIN, seed = seed + 1L))

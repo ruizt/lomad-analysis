@@ -2,7 +2,7 @@
 ##
 ## Reads compiled summaries only, never raw per-job files, so it runs in
 ## seconds. The expensive stages are simulations/<study>/collect-results.R and
-## simulations/power/localization-sweep.R.
+## simulations/power/collect-results.R.
 ##
 ## Inputs
 ##   simulations/power/results/simulations-power-summary.rds
@@ -42,10 +42,10 @@ dir.create(TBL_DIR, showWarnings = FALSE, recursive = TRUE)
 
 # Keyed by internal code, not display label: a named vector spliced into
 # another named vector via c() gets its names silently mangled.
-STRUCT_FULL <- c(rate = "Fixed Rate", smooth = "Random Separation",
-                  cross = "Random Mixing")
-STRUCT_ABBR <- c(rate = "FR", smooth = "RS", cross = "RM")
-STRUCT_HEX  <- c(rate = "#009E73", smooth = "#0072B2", cross = "#D55E00")
+STRUCT_FULL <- c(fr = "Fixed Rate", rs = "Random Separation",
+                  rm = "Random Mixing")
+STRUCT_ABBR <- c(fr = "FR", rs = "RS", rm = "RM")
+STRUCT_HEX  <- c(fr = "#009E73", rs = "#0072B2", rm = "#D55E00")
 STRUCT_PAL  <- setNames(STRUCT_HEX, STRUCT_ABBR[names(STRUCT_HEX)])
 
 # Mirrors localization-sweep.R. The power summary carries T but not s_T.
@@ -70,13 +70,19 @@ rate     <- 0.01    # event rate r
 
 seed_coef <- 2847   # Fourier base, shared across panels
 
-tr_dist   <- sim_trends(n, d = d, method = "dist",   seed = seed_coef)
-tr_rate   <- sim_trends(n, d = d, method = "rate",   seed = seed_coef,
-                        rate = rate, bump = "gaussian")
-tr_smooth <- sim_trends(n, d = d, method = "smooth", seed = seed_coef,
-                        bw = bw, coupling = coupling)
-tr_cross  <- sim_trends(n, d = d, method = "cross",  seed = seed_coef,
-                        bw = bw, coupling = coupling)
+# sim_trends() no longer normalises to ||x1 - x2|| = d -- d scales the distinct
+# component, and separation is linear in it. This panel is about how separation
+# is *distributed* in time, so the total is equalised here instead, which is
+# what the shared d used to do.
+at_sep <- function(...) {
+  probe <- sim_trends(n, d = 1, seed = seed_coef, ...)
+  sim_trends(n, d = d / sqrt(sum((probe$x1 - probe$x2)^2)), seed = seed_coef, ...)
+}
+
+tr_dist   <- at_sep(method = "dist")
+tr_rate   <- at_sep(method = "fr", rate = rate, bump = "gaussian")
+tr_smooth <- at_sep(method = "rs", bw = bw, coupling = coupling)
+tr_cross  <- at_sep(method = "rm", bw = bw, coupling = coupling)
 
 y_lim <- range(c(
   tr_dist$x1,   tr_dist$x2,
@@ -169,19 +175,19 @@ comp_dist <- panel_top_dist(tr_dist, "Base trends\n") /
   plot_spacer() +
   plot_layout(heights = c(3, 1))
 
-comp_rate <- panel_top_struct(tr_rate, struct_title("rate"),
-                               colour = STRUCT_HEX[["rate"]]) /
-  panel_wt(tr_rate, colour = STRUCT_HEX[["rate"]]) +
+comp_rate <- panel_top_struct(tr_rate, struct_title("fr"),
+                               colour = STRUCT_HEX[["fr"]]) /
+  panel_wt(tr_rate, colour = STRUCT_HEX[["fr"]]) +
   plot_layout(heights = c(3, 1))
 
-comp_smooth <- panel_top_struct(tr_smooth, struct_title("smooth"),
-                                 colour = STRUCT_HEX[["smooth"]]) /
-  panel_wt(tr_smooth, colour = STRUCT_HEX[["smooth"]]) +
+comp_smooth <- panel_top_struct(tr_smooth, struct_title("rs"),
+                                 colour = STRUCT_HEX[["rs"]]) /
+  panel_wt(tr_smooth, colour = STRUCT_HEX[["rs"]]) +
   plot_layout(heights = c(3, 1))
 
-comp_cross <- panel_top_struct(tr_cross, struct_title("cross"),
-                                colour = STRUCT_HEX[["cross"]]) /
-  panel_wt(tr_cross, ref_lines = c(0, 1), colour = STRUCT_HEX[["cross"]]) +
+comp_cross <- panel_top_struct(tr_cross, struct_title("rm"),
+                                colour = STRUCT_HEX[["rm"]]) /
+  panel_wt(tr_cross, ref_lines = c(0, 1), colour = STRUCT_HEX[["rm"]]) +
   plot_layout(heights = c(3, 1))
 
 fig_1x4 <- comp_dist | comp_rate | comp_smooth | comp_cross
