@@ -286,13 +286,11 @@ p_local <- local({
   au  <- readRDS("simulations/power/results/simulations-power-auc.rds")
 
   write.csv(au[, c("struct", "s", "n", "snr", "phi", "windows", "rejection",
-                   "auc", "auc_mw")],
+                   "auc")],
             file.path(TBL_DIR, "tbl-localization-auc.csv"), row.names = FALSE)
   cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
 
-  # One label per panel: the mean over the three structures, as the AUCs sit
-  # within about 0.05 of each other. Sensitivity does not average this way and
-  # is deliberately left to panel A.
+  # one label per panel: the mean AUC over the three structures
   ann <- au |>
     group_by(phi, snr, s) |>
     summarise(x = 0.97, y = 0.10,

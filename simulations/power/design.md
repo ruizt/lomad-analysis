@@ -136,6 +136,7 @@ The script `collect-results.R` then aggregates these and stores the files:
 
 - `results/simulations-power-results.rds` — every replicate, every cell
 - `results/simulations-power-curves.rds` — rejection rate by δ_t bin: the local power curves
+- `results/simulations-power-roc.rds` — precision and NPV against the decoupling threshold *c*
 - `results/simulations-power-auc.rds` — concordance between rejection and δ_t
 
 Aggregation pools over *d* and bins by $\delta_t$.
@@ -152,6 +153,7 @@ power/
 ├── results/
 │   ├── simulations-power-results.rds       ← tracked
 │   ├── simulations-power-curves.rds        ← tracked
+│   ├── simulations-power-roc.rds           ← tracked
 │   ├── simulations-power-auc.rds           ← tracked
 │   └── _raw/              ← per-cell .rds + -windows.rds fetched from Tide, Zenodo only
 └── tide/                  ← Kubernetes scaffolding

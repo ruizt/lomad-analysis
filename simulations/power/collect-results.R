@@ -1,24 +1,13 @@
 ## collect-results.R — assemble per-cell .rds files into the compiled artifacts
 ##
-## Run after fetch.sh has copied the per-cell files locally. Produces everything
-## the figure stage consumes, so the pipeline is raw per-cell files -> compiled
-## artifacts in one step. Deliberately does no plotting: figures are built by
-## simulations/simulation-results.R.
+## Run after fetch.sh has copied the per-cell files locally. Does no plotting;
+## figures are built by simulations/simulation-results.R.
 ##
-## Three artifacts:
+## Four artifacts, all keyed by the cell (struct, s, n, snr, phi), pooled over d:
 ##   simulations-power-results.rds — one row per replicate
 ##   simulations-power-curves.rds  — rejection rate by delta_t (local power)
-##   simulations-power-roc.rds     — classification accuracy vs the threshold c
-##   simulations-power-auc.rds     — concordance between rejection and delta_t
-##
-## The study reports rejection against *realized* local separation delta_t, so
-## d is pooled over rather than plotted: it is a generator knob scaled per
-## structure, and the same d means different separations for different
-## structures. Pooling is what makes the curves comparable across them.
-##
-## This replaces localization-sweep.R, which had to reread every full-length
-## series file to recover (delta_t, rejected) pairs. tide/sim.R now emits those
-## directly, so the expensive stage is gone.
+##   simulations-power-roc.rds     — precision and NPV vs the threshold c
+##   simulations-power-auc.rds     — area under the precision / 1 - NPV curve
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/power/collect-results.R
@@ -28,11 +17,9 @@ library(dplyr)
 RAW_DIR <- Sys.getenv("RAW_DIR", "simulations/power/results/_raw")
 OUT_DIR <- "simulations/power/results"
 
-# Resolution of the local power curve: a uniform mesh over [0, 1] rather than a
-# handful of bins. At this sweep's size every mesh cell still holds tens of
-# thousands of windows -- 20k at the thinnest -- so the curve is effectively
-# continuous without any smoothing choice to defend.
-MESH <- 100L
+MESH     <- 100L     # mesh cells for the power curve
+NBIN     <- 1000L    # mesh cells for the threshold sweep
+MIN_CELL <- 10000L   # minimum per class for a cut to be kept
 
 # ---- Collect ----------------------------------------------------------------
 
@@ -47,33 +34,17 @@ if (length(sum_files) == 0) {
 
 results <- lapply(sum_files, function(f) readRDS(f)$results) |> bind_rows()
 
-# The sweep holds ~194 million window rows, which cannot be bound into one
-# frame: reading them all at once exhausts memory well past 16 GB. Nothing
-# downstream needs the rows themselves, only counts per delta_t bin, so each
-# file is reduced as it is read and only the tallies are kept.
-#
-# NBIN is the resolution the concordance is computed at, finer than the curve's:
-# 1000 bins over [0, 1] makes the tie correction below negligible.
-NBIN <- 1000L
-
-# Cut points whose either class falls below this are dropped from the sweep:
-# a ratio on a handful of windows is noise, not signal.
-MIN_CELL <- 10000L
-
-# Mesh index of a delta value: 1..B over [0, 1), and B + 1 for delta == 1.
-#
-# delta = 1 is an atom, not the end of a continuum. Under the constraint b > 0
-# the minimiser sits at the boundary whenever the window correlation is
-# non-positive, so every window whose trends reverse maps to exactly 1 -- about
-# one in eight. Folding those into the top mesh cell would mix a point mass
-# with a sliver of genuine spread and read as the curve turning up at the edge.
+# Mesh index of delta: 1..B over [0, 1), and B + 1 for delta == 1, which is an
+# atom and so gets a cell of its own.
 mesh_of <- function(x, B)
   ifelse(x >= 1, B + 1L, pmin(B, pmax(1L, as.integer(ceiling(x * B)))))
 
-# Window files carry no cell metadata of their own, and cannot be joined on
-# `seed`: sim.R derives its seeds from `d` alone, so every (s, snr, phi) cell
-# sharing a `d` draws the *same* seeds. Each window file is therefore paired
-# with the summary file of the same name, and the cell taken from there.
+# Reduce each window file to counts as it is read: the sweep holds ~194M rows,
+# too many to bind into one frame.
+#
+# Each window file is paired with the summary file of the same name to recover
+# its cell. Do not join on `seed` instead -- sim.R derives seeds from `d` alone,
+# so every cell sharing a `d` draws the same ones.
 tally <- lapply(win_files, function(f) {
   meta <- readRDS(sub("-windows\\.rds$", ".rds", f))
   w    <- readRDS(f)
@@ -82,11 +53,7 @@ tally <- lapply(win_files, function(f) {
   coarse <- mesh_of(w$delta, MESH)
   fine   <- mesh_of(w$delta, NBIN)
 
-  # Per (replicate, mesh cell) counts, not pooled. Windows overlap by s - 1, so
-  # they are not independent and a binomial interval on their raw count
-  # understates the uncertainty severalfold. The replicate is the independent
-  # unit -- its own trends, its own noise -- so the counts are kept split by
-  # seed and the variance is formed across replicates further down.
+  # counts per (replicate, mesh cell), kept split for the variance below
   rep_id <- match(w$seed, unique(w$seed))
   k      <- length(unique(w$seed))
   NCELL  <- MESH + 1L                              # mesh cells plus the atom
@@ -101,8 +68,6 @@ tally <- lapply(win_files, function(f) {
                        nrow = k, byrow = TRUE),
     delta_sum = as.numeric(tapply(w$delta, factor(coarse, levels = seq_len(NCELL)),
                                   sum, default = 0)),
-    lam_sum   = as.numeric(tapply(w$lambda, factor(coarse, levels = seq_len(NCELL)),
-                                  function(v) sum(v, na.rm = TRUE), default = 0)),
     # NBIN + 1 so the delta == 1 atom lands in its own top rank rather than
     # being discarded by tabulate()
     rej_fine  = tabulate(fine[w$rejected],  nbins = NBIN + 1L),
@@ -114,20 +79,13 @@ cell_key <- vapply(tally, function(x) paste(x$cell, collapse = "|"), character(1
 
 # ---- Local power curves -----------------------------------------------------
 
-# Pooled over d, which only decides which part of the delta_t range gets
-# populated, but *not* over replicate: the replicate is the sampling unit.
-#
-# Windows overlap by s - 1, so a binomial interval on their raw count treats
-# near-duplicates as independent observations and understates the standard
-# error by a factor of two to four. The estimate is instead a ratio estimator
-# over replicates, with the usual cluster variance for unequal cluster sizes,
+# Rejection rate per mesh cell as a ratio estimator over replicates, with the
+# cluster variance for unequal cluster sizes:
 #
 #   p_hat = sum_i r_i / sum_i n_i,
 #   Var   = k/(k-1) * sum_i (r_i - p_hat n_i)^2 / (sum_i n_i)^2,
 #
-# where r_i and n_i are replicate i's rejected and total window counts in the
-# mesh cell. This makes no assumption about the dependence within a replicate,
-# and reduces to the binomial form when there is none.
+# where r_i and n_i are replicate i's rejected and total counts in the cell.
 curves <- lapply(split(tally, cell_key), function(g) {
   n_ij <- do.call(rbind, lapply(g, `[[`, "n_ij"))     # replicates x mesh
   r_ij <- do.call(rbind, lapply(g, `[[`, "r_ij"))
@@ -144,37 +102,23 @@ curves <- lapply(split(tally, cell_key), function(g) {
 
   cbind(g[[1]]$cell,
         data.frame(
-          mesh        = seq_len(MESH + 1L),
-          atom        = seq_len(MESH + 1L) == MESH + 1L,
-          windows     = n_j,
-          replicates  = k,
-          rejection   = p_j,
-          delta_mean  = Reduce(`+`, lapply(g, `[[`, "delta_sum")) / pmax(n_j, 1),
-          lambda_mean = Reduce(`+`, lapply(g, `[[`, "lam_sum")) / pmax(n_j, 1),
-          se          = se_j))
+          mesh       = seq_len(MESH + 1L),
+          atom       = seq_len(MESH + 1L) == MESH + 1L,
+          windows    = n_j,
+          replicates = k,
+          rejection  = p_j,
+          delta_mean = Reduce(`+`, lapply(g, `[[`, "delta_sum")) / pmax(n_j, 1),
+          se         = se_j))
 }) |> bind_rows() |> filter(windows > 0)
 
 # ---- Classification accuracy against the decoupling threshold ---------------
 
-# Windows are classified as decoupled by the test; whether that is *correct*
-# depends on where the line is drawn on delta_t, which is a matter of degree
-# rather than kind. The threshold c is therefore swept, and at each value the
-# usual accuracy measures are formed with truth = {delta_t > c} and prediction
-# = rejection:
+# Sweep the threshold c. At each cut, with truth = {delta_t > c} and prediction
+# = rejection,
 #
-#   sensitivity  P(reject | delta > c)      precision  P(delta > c | reject)
-#   specificity  P(no reject | delta <= c)  NPV        P(delta <= c | no reject)
+#   prec = P(delta > c | reject),   npv = P(delta <= c | no reject).
 #
-# The predictive pair is the one plotted: it answers the question a reader of
-# the output actually has -- of the windows flagged, how many are decoupled to
-# the degree I care about.
-#
-# The sweep runs on the NBIN mesh, not the coarser curve mesh. Resolution near
-# c = 0 is what determines how far the traced curve reaches: most non-rejected
-# windows sit in the delta ~ 0 mass, so a coarse first cell leaves the curve
-# stranded in the interior and the area is then mostly interpolation to the
-# corner. At NBIN the first cell is 1/NBIN wide and the curve traces nearly the
-# whole axis.
+# Cuts leaving fewer than MIN_CELL windows in either class are dropped.
 roc <- lapply(split(tally, cell_key), function(g) {
   r <- Reduce(`+`, lapply(g, `[[`, "rej_fine"))
   m <- Reduce(`+`, lapply(g, `[[`, "non_fine"))
@@ -188,50 +132,37 @@ roc <- lapply(split(tally, cell_key), function(g) {
 
   keep <- n_above >= MIN_CELL & n_below >= MIN_CELL
   cbind(g[[1]]$cell,
-        data.frame(c        = (seq_along(r_above) / NBIN)[keep],
-                   sens     = (r_above / n_above)[keep],
-                   spec     = (1 - (R - r_above) / n_below)[keep],
-                   prec     = (r_above / R)[keep],
-                   npv      = ((M - m_above) / M)[keep]))
+        data.frame(c    = (seq_along(r_above) / NBIN)[keep],
+                   prec = (r_above / R)[keep],
+                   npv  = ((M - m_above) / M)[keep]))
 }) |> bind_rows()
 
-# Corners, exact rather than estimated: c -> 0 counts every window as decoupled,
-# so precision and 1 - NPV are both 1; c -> 1 empties the decoupled class and
-# both are 0. Neither limit is evaluable in the sweep -- one class is empty --
-# but the curve passes through them by construction.
+# Add the c = 0 and c = 1 endpoints, which the sweep cannot evaluate because
+# one class is empty there. Both are exact.
 roc <- roc |>
   group_by(struct, s, n, snr, phi) |>
-  group_modify(~ bind_rows(
-    data.frame(c = 0, sens = .x$sens[1], spec = 0, prec = 1, npv = 0),
-    arrange(.x, c),
-    data.frame(c = 1, sens = NA_real_, spec = 1, prec = 0, npv = 1))) |>
+  group_modify(~ bind_rows(data.frame(c = 0, prec = 1, npv = 0),
+                           arrange(.x, c),
+                           data.frame(c = 1, prec = 0, npv = 1))) |>
   ungroup()
 
 # ---- Concordance ------------------------------------------------------------
 
-# Area under the precision / 1 - NPV curve above, by trapezoid. Reported
-# alongside the Mann-Whitney concordance, which is the same discrimination
-# measured without a threshold sweep; the two agree closely and disagreement
-# would indicate the sweep is not resolving the curve.
-auc <- lapply(split(tally, cell_key), function(g) {
-  r <- Reduce(`+`, lapply(g, `[[`, "rej_fine"))
-  m <- Reduce(`+`, lapply(g, `[[`, "non_fine"))
-  R <- as.numeric(sum(r)); M <- as.numeric(sum(m))
-  below <- cumsum(as.numeric(m)) - m
+# Total windows and overall rejection rate per cell.
+totals <- lapply(split(tally, cell_key), function(g) {
+  R <- as.numeric(sum(Reduce(`+`, lapply(g, `[[`, "rej_fine"))))
+  M <- as.numeric(sum(Reduce(`+`, lapply(g, `[[`, "non_fine"))))
   cbind(g[[1]]$cell,
-        data.frame(windows   = R + M,
-                   rejection = R / (R + M),
-                   auc_mw    = if (R == 0 || M == 0) NA_real_
-                               else sum(r * (below + m / 2)) / (R * M)))
+        data.frame(windows = R + M, rejection = R / (R + M)))
 }) |> bind_rows()
 
+# Trapezoid area under the precision / 1 - NPV curve above.
 auc <- roc |>
   group_by(struct, s, n, snr, phi) |>
   summarise(auc = { x <- 1 - npv; y <- prec; o <- order(x)
                     sum(diff(x[o]) * (y[o][-1] + head(y[o], -1)) / 2) },
-            x_traced = { x <- 1 - npv; max(x[is.finite(x) & x < 1]) - min(x) },
             .groups = "drop") |>
-  right_join(auc, by = c("struct", "s", "n", "snr", "phi"))
+  right_join(totals, by = c("struct", "s", "n", "snr", "phi"))
 
 # ---- Save -------------------------------------------------------------------
 
