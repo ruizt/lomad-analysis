@@ -82,30 +82,16 @@ them.
 
 ## Morro Bay analysis
 
-`mb-analysis/process_blocks.R` copies `wp_data.parquet` — the
-quality-controlled sensor record — from the sibling
-[`mb-qartod`](https://github.com/ruizt/mb-qartod) repository into `_mb-data/`
-(gitignored) and builds the analysis blocks from it, so keep `mb-qartod`
-checked out alongside this repo. Block construction lives here rather than
-upstream because every choice in it is an analysis decision: hourly binning, a
-24-hour gap threshold, a 5-day minimum, and global standardization of pH and
-dissolved oxygen. Tide and pressure are carried through but excluded from the
-block definition, so their missingness cannot move block boundaries.
+| Script | What it does |
+|---|---|
+| `process_blocks.R` | Builds the analysis blocks from the QA'd sensor record: hourly binning, a 24-hour gap threshold, a 5-day minimum, and global standardization of pH and dissolved oxygen |
+| `analysis.R` | Presmooths, fits and tests each block, pools p-values across blocks for one Benjamini--Yekutieli correction, and writes every figure the paper uses |
+| `utils.R` | Spectral notch filter that removes tidal periodicity, plus the downsampling helper |
+| `export_example.R` | Regenerates the one Bay Mouth block (late summer 2022) shipped with the package as `morro_bay` |
 
-`mb-analysis/analysis.R` then presmooths (spectral notch at the tidal bands,
-downsample to 6-hourly), fits each block at $h = 4$ and $s = 60$, pools the raw
-p-values across all blocks for a single Benjamini--Yekutieli correction, and
-writes figures to `mb-analysis/_img/`. Presmoothing stays in the analysis script
-rather than the processing script so that both the raw and presmoothed series
-are available for figures.
-
-Blocks shorter than $2.5s + h$ are dropped before fitting. This is a second,
-stricter length restriction than the 5-day minimum applied upstream, and it is
-an inference decision rather than a data one: a block barely longer than the
-window contributes few windows, all of them heavily overlapping, and the FDR
-over such a block is not controlled at the nominal level. Pooling p-values
-across blocks means one short block degrades the correction for every other, so
-the restriction is applied before pooling rather than after.
-
-One Bay Mouth block (late summer 2022) ships with the package as `morro_bay`;
-`mb-analysis/export_example.R` regenerates it.
+The scripts read and write `_mb-data/` at the repository root, which is
+gitignored and not distributed. `process_blocks.R` populates it by copying
+`wp_data.parquet` from the sibling
+[`mb-qartod`](https://github.com/ruizt/mb-qartod) repository, so keep that
+checked out alongside this one; everything downstream then reads
+`_mb-data/ph_o2_blocks.csv`.
