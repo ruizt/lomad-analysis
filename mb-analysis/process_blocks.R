@@ -4,11 +4,13 @@
 #   Rscript mb-analysis/process_blocks.R
 #
 # Input
-#   ../mb-qartod/_data/clean/wp_data.parquet  (copied into _mb-data/ on the way)
+#   _mb-data/wp_data.parquet      the QA'd record, copied here by hand
 #
 # Output
-#   _mb-data/wp_data.parquet      the QA'd record, verbatim
 #   _mb-data/ph_o2_blocks.csv     hourly, blocked, standardized; the analysis input
+#
+# The QA'd record is produced by the mb-qartod repository. Copy it into
+# _mb-data/ before running this; nothing here reaches outside the repository.
 #
 # This step used to live in mb-qartod as inst/scripts/run_block_pipeline.R. It
 # belongs here: every choice in it — the bin width, the gap threshold, the
@@ -39,24 +41,19 @@ max_lag_hours <- 24              # gap threshold
 min_days      <- 5               # minimum block length
 bin_size      <- "1 hour"
 
-mb_clean <- fs::path(here::here(), "../mb-qartod/_data/clean")
-out_dir  <- here::here("_mb-data")
+out_dir <- here::here("_mb-data")
 fs::dir_create(out_dir)
 
 # ---- Import -----------------------------------------------------------------
 
-src <- fs::path(mb_clean, "wp_data.parquet")
-if (!fs::file_exists(src))
-  stop("wp_data.parquet not found at: ", src,
-       "\nCheck that the mb-qartod repo is a sibling of this one and that ",
-       "inst/scripts/run_qartod_pipeline.R has been run.")
-
 dst <- fs::path(out_dir, "wp_data.parquet")
-fs::file_copy(src, dst, overwrite = TRUE)
-message("Copied wp_data.parquet to ", out_dir)
+if (!fs::file_exists(dst))
+  stop("wp_data.parquet not found at: ", dst,
+       "\nIt is produced by the mb-qartod repository; copy it into _mb-data/ ",
+       "before running this script.")
 
 # Parquet is the canonical form -- typed, and about a quarter the size -- but a
-# CSV is deposited alongside it because collaborators are likelier to open one.
+# CSV is written alongside it because collaborators are likelier to open one.
 # Both hold the same 65 columns; nothing is dropped.
 csv_out <- fs::path(out_dir, "wp_data.csv")
 arrow::write_csv_arrow(arrow::read_parquet(dst), csv_out)
