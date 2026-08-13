@@ -5,7 +5,7 @@
 #
 # Uses the same tide/job.yaml template as submit_sweep.sh, so a job submitted
 # here is identical to a sweep job apart from the parameters set below. Edit
-# those to probe a different cell; SIM_S is small so it finishes quickly.
+# those to probe a different cell; SIM_REPS is small so it finishes quickly.
 
 set -euo pipefail
 
@@ -24,13 +24,13 @@ export CONFIGMAP="lomad-power-script"
 
 # ---- The cell to test --------------------------------------------------------
 
-export SIM_STRUCTURE="rate"
+export SIM_STRUCTURE="fr"
 export SIM_D="1.0"
-export SIM_N="400"
+export SIM_S="100"
 export SIM_SNR="0.5"
 export SIM_PHI="0.8"
 export SIM_ORACLE="FALSE"
-export SIM_S=5          # deliberately small: this is a smoke test
+export SIM_REPS=5       # deliberately small: this is a smoke test
 export SIM_SEED=2847
 
 export JOB_NAME="lomad-power-test"
@@ -43,8 +43,8 @@ kubectl create configmap "${CONFIGMAP}" \
   --from-file=sim.R="${TIDE_DIR}/sim.R" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-echo "Submitting ${JOB_NAME} (S=${SIM_S}) ..."
-envsubst '${JOB_NAME} ${NAMESPACE} ${IMAGE} ${CONFIGMAP} ${SIM_D} ${SIM_STRUCTURE} ${SIM_N} ${SIM_SNR} ${SIM_PHI} ${SIM_S} ${SIM_SEED} ${SIM_ORACLE}' \
+echo "Submitting ${JOB_NAME} (reps=${SIM_REPS}) ..."
+envsubst '${JOB_NAME} ${NAMESPACE} ${IMAGE} ${CONFIGMAP} ${SIM_D} ${SIM_STRUCTURE} ${SIM_S} ${SIM_SNR} ${SIM_PHI} ${SIM_REPS} ${SIM_SEED} ${SIM_ORACLE}' \
   < "${JOB_TEMPLATE}" | kubectl apply -n "${NAMESPACE}" -f -
 
 echo ""

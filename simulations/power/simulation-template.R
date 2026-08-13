@@ -1,12 +1,12 @@
 ## simulation-template.R — local illustration of the power study
 ##
-## Runs S replicates for each (structure, d, n, phi, snr) combination so the
-## simulation can be inspected and reasoned about locally, at a scale that runs
-## in seconds rather than on the cluster.
+## Runs S replicates for each (structure, d, s, phi, snr) cell so the simulation
+## can be inspected and reasoned about locally, at a scale that runs in seconds
+## rather than on the cluster.
 ##
 ## NOT the source of truth. tide/sim.R is what actually runs on Tide and
-## produces the archived results; run_rep() below deliberately mirrors it so
-## the illustration is faithful. If you change the simulation logic, change
+## produces the archived results; run_rep() below deliberately mirrors it so the
+## illustration is faithful. If you change the simulation logic, change
 ## tide/sim.R first, then mirror it here. The two differ only in how they take
 ## parameters -- arguments here, environment variables there -- and in the loop
 ## that drives them.
@@ -18,33 +18,40 @@
 
 library(lomad)
 library(dplyr)
-library(tidyverse)
-library(patchwork)
 
-# ---- Parameters --------------------------------------------------------------
+# ---- Parameters -------------------------------------------------------------
 
-n     <- 500L
-phi   <- 0.5
-snr   <- 1.5
 alpha <- 0.05
 S     <- 20
 
-d_vals     <- c(0, 0.25, 0.5, 0.75, 1, 1.5)
-# "dist" generates the base trends but is not a coupling structure and has
-# never appeared in a figure; it was a quarter of the job budget.
-structs <- c("smooth", "cross", "rate")
-n_vals   <- c(200L, 400L, 600L)
+# The window s is the design factor and n follows it. Accumulated affine drift
+# depends on the number of windows n/s, so holding that ratio fixed keeps the
+# drift identical across window sizes rather than confounding the two.
+N_OVER_S <- 25L
+h_win    <- 5L
+nb       <- 151L        # holds the shortest basis period at s/3 for any s
+
+affine_cap <- 0.015     # per-window; the most that holds H_0 in the worst cell
+affine_bw  <- 0.5
+
+s_vals   <- c(50L, 100L, 150L)
 phi_vals <- c(0.3, 0.5, 0.8)
 snr_vals <- c(0.5, 1.5)
+structs  <- c("rs", "rm", "fr")
 
-h_win <- max(5L, floor(n / 200L))
-s_win <- min(60L * h_win, floor(n / 4L))
+# d is a generator knob, not an effect size: the same d gives ~2x different
+# local separation across structures because they distribute it differently in
+# time. It is therefore scaled per structure onto a common realized delta_t,
+# and never appears in a figure. Base grid gives median delta_t of roughly
+# 0, 0.20 and 0.45; see _notes/delta-calibration.md.
+d_base   <- c(0, 0.60, 1.55)
+d_factor <- c(rs = 1.00, rm = 0.60, fr = 0.45)
+d_vals   <- lapply(d_factor, function(f) round(f * d_base, 2))
 
-# Structure-specific parameters
 struct_params <- list(
-  dist   = list(),
-  smooth = list(bw = 50),
-  cross  = list(bw = 50),
+  dist = list(),
+  rs   = list(bw = 50),
+  rm   = list(bw = 50),
   # bump = "gaussian": the shape-2 gamma default puts a corner at each event
   # onset, which difference-based noise estimation cannot cancel (Hall and Van
   # Keilegom 2003 require a bounded derivative). The leftover biases the
@@ -52,23 +59,22 @@ struct_params <- list(
   # amplified by ~2/(1-phi)^2, so at phi = 0.8 the fixed-rate structure loses
   # almost all detection. The gaussian pulse is matched on width and smooth at
   # onset; it still trails the stochastic structures but is no longer anomalous.
-  rate   = list(rate = 0.01, bump = "gaussian")
+  fr   = list(rate = 0.01, bump = "gaussian")
 )
 
-# ---- Single-replicate function -----------------------------------------------
+THIN <- 5L              # windows overlap by s - 1, so neighbours are redundant
 
-run_rep <- function(d, struct, n, phi, snr, seed, oracle = FALSE) {
+# ---- Single-replicate function ----------------------------------------------
+
+run_rep <- function(d, struct, s_win, phi, snr, seed, oracle = FALSE) {
   set.seed(seed)
+  n <- N_OVER_S * s_win
 
-  # Generate trends
   trends <- do.call(sim_trends,
-                    c(list(n = n, d = d, method = struct, seed = seed),
-                      struct_params[[struct]]))
+    c(list(n = n, d = d, method = struct, nb = nb, seed = seed,
+           affine_s = s_win, affine_cap = affine_cap, affine_bw = affine_bw),
+      struct_params[[struct]]))
 
-  # Coupling weight (NULL for dist/unstructured)
-  w <- if (!is.null(trends$w)) trends$w else NULL
-
-  # Add noise
   sim <- sim_noise_pair(trends, h = h_win, lambda_target = snr,
                         ar.coefs = phi, seed = seed + 1L)
 
@@ -80,161 +86,92 @@ run_rep <- function(d, struct, n, phi, snr, seed, oracle = FALSE) {
     noise_ov <- list(ar = phi, sigma2 = var(innov1))
   }
 
-  # Realized affine effect size on the windows the test uses, from the true
-  # noise-free trends smoothed exactly as the observed series are. d is a
-  # design knob; delta_t = sqrt(1 - r_t^2) is what the test actually has power
-  # against, so it is recorded rather than assumed.
+  # Ground truth. delta_t is measured on the noise-free trends smoothed exactly
+  # as the observed series are, by least squares within each window -- the same
+  # sqrt(1 - r_t^2) the paper defines. The generating coefficients are NOT used
+  # to remove the affine map: fixing the slope at its window average charges the
+  # base separation twice once d > 0, and delta_t then exceeds 1.
   kern <- rep(1 / h_win, h_win)
   t1s  <- as.numeric(stats::filter(trends$x1, kern, sides = 1))
   t2s  <- as.numeric(stats::filter(trends$x2, kern, sides = 1))
-  r_t  <- rep(NA_real_, n)
-  for (tt in s_win:n) {
-    ww <- (tt - s_win + 1L):tt
-    a <- t1s[ww]; b <- t2s[ww]
-    if (anyNA(a) || anyNA(b) || sd(a) == 0 || sd(b) == 0) next
-    r_t[tt] <- suppressWarnings(stats::cor(a, b))
-  }
-  delta_t <- sqrt(pmax(0, 1 - r_t^2))
+  delta_t <- lomad:::.compute_delta(t1s, t2s, s_win)
 
-  # Realized per-series SNR, on sim_noise_pair()'s definition: smoothed signal
-  # variance over smoothed noise variance. Measured on the test window s_win
-  # rather than the 2h calibration window, so the level sits above `snr` -- a
-  # longer window sees more of the trend's variation. The ratio lambda1/lambda2
-  # is the quantity of interest and is unaffected by that choice; it should be
-  # 1 once the displacement is orthogonalised and rescaled.
+  # Realized per-series SNR on Proposition 1's definition: window signal
+  # variance over smoothed noise variance, via the package's own Var_W.
+  # Measured on s_win rather than sim_noise_pair()'s 2h calibration window, so
+  # the level sits above `snr`; the ratio is the quantity of interest.
   eta1 <- as.numeric(stats::filter(sim$y1 - sim$x1, kern, sides = 1))
   eta2 <- as.numeric(stats::filter(sim$y2 - sim$x2, kern, sides = 1))
-  # compute_tau_sq() is the package's own Var_W, with the population
-  # denominator the proof uses, so lambda_k here is definitionally the
-  # lambda_k of Proposition 1 rather than a near-equivalent.
   tau_w <- function(z) mean(compute_tau_sq(z, s_win), na.rm = TRUE)
   lam1 <- tau_w(t1s) / var(eta1, na.rm = TRUE)
   lam2 <- tau_w(t2s) / var(eta2, na.rm = TRUE)
 
-  # Fit
+  b_range <- diff(range(trends$b))
+
   fit <- tryCatch(
     lomad_fit(sim$y1, sim$y2, h = h_win, s = s_win, noise_override = noise_ov),
     error = function(e) NULL
   )
   if (is.null(fit)) {
     return(list(
-      summary = data.frame(d = d, struct = struct, n = n,
+      summary = data.frame(d = d, struct = struct, s = s_win, n = n,
                            phi = phi, snr = snr, seed = seed,
-                           detected = NA,
-                           delta_sup = NA_real_, delta_bar = NA_real_,
-                           lambda1 = NA_real_, lambda2 = NA_real_),
-      series = NULL
+                           detected = NA, n_win = NA_integer_,
+                           delta_med = NA_real_, lambda1 = NA_real_,
+                           lambda2 = NA_real_, b_range = b_range),
+      windows = NULL
     ))
   }
 
-  # Test
   tst <- lomad_test(fit, alpha = alpha)
 
-  # Outputs. Schema matches tide/sim.R exactly: collect-results.R and
-  # localization-sweep.R both assume it. `sep` is the pointwise true trend
-  # separation and is what localization-sweep.R measures rejections against.
+  vi   <- fit$valid_idx
+  keep <- vi[seq(1L, length(vi), by = THIN)]
+
+  # Schema matches tide/sim.R exactly: collect-results.R assumes it. p_raw is
+  # kept so the study can be rethresholded at another alpha without regenerating
+  # anything; rejected is what BY gave at `alpha`.
   list(
-    summary = data.frame(d = d, n = n, phi = phi, snr = snr,
-                         struct = struct, seed = seed,
+    summary = data.frame(d = d, struct = struct, s = s_win, n = n,
+                         phi = phi, snr = snr, seed = seed,
                          detected = any(tst$rejected, na.rm = TRUE),
-                         delta_sup = suppressWarnings(max(delta_t, na.rm = TRUE)),
-                         delta_bar = mean(delta_t, na.rm = TRUE),
-                         lambda1 = lam1, lambda2 = lam2),
-    series = list(w = w,
-                  sep = abs(trends$x1 - trends$x2),
-                  delta_t = delta_t,
-                  vi = fit$valid_idx,
-                  p_raw = tst$p_values,
-                  p_adj = tst$p_adj,
-                  rejected = tst$rejected)
+                         n_win = length(vi),
+                         delta_med = median(delta_t[vi], na.rm = TRUE),
+                         lambda1 = lam1, lambda2 = lam2, b_range = b_range),
+    windows = data.frame(
+      seed     = seed,
+      t        = keep,
+      delta    = delta_t[keep],
+      lambda   = pmin(fit$lambda1[keep], fit$lambda2[keep]),
+      p_raw    = tst$p_values[keep],
+      rejected = tst$rejected[keep]
+    )
   )
 }
 
 # summary output
-run_rep(d=0.5, struct='rate', n=500, phi=0.5, snr=1.5, seed=123)$summary
+run_rep(d = 0.6, struct = "rs", s_win = 100L, phi = 0.5, snr = 1.5,
+        seed = 123)$summary
 
-# series output
-run_rep(d=0.5, struct='rate', n=500, phi=0.5, snr=1.5, seed=123)$series |>
-  str()
+# per-window output: this is what the local power curves are built from
+run_rep(d = 0.6, struct = "rs", s_win = 100L, phi = 0.5, snr = 1.5,
+        seed = 123)$windows |> head()
 
-# ---- Main loop ---------------------------------------------------------------
+# ---- Main loop --------------------------------------------------------------
 
 set.seed(2847)
 all_seeds <- sample.int(1e6, S)
 
-
 results <- lapply(structs, function(struct) {
-  lapply(d_vals, function(d) {
-    lapply(n_vals, function(n) {
+  lapply(d_vals[[struct]], function(d) {
+    lapply(s_vals, function(s_win) {
       lapply(phi_vals, function(phi) {
         lapply(snr_vals, function(snr) {
-          reps <- lapply(all_seeds, function(s) run_rep(d, struct, n, phi, snr, s))
-          
+          reps <- lapply(all_seeds,
+                         function(sd) run_rep(d, struct, s_win, phi, snr, sd))
           bind_rows(lapply(reps, `[[`, "summary"))
         }) |> bind_rows()
       }) |> bind_rows()
     }) |> bind_rows()
   }) |> bind_rows()
 }) |> bind_rows()
-
-
-# ---- Summary -----------------------------------------------------------------
-
-results_summary <- results |>
-  group_by(struct, d, n, phi, snr) |>
-  summarise(
-    S           = n(),
-    detection   = mean(detected, na.rm = TRUE),
-    .groups     = "drop"
-  )
-
-# Nothing is written here by design: simulation-template.R is a local proof-of-concept for
-# the simulation logic. Only tide/sim.R (on the cluster) and collect-results.R
-# write into results/.
-
-#------ Plot -------------------------------------------------------------------
-
-# example
-n_val <- 400
-phi_val <- 0.5
-snr_val <- 1.5
-
-# Graph of Detection Rate
-results_summary |>
-  mutate(
-    var = (detection * (1 - detection)) / S,
-    se = sqrt(var)
-  ) |>
-  filter(
-    n == n_val,
-    phi == phi_val,
-    snr == snr_val
-  ) |>
-  ggplot(aes(x = d, y = detection)) +
-  geom_point(size = 3) +
-  geom_errorbar(
-    aes(
-      ymin = detection - se,
-      ymax = detection + se
-    ),
-    width = 0.2
-  ) +
-  geom_smooth(se= FALSE) +
-  facet_wrap(~ struct, ncol=2) +   
-  theme_minimal(base_size = 18) +
-  labs(
-    title = sprintf("Detection Rate by Structure 
-(n = %d, phi = %.1f, snr = %.1f)", 
-                    n_val, phi_val, snr_val),
-    x = "Distance",
-    y = "Detection Rate"
-  ) +
-  scale_x_continuous(breaks = scales::breaks_width(0.5)) +
-  scale_y_continuous(limits = c(0, 1)) +
-  theme(
-    plot.title = element_text(size = 22),
-    strip.text = element_text(size = 18, face = "bold"),
-    axis.title = element_text(size = 18),
-    axis.text = element_text(size = 16),
-    panel.grid.minor = element_blank()
-  )

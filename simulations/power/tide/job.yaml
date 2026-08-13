@@ -7,7 +7,11 @@
 #
 # Required variables:
 #   JOB_NAME NAMESPACE IMAGE CONFIGMAP
-#   SIM_D SIM_STRUCTURE SIM_N SIM_SNR SIM_PHI SIM_S SIM_SEED SIM_ORACLE
+#   SIM_D SIM_STRUCTURE SIM_S SIM_SNR SIM_PHI SIM_REPS SIM_SEED SIM_ORACLE
+#
+# SIM_S is the correlation window; sim.R derives the series length n = 25 s
+# from it. SIM_REPS is the replicate count (it was called SIM_S before the
+# window became the design factor).
 #
 # SIM_ORACLE is "TRUE" or "FALSE"; sim.R reads it with as.logical(), and it
 # doubles as the `oracle` label so the two sweeps can be told apart with
@@ -22,7 +26,7 @@ metadata:
     app: lomad-power
     structure: "${SIM_STRUCTURE}"
     d: "${SIM_D}"
-    n: "${SIM_N}"
+    s: "${SIM_S}"
     snr: "${SIM_SNR}"
     phi: "${SIM_PHI}"
     oracle: "${SIM_ORACLE}"
@@ -47,14 +51,14 @@ spec:
               value: "${SIM_D}"
             - name: SIM_STRUCTURE
               value: "${SIM_STRUCTURE}"
-            - name: SIM_N
-              value: "${SIM_N}"
+            - name: SIM_S
+              value: "${SIM_S}"
             - name: SIM_SNR
               value: "${SIM_SNR}"
             - name: SIM_PHI
               value: "${SIM_PHI}"
-            - name: SIM_S
-              value: "${SIM_S}"
+            - name: SIM_REPS
+              value: "${SIM_REPS}"
             - name: SIM_SEED
               value: "${SIM_SEED}"
             - name: SIM_ORACLE
