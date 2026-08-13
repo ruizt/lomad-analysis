@@ -2,40 +2,49 @@
 
 ## Objective
 
-Characterise how reliably the test detects a *local* departure from affine
+Characterize how reliably the test detects a local departure from affine
 similarity, as a function of how large that departure actually is, across three
 trend structures and the nuisance factors that govern estimation difficulty
 (signal-to-noise, autocorrelation, window size).
 
-## The null
+## Local affine similarity
 
-Two series satisfy the null when they agree up to a *locally* affine map,
+Two series satisfy local affine similarity if $\nu_{2u} = a_t + b_t\nu_{1u}$ on 
+a window $W_t$. The coefficients $a_t$ and $b_t$ free to drift with $t$, so long 
+as they are near constant within any one window. 
 
-$$\nu_{2t} = a_t + b_t\,\nu_{1t},$$
+Departures from local affine similarity are measured by mean square separation 
+after affine realignment on a window $W_t$ of width $s$:
 
-with $a_t$ and $b_t$ free to drift, so long as they are near constant within any
-one window. Series related this way are alike locally while their levels and
-scales may differ completely across the series as a whole. Correlation is
-invariant to shifting and rescaling either series, so this — not trend equality
-— is what the test is calibrated against, and it is what the simulation has to
-generate.
+$$
+\delta_t^2 = \frac{1}{\tau_{1t}^2} \min_{a_t, b_t > 0} 
+\left\{ 
+  \frac{1}{s}\sum_{u\in W_t}\left[ \nu_{1u} -  (a_t + b_t\nu_{2u})\right]^2 
+\right\}
+$$
+
+We are interested in power relative to the effect size $\delta_t$.
 
 ## Data-generating process
 
-```
-X_{kt} = ν_{kt} + Z_{kt},   Z_{kt} ~ AR(1, φ, σ²),   k = 1, 2
-```
+$$
+X_{kt} = \nu_{kt} + Z_{kt},   
+\qquad
+Z_{kt} \sim AR(1, \phi, \sigma^2),
+\qquad k = 1, 2
+$$
 
-Trends are built in two stages. A coupling structure first separates a pair of
-Fourier-basis trends, with $d$ scaling how far apart they are pushed. The affine
-layer is then applied to the second, $\nu_2 \leftarrow a_t + b_t\nu_2$, with the
-coefficients drawn as smoothed random walks and rescaled so that neither moves
+Trends are built in three stages:
+
+1. Generate a pair of Fourier-basis trends with total $L^2$ separation of $d$.
+2. Mix trends according to a mixing weight.
+3. Apply a time-varying affine transformation $\nu_2 \leftarrow a_t + b_t\nu_2$, 
+with $a_t, b_t$ drawn as smoothed random walks and rescaled so that neither moves
 by more than `affine_cap` over any window of length $s$.
 
-That cap is what makes the pair *locally* affine similar: within a window the
-map is effectively constant, while across the series the coefficients accumulate
-freely, so windows far apart see genuinely different maps. At the settings below
-$b_t$ swings about 17% from end to end.
+The cap is calibrated to preserve local affine similarity under $H_0$, but allows
+for global drift of the affine map. At the settings below $b_t$ swings about 17% 
+from end to end.
 
 ## Trend structures
 
@@ -46,19 +55,11 @@ $b_t$ swings about 17% from end to end.
 | `rm`  | `sim_trends(method = "rm")` | bandwidth *bw* = 50                  |
 
 `fr` concentrates its separation into brief evenly spaced events; `rs` and `rm`
-spread it over episodes at irregular times, `rm` allowing the trends to cross.
+spread it over episodes at irregular times, with `rm` allowing the trends to cross.
 
-**Pulse shape for `fr`.** Events use a gaussian pulse rather than a shape-2
-gamma. The gamma leaves zero with non-zero slope, so the coupling weight has a
-corner at each event onset, and difference-based noise estimation cannot cancel
-a corner — Hall and Van Keilegom (2003, eqn 2.4) require a bounded derivative.
-What survives differencing enters the residual autocovariance as a positive
-additive bias, amplified near the unit root since the long-run noise variance
-goes as (1+φ)/(1−φ). The gaussian pulse is matched on width and smooth at onset.
-`fr` remains the weakest structure at high autocorrelation, which is the
-contrast it is in the design to provide.
+## Simulation design
 
-## Parameters
+We simulate data according to factorial combinations of the following:
 
 | Parameter              | Value                         |
 |------------------------|-------------------------------|
@@ -66,34 +67,19 @@ contrast it is in the design to provide.
 | Series length *T*      | 25*s* — i.e. 1250, 2500, 3750 |
 | AR(1) coefficient *φ*  | 0.3, 0.5, 0.7                 |
 | Target SNR *λ*         | 0.5, 1.5                      |
-| Smoothing window *h*   | 5                             |
-| Fourier basis *nb*     | 151                           |
-| Affine cap / bandwidth | 1.5% per window / 0.5*T*      |
-| Replicates *S*         | 500                           |
-| Significance level *α* | 0.05                          |
 
-162 cells in total.
+This results in 162 cells in total. Throughout, we fix the following:
 
-**The window is the design factor; *T* follows it.** Accumulated affine drift
-depends on how many windows a series contains, so fixing *T*/*s* = 25 holds the
-drift constant while *s* varies, and window size is not confounded with how much
-affine variation the method faced. *nb* = 151 holds the shortest basis period at
-*s*/3 for every *s*, fixing trend smoothness relative to the window too.
+| Parameter               | Value                         |
+|-------------------------|-------------------------------|
+| Smoothing bandwidth *h* | 5                             |
+| Fourier basis *nb*      | 151                           |
+| Affine cap / bandwidth  | 1.5% per window / 0.5*T*      |
+| Replicates *S*          | 500                           |
+| Significance level *α*  | 0.05                          |
 
-Long series are what let a per-window cap matter. The cap has to be small enough
-that the map is constant *within* a window — a larger one would violate the null
-outright — so length is the only way a small local drift accumulates into
-genuinely different transformations at distant points. Power at matched
-separation does not itself depend on *T*.
-
-**φ stops at 0.7.** Beyond that the moving-average smoother cannot track the
-trend, leaving trend signal in the residuals; the AR estimator absorbs it as
-inflated $\hat\phi$ and the test turns conservative. At φ = 0.8, $\hat\phi$ pegs
-at its 0.99 clamp in 8% of `rs` replicates and 17–67% of `fr` ones, and `fr`
-loses detection entirely. At 0.7 there is no pegging for `rs` and `fr` retains
-power, and 0.3 / 0.5 / 0.7 is evenly spaced.
-
-## The *d* grid
+To generate data with varying effect sizes, we draw the initial Fourier trends
+(before mixing and affine transformation) at the following levels of separation:
 
 | structure | *d* values    |
 |-----------|---------------|
@@ -101,38 +87,27 @@ power, and 0.3 / 0.5 / 0.7 is evenly spaced.
 | `rm`      | 0, 0.36, 0.93 |
 | `fr`      | 0, 0.27, 0.70 |
 
-*d* is a generator knob, not an effect size, and never appears in a figure.
-Separation is linear in it, but the structures distribute separation differently
-in time, so a shared *d* gives them roughly 2× different *local* separation. The
-values above are one base grid times a constant per structure (1.00 / 0.60 /
-0.45), chosen so all three span a common range of realized δ_t with medians near
-0, 0.20 and 0.45. See `_notes/delta-calibration.md`.
-
-Three values suffice. A single *d* already spans most of the range — q10 0.036
-to q90 0.747 at `rs`, *d* = 0.60 — so the grid shifts the distribution rather
-than creating the coverage.
+*d* is a generator knob, not an effect size; the structures distribute separation
+differently in time, so a shared *d* gives them roughly 2× different *local* 
+separation. The values above are one base grid times a constant per structure 
+(1.00 / 0.60 / 0.45), chosen so all three span a common range of realized δ_t with 
+medians near 0, 0.20 and 0.45. 
 
 ## Estimands
 
 The estimand is **local**: the probability of rejecting window *t* given its
-true separation, P(reject | δ_t). Global "did anything fire" power is not
-reported — with 1200 to 3600 windows per series it saturates immediately, and
-the sup-null it corresponds to is not the hypothesis under test.
+true separation, P(reject | δ_t).
 
-Ground truth is
+Ground truth is given by $\delta_t = \sqrt{1 - (r_t\vee 0)^2}$ where 
+$r_t = \operatorname{Corr}_{W_t}\!\left(\nu_1, \nu_2\right)$ is the empirical
+correlation between true trends on $W_t$. See the methods paper for details. 
 
-$$\delta_t = \sqrt{1 - r_t^2}, \qquad
-  r_t = \operatorname{Corr}_{W_t}\!\left(\nu_1^{(h)}, \nu_2^{(h)}\right),$$
+## Implementation
 
-the RMS distance between the trends once the local affine map is removed by
-least squares, measured on the noise-free trends smoothed exactly as the
-observed series are. The generating coefficients are deliberately not used to
-remove the map: fixing the slope at its window average charges the base
-separation twice once *d* > 0, and δ_t then exceeds 1.
-
-For each replicate, `run_rep()` returns two components.
+Replicates are executed by the wrapper `run_rep()`, which returns two components.
 
 ### Summary (one row per replicate)
+
 
 - **detected** — did any window get flagged (recorded, not reported)
 - **n_win** — number of testable windows
@@ -150,37 +125,20 @@ One row per window per replicate:
 - **p_raw** — raw p-value, so the study can be rethresholded at another α
 - **rejected** — BY decision at α = 0.05
 
-Every window is stored. The records are highly redundant — windows overlap by
-*s* − 1 points — but subsampling them saves only disk and would discard the
-adjacency information needed to say anything about contiguous flagged regions.
-The sweep comes to about 4 GB.
+Every window is stored. The sweep comes to about 4 GB.
 
-## Expected outputs
-
-### Per cell
+Expected outputs are stored per cell:
 
 - `{cell}.rds` — metadata + per-replicate summary data frame
 - `{cell}-windows.rds` — the per-window records above
 
-### Aggregated (after `collect-results.R`)
+The script `collect-results.R` then aggregates these and stores the files:
 
 - `results/simulations-power-results.rds` — every replicate, every cell
 - `results/simulations-power-curves.rds` — rejection rate by δ_t bin: the local power curves
 - `results/simulations-power-auc.rds` — concordance between rejection and δ_t
 
-Both aggregates pool over *d*, whose only job is to populate the δ_t range.
-`collect-results.R` reduces each file as it reads it and keeps only per-bin
-tallies: the sweep holds ~194 million window rows, which cannot be held in
-memory at once.
-
-Concordance is P(a randomly chosen rejected window is more separated than a
-randomly chosen non-rejected one), computed as a Mann-Whitney statistic from
-1000-bin tallies.
-
-### Figures
-
-Built by `simulations/simulation-results.R`, not by this study, and written to
-`simulations/_img/`.
+Aggregation pools over *d* and bins by $\delta_t$.
 
 ------------------------------------------------------------------------
 
@@ -221,7 +179,7 @@ Job spec: `submit_sweep.sh` and `test_one_job.sh` fill its placeholders with
 
 ## Workflow
 
-### Local development
+### Local testing
 
 Source `simulation-template.R`, which mirrors `tide/sim.R` at *S* = 20 and
 writes nothing. To inspect a single replicate:
@@ -234,7 +192,7 @@ run_rep(d = 0.60, struct = "rs", s_win = 100L, phi = 0.5, snr = 1.5, seed = 1234
 `tide/sim.R` is the source of truth. Change it first, then mirror the change
 into `simulation-template.R`.
 
-### On the cluster
+### Deployment
 
 ``` bash
 kubectl apply -n cal-poly-ruiz -f simulations/power/tide/pvc.yaml

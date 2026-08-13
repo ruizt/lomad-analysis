@@ -89,15 +89,17 @@ run_rep <- function(d, struct, s_win, phi, snr, seed) {
   sim <- sim_noise_pair(trends, h = h_win, lambda_target = snr,
                         ar.coefs = phi, seed = seed + 1L)
 
-  # Ground truth. delta_t is measured on the noise-free trends smoothed exactly
-  # as the observed series are, by least squares within each window -- the same
-  # sqrt(1 - r_t^2) the paper defines. The generating coefficients are NOT used
-  # to remove the affine map: fixing the slope at its window average charges the
-  # base separation twice once d > 0, and delta_t then exceeds 1.
+  # Ground truth, on the unsmoothed trends. The test necessarily works through
+  # the smoothed correlation r^(h), but departures at timescales shorter than h
+  # are attenuated by smoothing, so r^(h) >= r: scoring against the smoothed
+  # separation would define away exactly the power the smoother costs. The
+  # generated effect is what the method is meant to find, so that is what power
+  # is reported against.
+  delta_t <- lomad:::.compute_delta(trends$x1, trends$x2, s_win)
+
   kern <- rep(1 / h_win, h_win)
   t1s  <- as.numeric(stats::filter(trends$x1, kern, sides = 1))
   t2s  <- as.numeric(stats::filter(trends$x2, kern, sides = 1))
-  delta_t <- lomad:::.compute_delta(t1s, t2s, s_win)
 
   # Realized per-series SNR on Proposition 1's definition: window signal
   # variance over smoothed noise variance, via the package's own Var_W.
