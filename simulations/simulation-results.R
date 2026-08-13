@@ -5,19 +5,19 @@
 ## simulations/power/collect-results.R.
 ##
 ## Inputs
-##   simulations/power/results/simulations-power-summary.rds
-##   simulations/power/results/simulations-power-localization.rds
+##   simulations/power/results/simulations-power-curves.rds
+##   simulations/power/results/simulations-power-roc.rds
+##   simulations/power/results/simulations-power-auc.rds
 ##   simulations/validation/results/simulations-validation-results.rds
 ##   (fig-trends.png simulates its own data)
 ##
 ## Outputs -> simulations/_img/
 ##   fig-trends.png             methods of simulating trend separation
-##   fig-power.png    power, concordance and profile stacked
+##   fig-power.png              local power and classification accuracy
 ##   fig-validation.png         finite-sample accuracy of the CLT
 ##
 ## Outputs -> simulations/_tbl/
-##   tbl-localization-auc.csv         concordance AUC per design cell
-##   tbl-localization-resolution.csv  separation at which rejection hits .50/.95
+##   tbl-localization-auc.csv         AUC and concordance per design cell
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/simulation-results.R
@@ -48,14 +48,6 @@ STRUCT_ABBR <- c(fr = "FR", rs = "RS", rm = "RM")
 STRUCT_HEX  <- c(fr = "#009E73", rs = "#0072B2", rm = "#D55E00")
 STRUCT_PAL  <- setNames(STRUCT_HEX, STRUCT_ABBR[names(STRUCT_HEX)])
 
-# Mirrors localization-sweep.R. The power summary carries T but not s_T.
-h_win_fcn <- function(n) max(5L, floor(n / 200L))
-s_win_fcn <- function(n) min(60L * h_win_fcn(n), floor(n / 4L))
-
-ESTIMATION_LAB <- c(estimated = "Lomad", oracle = "Oracle")
-ESTIMATION_LTY <- c(estimated = "solid", oracle = "dashed")
-
-
 # =============================================================================
 # fig-trends.png -- ways of distributing separation across a series pair
 # =============================================================================
@@ -70,30 +62,47 @@ rate     <- 0.01    # event rate r
 
 seed_coef <- 2847   # Fourier base, shared across panels
 
+# The affine layer is illustrative, not the study's calibration: the cap is
+# 5% per window against the sweep's 1.5%, and map_seed is picked so a_t rises
+# and b_t falls monotonically. At the sweep's settings the drift is too small
+# to see at this scale.
+cap      <- 0.05
+a_mult   <- 0.9     # a_t amplitude, as a multiple of a trend's sd
+map_seed <- 40
+
 # Per-structure d scaling, as in the power study: the structures distribute
 # separation differently in time, so a common d gives them ~2x different local
 # separation. Scaling onto a common delta_t is what makes the panels comparable.
 d_factor <- c(dist = 1.00, fr = 0.45, rs = 1.00, rm = 0.60)
 
-tr_dist   <- sim_trends(n, d = d * d_factor[["dist"]], method = "dist",
-                        seed = seed_coef)
-tr_rate   <- sim_trends(n, d = d * d_factor[["fr"]], method = "fr",
-                        seed = seed_coef, rate = rate, bump = "gaussian")
-tr_smooth <- sim_trends(n, d = d * d_factor[["rs"]], method = "rs",
-                        seed = seed_coef, bw = bw, coupling = coupling)
-tr_cross  <- sim_trends(n, d = d * d_factor[["rm"]], method = "rm",
-                        seed = seed_coef, bw = bw, coupling = coupling)
+struct_args <- list(
+  dist = list(),
+  fr   = list(rate = rate, bump = "gaussian"),
+  rs   = list(bw = bw, coupling = coupling),
+  rm   = list(bw = bw, coupling = coupling))
 
-y_lim <- range(c(
-  tr_dist$x1,   tr_dist$x2,
-  tr_rate$x1,   tr_rate$x2,   tr_rate$x_mean,
-  tr_smooth$x1, tr_smooth$x2, tr_smooth$x_mean,
-  tr_cross$x1,  tr_cross$x2,  tr_cross$x_mean
-))
-y_pad <- diff(y_lim) * 0.05
+amp <- sd(sim_trends(n, d = d, method = "dist", seed = seed_coef)$x1)
+
+set.seed(map_seed)
+a_t <- a_mult * amp * lomad:::.make_affine_walk(n, 20L, bw = 0.5, cap = cap)
+b_t <- 1 + lomad:::.make_affine_walk(n, 20L, bw = 0.5, cap = cap)
+
+# Each structure twice: once without the affine layer, once with. The map runs
+# after the mixing, so the top row is the pre-map state and only x2 differs
+# between the two.
+trends <- lapply(setNames(nm = names(d_factor)), function(code) {
+  base <- list(n, d = d * d_factor[[code]], method = code, seed = seed_coef)
+  list(pre  = do.call(sim_trends, c(base, struct_args[[code]])),
+       post = do.call(sim_trends, c(base, list(affine_a = a_t, affine_b = b_t),
+                                    struct_args[[code]])))
+})
+
+y_lim <- range(unlist(lapply(trends, function(x)
+  c(x$pre$x1, x$pre$x2, x$post$x2))))
+y_pad <- diff(y_lim) * 0.06
 y_lim <- y_lim + c(-y_pad, y_pad)
 
-theme_top <- theme_minimal(base_size = PT$title) +
+theme_panel <- theme_minimal(base_size = PT$title) +
   theme(
     legend.position  = "none",
     axis.title.x     = element_blank(),
@@ -104,306 +113,212 @@ theme_top <- theme_minimal(base_size = PT$title) +
   ) +
   fig_sizes()
 
-theme_bot <- theme_minimal(base_size = PT$title) +
-  theme(
-    panel.grid.minor = element_blank(),
-    axis.text.x      = element_blank(),
-    axis.ticks.x     = element_blank()
-  ) +
-  fig_sizes()
-
-# w = 0 here, so x1/x2 are the raw Fourier trends and share one colour.
-panel_top_dist <- function(tr, title) {
-  x_mean_loc <- (tr$x1 + tr$x2) / 2
-  df <- data.frame(t = seq_len(n), x1 = tr$x1, x2 = tr$x2,
-                   x_mean = x_mean_loc) |>
-    pivot_longer(c(x1, x2, x_mean), names_to = "series", values_to = "value") |>
-    mutate(series = factor(series, levels = c("x_mean", "x1", "x2")))
-  ggplot(df, aes(t, value, color = series, linewidth = series,
-                 linetype = series, alpha = series)) +
-    geom_line() +
-    scale_color_manual(values = c(x_mean = "gray50", x1 = "black", x2 = "black")) +
-    scale_linewidth_manual(values = c(x_mean = 0.35, x1 = 0.45, x2 = 0.45)) +
-    scale_linetype_manual(values = c(x_mean = "dashed", x1 = "solid", x2 = "solid")) +
-    scale_alpha_manual(values = c(x_mean = 1, x1 = 0.9, x2 = 0.9)) +
-    scale_y_continuous(limits = y_lim) +
-    labs(title = title, y = expression(mu[it])) +
-    theme_top
-}
-
 # x1/x2 share the structure's colour: the panel is about the structure, not
 # about which series is which.
-panel_top_struct <- function(tr, title, colour) {
-  df <- data.frame(t = seq_len(n), x1 = tr$x1, x2 = tr$x2,
-                   x_mean = tr$x_mean) |>
-    pivot_longer(c(x1, x2, x_mean), names_to = "series", values_to = "value") |>
-    mutate(series = factor(series, levels = c("x_mean", "x1", "x2")))
-  ggplot(df, aes(t, value, color = series, linewidth = series,
-                 linetype = series, alpha = series)) +
-    geom_line() +
-    scale_color_manual(values = c(x_mean = "gray50", x1 = colour, x2 = colour)) +
-    scale_linewidth_manual(values = c(x_mean = 0.35, x1 = 0.45, x2 = 0.45)) +
-    scale_linetype_manual(values = c(x_mean = "dashed", x1 = "solid", x2 = "solid")) +
-    scale_alpha_manual(values = c(x_mean = 1, x1 = 0.9, x2 = 0.9)) +
+panel_trends <- function(x1, x2, colour, title, ylab) {
+  data.frame(t = seq_len(n), x1 = x1, x2 = x2) |>
+    pivot_longer(c(x1, x2), names_to = "series", values_to = "value") |>
+    ggplot(aes(t, value, colour = series)) +
+    geom_line(linewidth = 0.45, alpha = 0.85) +
+    scale_colour_manual(values = c(x1 = colour, x2 = colour)) +
     scale_y_continuous(limits = y_lim) +
-    labs(title = title, y = expression(nu[it])) +
-    theme_top
+    labs(title = title, y = ylab) +
+    theme_panel
 }
 
-panel_wt <- function(tr, ref_lines = c(0, 1), ylim = NULL, colour = "gray20") {
-  if (is.null(ylim)) {
-    rng  <- range(tr$w)
-    pad  <- diff(rng) * 0.1
-    ylim <- c(rng[1] - pad, rng[2] + pad)
-  }
-  data.frame(t = seq_len(n), w = tr$w) |>
-    ggplot(aes(t, w)) +
-    geom_hline(yintercept = ref_lines, linetype = "dashed",
-               color = "gray65", linewidth = 0.3) +
-    geom_line(linewidth = 0.4, color = colour) +
-    scale_y_continuous(limits = ylim, breaks = ref_lines) +
-    labs(y = expression(w[t]), x = "t") +
-    theme_bot
+panel_wt <- function(tr, colour, title) {
+  rng <- range(tr$w)
+  pad <- diff(rng) * 0.1
+  ggplot(data.frame(t = seq_len(n), w = tr$w), aes(t, w)) +
+    geom_hline(yintercept = c(0, 1), linetype = "dashed",
+               colour = "gray65", linewidth = 0.3) +
+    geom_line(linewidth = 0.4, colour = colour, alpha = 0.85) +
+    scale_y_continuous(limits = c(rng[1] - pad, rng[2] + pad), breaks = c(0, 1)) +
+    labs(title = title, y = expression(w[t])) +
+    theme_panel
 }
 
-# On one line these overrun the panel and ggplot truncates without warning.
-struct_title <- function(code) paste0(STRUCT_FULL[[code]], "\n(", STRUCT_ABBR[[code]], ")")
+# The dist column has no w_t, but the column titles all sit in that row, so it
+# needs something there to carry one.
+#
+# Drawn as an annotation at the foot of an empty panel rather than as a title:
+# a title would sit at the top of the cell, a full w_t strip's height clear of
+# the panel it names. Putting it on the panel below instead would cost that
+# panel a line of height and leave it out of line with the other three.
+panel_title_only <- function(title) {
+  ggplot() +
+    annotate("text", x = 0, y = 0, label = title, hjust = 0, vjust = 0,
+             size = PT$title / ggplot2::.pt) +
+    scale_x_continuous(limits = c(0, 1), expand = expansion(0)) +
+    scale_y_continuous(limits = c(0, 1), expand = expansion(0)) +
+    theme_void()
+}
 
-# Trailing newline keeps this title two lines tall like the others. Spacer
-# because w == 0 here, but the trend panels must stay the same height.
-comp_dist <- panel_top_dist(tr_dist, "Base trends\n") /
-  plot_spacer() +
-  plot_layout(heights = c(3, 1))
+# Ticks at the limits only: the strips are too short for an interior break to
+# read, and the pair of endpoints is all the scale a reader needs here.
+panel_coef <- function(y, ylab, limits) {
+  ggplot(data.frame(t = seq_len(n), y = y), aes(t, y)) +
+    geom_line(linewidth = 0.4, colour = "grey25", alpha = 0.9) +
+    scale_y_continuous(breaks = limits, limits = limits, expand = expansion(0.08)) +
+    labs(y = ylab) +
+    theme_panel
+}
 
-comp_rate <- panel_top_struct(tr_rate, struct_title("fr"),
-                               colour = STRUCT_HEX[["fr"]]) /
-  panel_wt(tr_rate, colour = STRUCT_HEX[["fr"]]) +
-  plot_layout(heights = c(3, 1))
+# One word per line, abbreviation last, so every title is three lines. Left
+# whole, "Random Separation" overruns its panel and patchwork clips it mid-word
+# without warning; breaking only that one would leave it a line taller than its
+# neighbours.
+struct_title <- function(stem, code)
+  paste0(sub(" ", "\n", stem), "\n(", STRUCT_ABBR[[code]], ")")
 
-comp_smooth <- panel_top_struct(tr_smooth, struct_title("rs"),
-                                 colour = STRUCT_HEX[["rs"]]) /
-  panel_wt(tr_smooth, colour = STRUCT_HEX[["rs"]]) +
-  plot_layout(heights = c(3, 1))
+# The a_t / b_t strips are the same series in all three columns. Repeating them
+# above each rescaled panel rather than drawing them once costs nothing and
+# keeps every column readable on its own. They lead the bottom half so each
+# column reads as map then effect, the order the generator applies them in.
+#
+# Only the top row is titled: the panels below it are the same three structures
+# in the same order.
+column <- function(code) {
+  tr     <- trends[[code]]
+  is_d   <- code == "dist"
+  colour <- if (is_d) "black" else STRUCT_HEX[[code]]
 
-comp_cross <- panel_top_struct(tr_cross, struct_title("rm"),
-                                colour = STRUCT_HEX[["rm"]]) /
-  panel_wt(tr_cross, ref_lines = c(0, 1), colour = STRUCT_HEX[["rm"]]) +
-  plot_layout(heights = c(3, 1))
+  # Titles ride on the w_t row so they head the whole column. The dist label is
+  # bottom-set in its cell rather than topped like the others, which keeps it
+  # against the panel it names.
+  head <- if (is_d) panel_title_only("Base trends") else
+    panel_wt(tr$pre, colour, struct_title(STRUCT_FULL[[code]], code))
 
-fig_1x4 <- comp_dist | comp_rate | comp_smooth | comp_cross
+  # nu* is mixed but not yet rescaled; the bottom row's nu is the final trend.
+  top <- panel_trends(tr$pre$x1, tr$pre$x2, colour, NULL,
+                      if (is_d) expression(mu[it]) else expression(tilde(nu)[it]))
+
+  # Spacers because dist carries no affine map, but the other columns' panels
+  # must stay aligned across the row.
+  coef_b   <- if (is_d) plot_spacer() else panel_coef(b_t, expression(b[t]), c(0.2, 1.0))
+  coef_a   <- if (is_d) plot_spacer() else panel_coef(a_t, expression(a[t]), c(0, 0.08))
+  rescaled <- if (is_d) plot_spacer() else
+    panel_trends(tr$post$x1, tr$post$x2, colour, NULL, expression(nu[it]))
+
+  head / top / coef_b / coef_a / rescaled +
+    plot_layout(heights = c(1, 3, 0.6, 0.6, 3))
+}
+
+fig_trends <- column("dist") | column("fr") | column("rs") | column("rm")
+
 ggsave(file.path(IMG_DIR, "fig-trends.png"),
-         fig_1x4, width = 6.5, height = 2, units = "in", dpi = 450)
+       fig_trends, width = 6.5, height = 4, units = "in", dpi = 450)
 
 })
 
 
 # =============================================================================
-# fig-power.png, panel A -- power against L2 separation d
+# fig-power.png, panel A -- local power against realized separation
 # =============================================================================
+
+Z_LEVEL <- qnorm(0.995)          # pointwise 99%
 
 p_power <- local({
-  results_summary <- readRDS("simulations/power/results/simulations-power-summary.rds")
-
-# Oracle runs exist only at phi = 0.8, so an inline note there rather than a
-# legend spanning panels it does not apply to.
-oracle_note <- data.frame(phi = 0.8, snr = 0.5, n = 200,
-                           d = 0.05, detection = 0.97,
-                           label = "dashed =\noracle")   # one line overruns
-
-p <- results_summary |>
-  mutate(struct = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR)) |>
-  ggplot(aes(d, detection, colour = struct,
-           linetype = method,
-           group = interaction(struct, method))) +
-  geom_hline(yintercept = alpha, linetype = "dashed",
-             colour = "grey60", linewidth = 0.5) +
-  geom_line(linewidth = 0.5, alpha = 0.8) +
-  geom_ribbon(aes(ymin = ci_lo, ymax = ci_hi, fill = struct),
-              alpha = 0.2, colour = NA) +
-  geom_text(data = oracle_note, aes(x = d, y = detection, label = label),
-            inherit.aes = FALSE, hjust = 0, vjust = 1, lineheight = 0.95,
-            size = ANNOT, colour = "grey30") +
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-  scale_x_continuous(breaks = 0:2) +
-  scale_colour_manual(values = STRUCT_PAL) +
-  scale_fill_manual(values = STRUCT_PAL) +
-  scale_linetype_manual(values = ESTIMATION_LTY) +
-  guides(linetype = guide_none()) +
-  facet_nested(phi ~ snr + n, labeller = labeller(
-    phi = \(x) paste0("phi == ", x),
-    snr = \(x) paste0("SNR == ", x),
-    n   = \(x) paste0("s[T] == ", vapply(as.integer(x), s_win_fcn, numeric(1))),
-    .default = label_parsed
-  )) +
-  labs(x = "Separation (d)", y = "Power",
-       colour = "Structure", fill = "Structure") +
-  theme_minimal(base_size = PT$title) +
-  theme(legend.position = "right",
-        panel.spacing = unit(8, "pt"),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
-
-  p
-})
-
-
-# =============================================================================
-# fig-power.png, panel B -- concordance between rejections and
-# true local separation
-# =============================================================================
-
-p_local <- local({
-  L      <- readRDS("simulations/power/results/simulations-power-localization.rds")
-  sweep  <- L$sweep
-  ORIENT <- L$orient
-  # delta_t is on [0, 1], not in data units as m_t was. Provisional: the
-  # display range wants revisiting once the re-scored sweep exists.
-  C_MAX   <- 1.00
-  MIN_N   <- 10000L
-
-  if (ORIENT == "conventional") {
-    sweep$xx <- 1 - sweep$spec; sweep$yy <- sweep$sens
-    xlab <- "1 - Specificity"
-    ylab <- "Sensitivity"
-  } else {
-    sweep$xx <- 1 - sweep$npv;  sweep$yy <- sweep$prec
-    xlab <- "1 - NPV"
-    ylab <- "Precision"
-  }
-sw <- sweep |>
-  filter(c <= C_MAX, n_above >= MIN_N, n_below >= MIN_N) |>
-  mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
-         method = factor(method, levels = c("estimated", "oracle")))
-
-# Integrated over the full c grid, not the trimmed display range: a partial
-# area would not read as a concordance.
-auc <- sweep |>
-  group_by(struct, phi, snr, s_win, method) |>
-  arrange(c, .by_group = TRUE) |>
-  summarise(auc = {
-    x <- 1 - npv; y <- prec; o <- order(x)
-    sum(diff(x[o]) * (y[o][-1] + head(y[o], -1)) / 2, na.rm = TRUE)
-  }, .groups = "drop")
-
-write.csv(auc, file.path(TBL_DIR, "tbl-localization-auc.csv"), row.names = FALSE)
-cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
-
-# Mean over exactly the solid curves drawn in each panel: the semi-join keeps
-# the annotation tied to what is visible if the filters above change.
-auc_panel <- auc |>
-  filter(method == "estimated") |>
-  semi_join(distinct(sw, struct, phi, snr, s_win, method),
-            by = c("struct", "phi", "snr", "s_win", "method")) |>
-  group_by(phi, snr, s_win) |>
-  summarise(xx = 0.95, yy = 0.2, k = n(),
-            label = sprintf("AUC = %.3f", mean(auc)), .groups = "drop")
-
-p <- ggplot(sw, aes(xx, yy, colour = Structure, linetype = method,
-                    group = interaction(struct, method))) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dotted",
-              colour = "grey70", linewidth = 0.3) +
-  geom_path(linewidth = 0.6, alpha = 0.85) +
-  geom_text(data = auc_panel, aes(x = xx, y = yy, label = label),
-            inherit.aes = FALSE, hjust = 1, size = ANNOT, colour = "grey20") +
-  facet_nested(phi ~ snr + s_win, labeller = labeller(
-    phi   = function(x) paste0("phi == ", x),
-    snr   = function(x) paste0("SNR == ", x),
-    s_win = function(x) paste0("s[T] == ", x),
-    .default = label_parsed)) +
-  scale_colour_manual(values = STRUCT_PAL) +
-  scale_linetype_manual(values = ESTIMATION_LTY) +
-  guides(linetype = guide_none()) +
-  scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-  labs(x = xlab, y = ylab, colour = "Structure") +
-  theme_minimal(base_size = PT$title) +
-  theme(legend.position = "right",
-        panel.spacing = unit(8, "pt"),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
-
-p
-})
-
-
-# =============================================================================
-# fig-power.png, panel C -- rejection probability against true
-# windowed separation, and tbl-localization-resolution.csv
-# =============================================================================
-
-p_profile <- local({
-  sweep <- readRDS("simulations/power/results/simulations-power-localization.rds")$sweep
-
-  BW    <- 0.02               # separation bin width (50 bins over [0, 1])
-  C_MAX <- 1.00               # matches panel B's plotted range
-  EDGES <- seq(BW, C_MAX, by = BW)
-
-  # sens(c) * n_above(c) counts rejected windows above the cut, so differencing
-  # adjacent cuts gives exact within-bin counts.
-  prof <- sweep |>
-    mutate(A = sens * n_above) |>
-    filter(c %in% round(EDGES, 3)) |>
-    group_by(struct, phi, snr, s_win, method) |>
-    arrange(c, .by_group = TRUE) |>
-    reframe(lo    = head(c, -1),
-            n_bin = head(n_above, -1) - tail(n_above, -1),
-            n_rej = head(A, -1)       - tail(A, -1)) |>
-    mutate(mid = lo + BW / 2, rate = n_rej / n_bin) |>
+  cv <- readRDS("simulations/power/results/simulations-power-curves.rds") |>
     mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
-           method    = factor(method, levels = c("estimated", "oracle")))
+           lo = pmax(0, rejection - Z_LEVEL * se),
+           hi = pmin(1, rejection + Z_LEVEL * se))
 
-  # No error bars: neighbouring windows overlap almost completely, so a
-  # binomial interval on the bin counts would be badly overconfident.
-  p <- ggplot(prof, aes(mid, rate, colour = Structure, linetype = method,
-                        group = interaction(struct, method))) +
-    geom_hline(yintercept = 0.5, linetype = "dotted", colour = "grey70",
-               linewidth = 0.3) +
-    geom_line(linewidth = 0.6, alpha = 0.9) +
-    facet_nested(phi ~ snr + s_win, labeller = labeller(
-      phi   = function(x) paste0("phi == ", x),
-      snr   = function(x) paste0("SNR == ", x),
-      s_win = function(x) paste0("s[T] == ", x),
-      .default = label_parsed)) +
-    scale_colour_manual(values = STRUCT_PAL) +
-    scale_linetype_manual(values = ESTIMATION_LTY) +
-    guides(linetype = guide_none()) +
+  # delta_t = 1 is an atom, not the end of the mesh: under b > 0 every window
+  # whose trends reverse maps there exactly. Drawn as a separate point so the
+  # curve is not read as turning up at the boundary.
+  cont <- filter(cv, !atom)
+  at   <- filter(cv, atom) |> mutate(delta_mean = 1)
+
+  ggplot(cont, aes(delta_mean, rejection, colour = Structure)) +
+    geom_hline(yintercept = alpha, linetype = "dashed",
+               colour = "grey60", linewidth = 0.4) +
+    geom_ribbon(aes(ymin = lo, ymax = hi, fill = Structure),
+                alpha = 0.25, colour = NA, show.legend = FALSE) +
+    geom_line(linewidth = 0.45, alpha = 0.85) +
+    geom_linerange(data = at, aes(ymin = lo, ymax = hi),
+                   linewidth = 0.4, alpha = 0.85, show.legend = FALSE) +
+    geom_point(data = at, aes(fill = Structure), size = 1.4, shape = 21,
+               stroke = 0.35, colour = "white", alpha = 0.85,
+               show.legend = FALSE) +
     scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
-    # Six facet columns leave no room for the default five breaks: the labels
-    # collide across panel boundaries, running "1.00" into the next "0.00".
-    scale_x_continuous(breaks = c(0, 0.5, 1), labels = c("0.0", "0.5", "1.0"),
-                       expand = expansion(mult = 0.12)) +
-    labs(x = expression("Window separation " * delta[t]), y = "Rejection probability",
+    scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
+    scale_colour_manual(values = STRUCT_PAL) +
+    scale_fill_manual(values = STRUCT_PAL) +
+    guides(colour = guide_legend(override.aes = list(
+             linewidth = 0.5, shape = 16, size = 1.4, linetype = "solid",
+             alpha = 1))) +
+    facet_nested(phi ~ snr + s, labeller = labeller(
+      phi = \(x) paste0("phi == ", x),
+      snr = \(x) paste0("SNR == ", x),
+      s   = \(x) paste0("s[T] == ", x),
+      .default = label_parsed)) +
+    labs(x = expression("Effect size " * delta[t]), y = "Rejection rate",
          colour = "Structure") +
     theme_minimal(base_size = PT$title) +
     theme(legend.position = "right",
-          panel.spacing.x = unit(0.5, "lines"),
+          legend.key = element_blank(),
+          panel.spacing = unit(8, "pt"),
           panel.grid.minor = element_blank(),
-          panel.grid.major = element_line(linewidth = 0.1, color = "darkgray"))
-
-  res <- prof |>
-    group_by(struct, phi, snr, s_win, method) |>
-    summarise(sep_50 = if (any(rate >= 0.50)) mid[which(rate >= 0.50)[1]] else NA_real_,
-              sep_95 = if (any(rate >= 0.95)) mid[which(rate >= 0.95)[1]] else NA_real_,
-              .groups = "drop")
-
-  write.csv(res, file.path(TBL_DIR, "tbl-localization-resolution.csv"),
-            row.names = FALSE)
-  cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-resolution.csv")))
-
-  cat("\nSeparation at which rejection probability reaches 0.50 (NA: not within",
-      C_MAX, "):\n")
-  print(as.data.frame(res |> filter(method == "estimated") |>
-    mutate(sep_50 = ifelse(is.na(sep_50), "--", sprintf("%.3f", sep_50))) |>
-    tidyr::pivot_wider(names_from = s_win, values_from = sep_50,
-                       names_prefix = "s=", id_cols = c(struct, snr, phi)) |>
-    arrange(struct, snr, phi)), row.names = FALSE)
-
-  p
+          panel.grid.major = element_line(linewidth = 0.1, colour = "darkgray"))
 })
 
 
 # =============================================================================
-# fig-power.png -- the three panel sets stacked
+# fig-power.png, panel B -- classification accuracy against the decoupling
+# threshold, and tbl-localization-auc.csv
+# =============================================================================
+
+# Read against panel A, not on its own. Precision and NPV both condition on the
+# decision, so they answer "given a flag, was it right" and are silent on what
+# was missed. Where power is low the surviving rejections concentrate on the
+# largest separations, which holds precision up: the s = 50, phi = 0.7 cells
+# score around 0.9 while flagging under 3% of windows.
+p_local <- local({
+  roc <- readRDS("simulations/power/results/simulations-power-roc.rds") |>
+    mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
+           one_npv   = 1 - npv)
+  au  <- readRDS("simulations/power/results/simulations-power-auc.rds")
+
+  write.csv(au[, c("struct", "s", "n", "snr", "phi", "windows", "rejection",
+                   "auc", "auc_mw")],
+            file.path(TBL_DIR, "tbl-localization-auc.csv"), row.names = FALSE)
+  cat(sprintf("Wrote %s\n", file.path(TBL_DIR, "tbl-localization-auc.csv")))
+
+  # One label per panel: the mean over the three structures, as the AUCs sit
+  # within about 0.05 of each other. Sensitivity does not average this way and
+  # is deliberately left to panel A.
+  ann <- au |>
+    group_by(phi, snr, s) |>
+    summarise(x = 0.97, y = 0.10,
+              label = sprintf("AUC = %.3f", mean(auc)), .groups = "drop")
+
+  ggplot(roc, aes(one_npv, prec, colour = Structure)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed",
+                colour = "grey70", linewidth = 0.3) +
+    geom_path(linewidth = 0.45, alpha = 0.85) +
+    geom_text(data = ann, aes(x = x, y = y, label = label), inherit.aes = FALSE,
+              hjust = 1, vjust = 0, size = ANNOT, colour = "grey30") +
+    scale_x_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
+    scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1)) +
+    scale_colour_manual(values = STRUCT_PAL) +
+    facet_nested(phi ~ snr + s, labeller = labeller(
+      phi = \(x) paste0("phi == ", x),
+      snr = \(x) paste0("SNR == ", x),
+      s   = \(x) paste0("s[T] == ", x),
+      .default = label_parsed)) +
+    labs(x = "1 - NPV", y = "Precision", colour = "Structure") +
+    theme_minimal(base_size = PT$title) +
+    theme(legend.position = "right",
+          legend.key = element_blank(),
+          panel.spacing = unit(8, "pt"),
+          panel.grid.minor = element_blank(),
+          panel.grid.major = element_line(linewidth = 0.1, colour = "darkgray"))
+})
+
+
+# =============================================================================
+# fig-power.png -- the two panel sets stacked
 # =============================================================================
 
 local({
@@ -413,15 +328,14 @@ local({
   drop_guide <- guides(colour = "none", fill = "none")
 
   composite <-
-    (p_power   + guides(fill = "none")) /
-    (p_local   + drop_guide) /
-    (p_profile + drop_guide) +
-    plot_layout(guides = "collect") +
+    (p_power + guides(fill = "none")) /
+    (p_local + drop_guide) +
+    plot_layout(guides = "collect", heights = c(1, 1)) +
     plot_annotation(tag_levels = "A") &
     theme(legend.position = "bottom")
 
   out <- file.path(IMG_DIR, "fig-power.png")
-  ggsave(out, composite, width = 6.5, height = 8, dpi = 450)
+  ggsave(out, composite, width = 6, height = 7, dpi = 450)
   cat(sprintf("\nWrote %s\n", out))
 })
 
@@ -504,7 +418,7 @@ p_trend <- ggplot(trend_df, aes(t, nu, group = k)) +
   theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 6, 5.5),
         legend.position = "none") +
   labs(x = NULL, y = expression(nu[it]),
-       title = bquote("Trends" ~ (nu[2*t] == .(b_scale) * nu[1*t])))
+       title = NULL)
 
 # ---- Proposition 1 moment accuracy, oracle, s = 150 -------------------------
 
@@ -532,7 +446,7 @@ p_rho <- ggplot() +
                                   "Theoretical" = col_th)) +
   scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(NA, 1)) +
   coord_cartesian(xlim = TLIM) +
-  labs(x = "Time", y = expression(rho[t]), title = "Local correlation (s = 150)") +
+  labs(x = "Time", y = expression(rho[t]), title = NULL) +
   base_theme +
   theme(
     legend.position = c(1,1),
@@ -562,7 +476,7 @@ p_v <- ggplot(v_df, aes(V_theory, V_emp)) +
   coord_equal(xlim = rng, ylim = rng) +
   labs(x = expression("Theoretical" ~ V[t]),
        y = expression(s %.% Var(R[t])),
-       title = "Variance (s = 150)") +
+       title = NULL) +
   base_theme
 
 # ---- End to end, s = 150 ----------------------------------------------------
@@ -680,7 +594,7 @@ p_lam <- ggplot(lam_df, aes(t, lam, group = k)) +
   theme(axis.text.x = element_blank(), plot.margin = margin(5.5, 5.5, 6, 5.5),
         legend.position = "none") +
   labs(x = NULL, y = expression(log[10] ~ lambda[kt]),
-       title = bquote("Local SNR" ~ (lambda[2*t] == .(lam_ratio) * lambda[1*t])))
+       title = NULL)
 
 p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
   band_layers +
