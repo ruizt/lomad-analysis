@@ -22,15 +22,23 @@ file.
 
 ### Common DGP (shared across all experiments)
 
-Trends are generated using the package function `sim_trends(n = 2000, d = 0,
-nb = 25, sd0 = 50, p = 1.5, seed = 5381)`, producing a shared random Fourier
-trend with heterogeneous local variance.
+A single random Fourier trend is drawn, and the second series is a fixed
+affine map of it: $\nu_2 = 2\nu_1$. Local affine similarity therefore holds
+everywhere by construction, while $\tau_2^2 = 4\tau_1^2$, so the two-$\tau$
+form of Proposition 1 is exercised rather than collapsing to its equal-amplitude
+special case. At $b = 1$ a cross-pairing error in $V$ would be undetectable,
+since $\tau_2^2\sigma_1^4 L_1$ and $\tau_1^2\sigma_1^4 L_1$ coincide; at
+$b = 2$ the correct and swapped forms differ by 53%.
+
+Only the scale matters. Correlation is location invariant, so an offset
+$\nu_2 = a + b\nu_1$ changes $R$, $\tau$, $\rho$ and $V$ not at all.
 
 | Parameter | Value |
 |-----------|-------|
 | Series length *n* | 2000 |
 | MA smoothing window *h* | 20 |
-| Trend | `sim_trends(d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)` [^1] |
+| Trend | `sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)` [^1] |
+| Affine map | $\nu_2 = 2\nu_1$ (`affine_a = 0`, `affine_b = 2`) |
 
 [^1]: The spectral decay `p = 1.5` concentrates energy in low frequencies,
 producing a heterogeneous trend with long near-flat stretches where τ² is close
@@ -52,7 +60,8 @@ model misspecification.
 
 Eval points:
 - CLT experiments (row a): t = 600 (where ρ ≈ 0.24–0.35 across s values)
-- E2E experiment (row c): t ∈ {500, 850, 1000, 1400, 1600} (ρ spans 0.02–0.66)
+- E2E experiment (row c): t ∈ {400, 900, 1400, 1900}, plus a dense grid at
+  spacing 5 over the full testable range for the coverage band
 
 ### Job table
 
@@ -64,59 +73,6 @@ Eval points:
 | `rho-s150` | 2 (left) | 150 | 500 | Running mean R̄_t over time |
 | `var-s150` | 2 (right) | 150 | 2000 | R_t at grid of eval points |
 | `e2e-s150` | 3 | 150 | 1000 | Oracle + pipeline quantities at 5 eval pts |
-
-## Composite figure (`simulations/_img/fig-validation.png`)
-
-A single three-row figure saved as both PNG (300 dpi) and PDF.
-
-### Row (a) — CLT QQ plots (oracle, faceted by *s*)
-
-Three-panel QQ plot of $\sqrt{s}(R_t - \rho_t)/\sqrt{V_t}$ vs $N(0,1)$, one
-panel per $s \in \{80, 150, 300\}$, evaluated at $t = 600$. Black
-semi-transparent points, firebrick reference line.
-
-**Story**: The CLT approximation is already adequate at $s = 80$ and tightens
-with increasing window size.
-
-### Row (b) — Proposition 1 moment accuracy (oracle, $s = 150$)
-
-- **Left panel** ($\rho$): Theoretical $\rho_t$ (firebrick) vs empirical
-  $\bar{R}_t$ (grey30) over time at $s = 150$.
-- **Right panel** ($V$): Scatter of theoretical $V_t$ vs empirical
-  $s \cdot \text{Var}(R_t)$ across time points at $s = 150$. Firebrick 45°
-  reference line, black semi-transparent points.
-
-**Story**: Both moment formulas closely track their empirical counterparts at
-the window size used in the end-to-end experiment.
-
-### Row (c) — End-to-end pipeline validation ($s = 150$)
-
-- **Left panel**: Overlaid oracle (blue) and pipeline (orange) QQ plots at
-  $t = 1000$.
-- **Right panel**: Pointwise 95% coverage at 5 eval points, oracle vs
-  pipeline, with $\pm 1.96$ SE error bars and firebrick dashed nominal line.
-
-**Story**: Coverage remains at or above nominal levels; the pipeline produces
-somewhat conservative inference due to plug-in variance compression.
-
-## Estimands
-
-- **CLT experiments** (`clt-*`): The standardized statistic $Z_t$ at
-  $t = 1000$. Primary check: $Z \sim N(0,1)$.
-- **ρ experiments** (`rho-*`): The time-averaged empirical mean $\bar R_t$
-  across replications vs theoretical $\rho_t$.
-- **V experiment** (`var-s150`): The empirical $s \cdot \text{Var}(R_t)$ at
-  each time point vs theoretical $V_t$.
-- **End-to-end** (`e2e-s150`): Coverage of $|Z| < 1.96$ under oracle vs
-  pipeline standardization at each eval point.
-
-## Acceptance criteria
-
-- CLT QQ plots: points fall within 95% simulation envelope for all three $s$.
-- Empirical 95% coverage ≥ 0.90 at $s = 80$ and ≥ 0.93 at $s = 300$.
-- $\text{Cor}(\bar R_t, \rho_t) > 0.99$ for both $s$ values.
-- $\text{Cor}(V_\text{emp}, V_\text{theory}) > 0.90$.
-- Pipeline coverage within ± 0.03 of oracle coverage at each eval point.
 
 ---
 
@@ -164,13 +120,11 @@ validation/
 
 ## Workflow
 
-### Local development
+### Local testing
 
 Source `simulation-template.R` in RStudio. It runs all experiments at small scale (reduced
 reps) and produces draft versions of all three figures. The `run_rep_*()`
 functions it defines are the same ones used in `tide/sim.R`.
-
-### Testing tide/sim.R locally
 
 Before submitting to Tide, test the container entrypoint locally with a small
 number of replicates:
