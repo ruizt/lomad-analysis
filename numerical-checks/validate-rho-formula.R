@@ -14,7 +14,9 @@ set.seed(4817)
 n        <- 4000
 h        <- 20
 s        <- 150
-d        <- 15
+# d scales the distinct component; the two structures are checked separately
+# and never compared, so there is nothing to equalise between them.
+d        <- 25
 sigma2   <- 0.01
 sigma2_sm <- sigma2 / h  # smoothed noise variance
 
@@ -74,17 +76,6 @@ compute_all_rho <- function(tr, y1, y2, h, s, sigma2_sm) {
        rho_general = rho_general, rho_no_cross = rho_no_cross)
 }
 
-# sim_trends() no longer normalises to ||x1 - x2|| = d -- d scales the distinct
-# component, and separation is linear in it. This check compares rho formulas at
-# a fixed separation, so the multiplier that reaches `d` is solved for here
-# rather than assumed. It differs by structure, which is exactly what the old
-# normalisation was hiding.
-at_sep <- function(args) {
-  probe <- do.call(sim_trends, c(list(n = n, d = 1), args, fourier_args))
-  scale <- d / sqrt(sum((probe$x1 - probe$x2)^2))
-  do.call(sim_trends, c(list(n = n, d = scale), args, fourier_args))
-}
-
 report <- function(label, x, y) {
   valid <- which(!is.na(x) & !is.na(y))
   cat(sprintf("  %-45s cor = %.3f  RMSE = %.4f\n", label,
@@ -95,7 +86,8 @@ report <- function(label, x, y) {
 # ---- Smooth coupling -------------------------------------------------------
 
 cat("=== Random separation (bw = 150, coupling = 0.6) ===\n")
-tr_sm <- at_sep(list(method = "rs", bw = 150, coupling = 0.6))
+tr_sm <- do.call(sim_trends,
+  c(list(n = n, d = d, method = "rs", bw = 150, coupling = 0.6), fourier_args))
 
 y1_sm <- tr_sm$x1 + rnorm(n, sd = sqrt(sigma2))
 y2_sm <- tr_sm$x2 + rnorm(n, sd = sqrt(sigma2))
@@ -110,7 +102,8 @@ report("General formula vs Direct",    res_sm$rho_general, res_sm$rho_direct)
 
 cat("\n=== Fixed rate (rate = 0.003) ===\n")
 set.seed(7213)
-tr_rt <- at_sep(list(method = "fr", rate = 0.003))
+tr_rt <- do.call(sim_trends,
+  c(list(n = n, d = d, method = "fr", rate = 0.003), fourier_args))
 
 y1_rt <- tr_rt$x1 + rnorm(n, sd = sqrt(sigma2))
 y2_rt <- tr_rt$x2 + rnorm(n, sd = sqrt(sigma2))

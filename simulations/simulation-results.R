@@ -63,26 +63,26 @@ ESTIMATION_LTY <- c(estimated = "solid", oracle = "dashed")
 local({
 
 n        <- 500
-d        <- 2       # L2 separation, held constant across all four panels
+d        <- 2       # base amplitude of the distinct component
 bw       <- 50      # bandwidth b
 coupling <- 0.8     # coupling fraction c
 rate     <- 0.01    # event rate r
 
 seed_coef <- 2847   # Fourier base, shared across panels
 
-# sim_trends() no longer normalises to ||x1 - x2|| = d -- d scales the distinct
-# component, and separation is linear in it. This panel is about how separation
-# is *distributed* in time, so the total is equalised here instead, which is
-# what the shared d used to do.
-at_sep <- function(...) {
-  probe <- sim_trends(n, d = 1, seed = seed_coef, ...)
-  sim_trends(n, d = d / sqrt(sum((probe$x1 - probe$x2)^2)), seed = seed_coef, ...)
-}
+# Per-structure d scaling, as in the power study: the structures distribute
+# separation differently in time, so a common d gives them ~2x different local
+# separation. Scaling onto a common delta_t is what makes the panels comparable.
+d_factor <- c(dist = 1.00, fr = 0.45, rs = 1.00, rm = 0.60)
 
-tr_dist   <- at_sep(method = "dist")
-tr_rate   <- at_sep(method = "fr", rate = rate, bump = "gaussian")
-tr_smooth <- at_sep(method = "rs", bw = bw, coupling = coupling)
-tr_cross  <- at_sep(method = "rm", bw = bw, coupling = coupling)
+tr_dist   <- sim_trends(n, d = d * d_factor[["dist"]], method = "dist",
+                        seed = seed_coef)
+tr_rate   <- sim_trends(n, d = d * d_factor[["fr"]], method = "fr",
+                        seed = seed_coef, rate = rate, bump = "gaussian")
+tr_smooth <- sim_trends(n, d = d * d_factor[["rs"]], method = "rs",
+                        seed = seed_coef, bw = bw, coupling = coupling)
+tr_cross  <- sim_trends(n, d = d * d_factor[["rm"]], method = "rm",
+                        seed = seed_coef, bw = bw, coupling = coupling)
 
 y_lim <- range(c(
   tr_dist$x1,   tr_dist$x2,
