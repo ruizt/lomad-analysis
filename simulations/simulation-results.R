@@ -102,13 +102,21 @@ y_lim <- range(unlist(lapply(trends, function(x)
 y_pad <- diff(y_lim) * 0.06
 y_lim <- y_lim + c(-y_pad, y_pad)
 
+# The side margins are trimmed to widen the panels. Four columns each carry two
+# rows' worth of axis furniture plus per-plot margins, which leaves a 1.079in
+# panel at the defaults -- narrower than the 1.112in "Random Separation" needs
+# at 9pt, so the title overruns and patchwork clips it mid-word without
+# warning. Reclaiming the horizontal margins takes the panel to 1.166in. Top
+# and bottom are left alone, so the vertical spacing is unchanged.
 theme_panel <- theme_minimal(base_size = PT$title) +
   theme(
     legend.position  = "none",
     axis.title.x     = element_blank(),
     axis.text.x      = element_blank(),
     axis.ticks.x     = element_blank(),
+    axis.title.y     = element_text(margin = margin(r = 1)),
     plot.title       = element_text(face = "plain"),
+    plot.margin      = margin(5.5, 2, 5.5, 2),
     panel.grid.minor = element_blank()
   ) +
   fig_sizes()
@@ -164,12 +172,9 @@ panel_coef <- function(y, ylab, limits) {
     theme_panel
 }
 
-# One word per line, abbreviation last, so every title is three lines. Left
-# whole, "Random Separation" overruns its panel and patchwork clips it mid-word
-# without warning; breaking only that one would leave it a line taller than its
-# neighbours.
-struct_title <- function(stem, code)
-  paste0(sub(" ", "\n", stem), "\n(", STRUCT_ABBR[[code]], ")")
+# Two lines: the longest stem clears the panel by 0.054in, which is thin. Check
+# this figure if the sizes in figure-theme.R or the axis labels ever change.
+struct_title <- function(stem, code) paste0(stem, "\n(", STRUCT_ABBR[[code]], ")")
 
 # The a_t / b_t strips are the same series in all three columns. Repeating them
 # above each rescaled panel rather than drawing them once costs nothing and
