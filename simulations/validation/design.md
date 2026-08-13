@@ -20,18 +20,12 @@ Six independent jobs, producing one composite three-row figure. Each job is
 identified by a `SIM_EXPERIMENT` environment variable and produces one `.rds`
 file.
 
-### Common DGP (shared across all experiments)
+### Data generation
 
 A single random Fourier trend is drawn, and the second series is a fixed
 affine map of it: $\nu_2 = 2\nu_1$. Local affine similarity therefore holds
-everywhere by construction, while $\tau_2^2 = 4\tau_1^2$, so the two-$\tau$
-form of Proposition 1 is exercised rather than collapsing to its equal-amplitude
-special case. At $b = 1$ a cross-pairing error in $V$ would be undetectable,
-since $\tau_2^2\sigma_1^4 L_1$ and $\tau_1^2\sigma_1^4 L_1$ coincide; at
-$b = 2$ the correct and swapped forms differ by 53%.
-
-Only the scale matters. Correlation is location invariant, so an offset
-$\nu_2 = a + b\nu_1$ changes $R$, $\tau$, $\rho$ and $V$ not at all.
+everywhere by construction, while trend variances are related by 
+$\tau_2^2 = 4\tau_1^2$.
 
 | Parameter | Value |
 |-----------|-------|
@@ -40,14 +34,7 @@ $\nu_2 = a + b\nu_1$ changes $R$, $\tau$, $\rho$ and $V$ not at all.
 | Trend | `sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)` [^1] |
 | Affine map | $\nu_2 = 2\nu_1$ (`affine_a = 0`, `affine_b = 2`) |
 
-[^1]: The spectral decay `p = 1.5` concentrates energy in low frequencies,
-producing a heterogeneous trend with long near-flat stretches where τ² is close
-to the noise floor. This creates a mix of easy windows (moderate ρ) and hard
-windows (ρ ≈ 0 or near ceiling) — a realistic but challenging regime for the
-CLT. Smaller `p` (e.g., 1.0) raises τ² but pushes ρ uniformly high, where the
-bounded-correlation skew dominates. Testing at `p = 1.0` and `p = 1.25` showed
-no meaningful improvement in the Z-score diagnostics; the dominant factor is the
-oracle τ² computation, not the spectral decay.
+The data-generating processes for noise are as follows
 | Noise (series 1), oracle | ARMA(1,1): φ = 0.6, θ = 0.3, σ_ε = 0.8 |
 | Noise (series 2), oracle | ARMA(1,1): φ = 0.4, θ = −0.2, σ_ε = 1.0 |
 | Noise (series 1), e2e | AR(1): φ = 0.5, σ_ε = 0.8 |
