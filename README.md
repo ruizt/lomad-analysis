@@ -32,6 +32,8 @@ lomad-analysis/
 └── numerical-checks/           # numerical verification of the theory
 ```
 
+`_`-prefixed entries are gitignored throughout.
+
 ## Setup
 
 ```r
@@ -75,7 +77,7 @@ them.
 | Script | Paper result | What it checks |
 |---|---|---|
 | `validate-gradient.R` | Theorem 2 ($V = \nabla g^T \Sigma \nabla g$) | Analytic $\nabla g(\theta)$ against finite differences, and that the full $5\times5$ quadratic form equals the reduced $3\times3$ one in centered coordinates |
-| `validate-two-tau.R` | Proposition 1 | $\Sigma_{(3,4,5)}$ against Monte Carlo with two distinct signals, $\rho = r\tau_1\tau_2/\sqrt{BD}$, $V$ under $H_0$, and the attenuation identity $\rho = (1-\delta^2)^{1/2}\rho^{(0)}$ |
+| `validate-prop1.R` | Proposition 1 | $\Sigma_{(3,4,5)}$ against Monte Carlo with two distinct signals, $\rho = r\tau_1\tau_2/\sqrt{BD}$, $V$ under $H_0$, and the attenuation identity $\rho = (1-\delta^2)^{1/2}\rho^{(0)}$ |
 | `validate-rho-formula.R` | Appendix ($\rho_t$ under the simulation model) | The general $\rho_t$ formula against empirical $R_t$ under the `rs` and `fr` coupling structures |
 
 ## Morro Bay analysis

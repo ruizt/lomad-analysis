@@ -1,17 +1,18 @@
-# Validate the revised Proposition 1 (affine similarity, two tau terms)
+# Monte Carlo validation of Proposition 1
 #
-# Monte Carlo verification of the quantities that changed when the null moved
-# from shared-trend to affine similarity:
+# Checks every quantity the proposition asserts, under a null of local affine
+# similarity with two distinct signals:
 #
-#   1. Sigma_{(3,4,5)} with two distinct signals -- in particular the (5,5)
-#      cross-pairing tau_1^2 L_2 + tau_2^2 L_1, and the (3,4) zero.
+#   1. Sigma_{(3,4,5)} -- in particular the (5,5) cross-pairing
+#      tau_1^2 L_2 + tau_2^2 L_1, and the (3,4) zero.
 #   2. rho = r tau_1 tau_2 / sqrt(BD), including r != 1.
 #   3. V under H0, via the MC variance of the local sample correlation.
 #   4. The attenuation identity rho = sqrt(1 - delta^2) rho^(0).
-#   5. Back-compatibility: tau1 == tau2, r == 1 reproduces the old formulae.
+#   5. The symmetric case tau1 == tau2, r == 1, where the cross-pairing
+#      collapses to tau^2 (L_1 + L_2) and rho to tau^2 / sqrt(BD).
 #
 # Usage (from the repo root):
-#   Rscript numerical-checks/validate-two-tau.R
+#   Rscript numerical-checks/validate-prop1.R
 
 suppressPackageStartupMessages(library(lomad))
 set.seed(6291)
