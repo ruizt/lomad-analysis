@@ -48,35 +48,14 @@ from end to end.
 
 ## Trend structures
 
-Separation is generated globally but detected locally, and the two are not
-interchangeable. A window of width $s$ sees at most $s$ terms of the global sum
-defining $d$, so
-
-$$\delta \leq d/\sqrt{s},$$
-
-with equality approached only when the separation falls inside a single window.
-The same total dissimilarity is therefore easy or hard to find depending on
-whether it is concentrated into brief episodes or spread thinly across the
-series. **How separation is distributed in time, not just how much of it there
-is, is what this study varies.**
-
-The distribution is controlled by the mixing weight of stage 2, which mixes the
-base trends about their midpoint: $w_t \approx 1$ leaves them coupled, and
-falling $w_t$ drives them apart. Three structures specify $w_t$ differently:
-
-| Label | Generator                   | Key parameter                          |
-|-------|-----------------------------|----------------------------------------|
+| Label | Generator                   | Key parameter                        |
+|-------|-----------------------------|--------------------------------------|
 | `fr`  | `sim_trends(method = "fr")` | rate *r* = 0.4/*s*, `bump = "gaussian"` |
-| `rs`  | `sim_trends(method = "rs")` | bandwidth *bw* = 50                    |
-| `rm`  | `sim_trends(method = "rm")` | bandwidth *bw* = 50                    |
+| `rs`  | `sim_trends(method = "rs")` | bandwidth *bw* = 50                  |
+| `rm`  | `sim_trends(method = "rm")` | bandwidth *bw* = 50                  |
 
 `fr` concentrates its separation into brief evenly spaced events; `rs` and `rm`
 spread it over episodes at irregular times, with `rm` allowing the trends to cross.
-
-`fr`'s rate is set from the window rather than fixed: the pulse width it implies
-scales as $1/(r^2T)$, so a constant rate shrinks the events as the design grows
-until they fall below the smoothing bandwidth and are erased before the test
-sees them. At $r = 0.4/s$ there are 10 events of width $s/4$ at every $s$.
 
 ## Simulation design
 
@@ -109,15 +88,10 @@ To generate data with varying effect sizes, we draw the initial Fourier trends
 | `fr`      | 0, 0.5, 1.7   |
 
 *d* is a generator knob, not an effect size; the structures distribute separation
-differently in time, so a shared *d* gives them roughly 2× different *local*
-separation. Each structure instead takes the values that put its realized δ_t on
-a common footing, with medians near 0, 0.20 and 0.50. `rs` and `rm` differ by a
-constant factor (1.00 / 0.60); `fr` does not, because its δ_t saturates near
-0.43 — separation confined to isolated events leaves most windows coupled, so
-the median cannot climb further.
-
-Three levels suffice: a single *d* already spans q25 0.10 to q75 0.42, so the
-grid shifts the distribution rather than creating the coverage.
+differently in time, so a shared *d* gives them roughly 2× different *local* 
+separation. The values above are chosen so all three span a common range of
+realized δ_t, with medians near 0, 0.20 and 0.50. `rs` and `rm` are one base grid
+times a constant (1.00 / 0.60); `fr` is not, because its δ_t saturates near 0.43.
 
 ## Estimands
 
