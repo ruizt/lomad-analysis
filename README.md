@@ -1,17 +1,15 @@
 # lomad-analysis
 
+Reproduces results in:
+
 > Ruiz, T. D., Seifert, A. J., Hamilton, E., Mispagel, C. M., Hunt, O. P.,
 > Garcia, J., and Bockmon, E. E. (2026). Inference for local trend similarity in
 > nonstationary time series via rolling correlation, with application to
 > assessing stability in an estuarine system. *Manuscript in preparation.*
 
-Everything behind the **lomad** paper — the simulation studies, the Morro Bay
-field analysis, and numerical checks of the theory not reported in the paper. 
 The method itself is implemented in an R package in the companion repository
-[`lomad-package`](https://github.com/ruizt/lomad-package).
-
-For the method itself, the package vignette (`vignette("lomad")`) is the
-better starting point.
+[`lomad-package`](https://github.com/ruizt/lomad-package). For the method, the
+package vignette (`vignette("lomad")`) is the better starting point.
 
 ## Layout
 
@@ -81,6 +79,8 @@ them.
 | `validate-rho-formula.R` | Appendix ($\rho_t$ under the simulation model) | The general $\rho_t$ formula against empirical $R_t$ under the `rs` and `fr` coupling structures |
 
 ## Morro Bay analysis
+
+Analysis of CeNCOOS data from Morro Bay during the five-year period 2020-2025.
 
 | Script | What it does |
 |---|---|
