@@ -149,11 +149,11 @@ power/
 ├── design.md              ← you are here
 ├── simulation-template.R  ← local illustration mirroring tide/sim.R; writes nothing
 ├── collect-results.R      ← assembles fetched per-cell files into the compiled artifacts
+├── _results-preaffine/    ← results of the pre-affine design, retained for reference
 ├── results/
 │   ├── simulations-power-results.rds       ← tracked
 │   ├── simulations-power-curves.rds        ← tracked
 │   ├── simulations-power-auc.rds           ← tracked
-│   ├── _simulations-power.zip              ← archive of _raw/, Zenodo only
 │   └── _raw/              ← per-cell .rds + -windows.rds fetched from Tide, Zenodo only
 └── tide/                  ← Kubernetes scaffolding
     ├── sim.R              ← simulation script (mounted into container)

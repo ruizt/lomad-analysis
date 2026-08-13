@@ -84,7 +84,6 @@ validation/
 ├── collect-results.R           ← assembles fetched per-job files into a compiled results object
 ├── results/
 │   ├── simulations-validation-results.rds  ← tracked
-│   ├── _simulations-validation.zip         ← archive of _raw/, Zenodo only
 │   └── _raw/           ← per-job .rds files fetched from Tide, Zenodo only
 └── tide/               ← Kubernetes scaffolding
     ├── sim.R           ← container entrypoint (dispatches on SIM_EXPERIMENT)
