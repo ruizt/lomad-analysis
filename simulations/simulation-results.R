@@ -101,7 +101,7 @@ trends <- lapply(setNames(nm = names(struct_args)), function(code) {
 
 y_lim <- range(unlist(lapply(trends, function(x)
   c(x$pre$x1, x$pre$x2, x$post$x2))))
-y_pad <- diff(y_lim) * 0.06
+y_pad <- diff(y_lim) * 0.2
 y_lim <- y_lim + c(-y_pad, y_pad)
 
 theme_panel <- theme_minimal(base_size = PT$title) +
@@ -202,7 +202,7 @@ column <- function(code) {
 fig_trends <- column("fr") | column("rs") | column("rm")
 
 ggsave(file.path(IMG_DIR, "fig-trends.png"),
-       fig_trends, width = 6.5, height = 4, units = "in", dpi = 450)
+       fig_trends, width = 6, height = 3, units = "in", dpi = 450)
 
 })
 
