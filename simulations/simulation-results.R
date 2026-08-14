@@ -70,11 +70,12 @@ cap      <- 0.05
 a_mult   <- 0.9     # a_t amplitude, as a multiple of a trend's sd
 map_seed <- 40
 
-# Per-structure d scaling, as in the power study: the structures distribute
-# separation differently in time, so a common d gives them ~2x different local
-# separation. Scaling onto a common delta_t is what makes the panels comparable.
-d_factor <- c(dist = 1.00, fr = 0.45, rs = 1.00, rm = 0.60)
-
+# One d for every structure, unlike the power study, which scales d per
+# structure to put them on a common delta_t. Here the base pair is drawn behind
+# each panel, and a per-structure d would leave the mixed trends short of it
+# even where w_t = 0 -- FR reaches only 45% of the backdrop at d = 0.45 d. The
+# columns are then not on a common delta_t, which an illustration of *where*
+# separation falls does not need.
 struct_args <- list(
   dist = list(),
   fr   = list(rate = rate, bump = "gaussian"),
@@ -88,10 +89,11 @@ a_t <- a_mult * amp * lomad:::.make_affine_walk(n, 20L, bw = 0.5, cap = cap)
 b_t <- 1 + lomad:::.make_affine_walk(n, 20L, bw = 0.5, cap = cap)
 
 # Each structure twice: once without the affine layer, once with. The map runs
-# after the mixing, so the top row is the pre-map state and only x2 differs
-# between the two.
-trends <- lapply(setNames(nm = names(d_factor)), function(code) {
-  base <- list(n, d = d * d_factor[[code]], method = code, seed = seed_coef)
+# after the mixing, so the middle row is the pre-map state and only x2 differs
+# between the two. `dist` has w == 0 throughout, giving the uncoupled pair the
+# other columns are drawn against.
+trends <- lapply(setNames(nm = names(struct_args)), function(code) {
+  base <- list(n, d = d, method = code, seed = seed_coef)
   list(pre  = do.call(sim_trends, c(base, struct_args[[code]])),
        post = do.call(sim_trends, c(base, list(affine_a = a_t, affine_b = b_t),
                                     struct_args[[code]])))
@@ -102,12 +104,6 @@ y_lim <- range(unlist(lapply(trends, function(x)
 y_pad <- diff(y_lim) * 0.06
 y_lim <- y_lim + c(-y_pad, y_pad)
 
-# The side margins are trimmed to widen the panels. Four columns each carry two
-# rows' worth of axis furniture plus per-plot margins, which leaves a 1.079in
-# panel at the defaults -- narrower than the 1.112in "Random Separation" needs
-# at 9pt, so the title overruns and patchwork clips it mid-word without
-# warning. Reclaiming the horizontal margins takes the panel to 1.166in. Top
-# and bottom are left alone, so the vertical spacing is unchanged.
 theme_panel <- theme_minimal(base_size = PT$title) +
   theme(
     legend.position  = "none",
@@ -116,22 +112,41 @@ theme_panel <- theme_minimal(base_size = PT$title) +
     axis.ticks.x     = element_blank(),
     axis.title.y     = element_text(margin = margin(r = 1)),
     plot.title       = element_text(face = "plain"),
-    plot.margin      = margin(5.5, 2, 5.5, 2),
     panel.grid.minor = element_blank()
   ) +
   fig_sizes()
 
+# Only the first column is labelled; every row shares its scale across columns.
+bare_y <- theme(axis.title.y = element_blank(), axis.text.y = element_blank(),
+                axis.ticks.y = element_blank())
+
+# The uncoupled pair, drawn behind every mixed panel. Mixing pulls the trends in
+# toward their mean, so the coloured pair meets the backdrop exactly where
+# w_t = 0 and collapses onto the midline where w_t = 1.
+backdrop <- data.frame(t = seq_len(n),
+                       x1 = trends[["dist"]]$pre$x1,
+                       x2 = trends[["dist"]]$pre$x2) |>
+  pivot_longer(c(x1, x2), names_to = "series", values_to = "value")
+
 # x1/x2 share the structure's colour: the panel is about the structure, not
 # about which series is which.
-panel_trends <- function(x1, x2, colour, title, ylab) {
-  data.frame(t = seq_len(n), x1 = x1, x2 = x2) |>
+panel_trends <- function(x1, x2, colour, ylab, bg = FALSE, key = FALSE) {
+  p <- data.frame(t = seq_len(n), x1 = x1, x2 = x2) |>
     pivot_longer(c(x1, x2), names_to = "series", values_to = "value") |>
-    ggplot(aes(t, value, colour = series)) +
-    geom_line(linewidth = 0.45, alpha = 0.85) +
-    scale_colour_manual(values = c(x1 = colour, x2 = colour)) +
+    ggplot(aes(t, value, group = series))
+  if (bg)
+    p <- p + geom_line(data = backdrop, colour = "grey65",
+                       linewidth = 0.35, alpha = 0.55)
+  p <- p + geom_line(colour = colour, linewidth = 0.45, alpha = 0.85) +
     scale_y_continuous(limits = y_lim) +
-    labs(title = title, y = ylab) +
+    labs(y = ylab) +
     theme_panel
+  # coloured to match the backdrop, so it needs no swatch
+  if (key)
+    p <- p + annotate("text", x = 0.98 * n, y = y_lim[2],
+                      label = "'grey = base trends'~mu[it]", parse = TRUE,
+                      hjust = 1, vjust = 1, size = ANNOT, colour = "grey55")
+  p
 }
 
 panel_wt <- function(tr, colour, title) {
@@ -146,22 +161,6 @@ panel_wt <- function(tr, colour, title) {
     theme_panel
 }
 
-# The dist column has no w_t, but the column titles all sit in that row, so it
-# needs something there to carry one.
-#
-# Drawn as an annotation at the foot of an empty panel rather than as a title:
-# a title would sit at the top of the cell, a full w_t strip's height clear of
-# the panel it names. Putting it on the panel below instead would cost that
-# panel a line of height and leave it out of line with the other three.
-panel_title_only <- function(title) {
-  ggplot() +
-    annotate("text", x = 0, y = 0, label = title, hjust = 0, vjust = 0,
-             size = PT$title / ggplot2::.pt) +
-    scale_x_continuous(limits = c(0, 1), expand = expansion(0)) +
-    scale_y_continuous(limits = c(0, 1), expand = expansion(0)) +
-    theme_void()
-}
-
 # Ticks at the limits only: the strips are too short for an interior break to
 # read, and the pair of endpoints is all the scale a reader needs here.
 panel_coef <- function(y, ylab, limits) {
@@ -172,44 +171,35 @@ panel_coef <- function(y, ylab, limits) {
     theme_panel
 }
 
-# Two lines: the longest stem clears the panel by 0.054in, which is thin. Check
-# this figure if the sizes in figure-theme.R or the axis labels ever change.
-struct_title <- function(stem, code) paste0(stem, "\n(", STRUCT_ABBR[[code]], ")")
+struct_title <- function(code) paste0(STRUCT_FULL[[code]], " (", STRUCT_ABBR[[code]], ")")
 
 # The a_t / b_t strips are the same series in all three columns. Repeating them
 # above each rescaled panel rather than drawing them once costs nothing and
 # keeps every column readable on its own. They lead the bottom half so each
 # column reads as map then effect, the order the generator applies them in.
 #
-# Only the top row is titled: the panels below it are the same three structures
-# in the same order.
+# Titles ride on the w_t row so they head the whole column.
+#
+# nu* is mixed but not yet rescaled; the bottom row's nu is the final trend.
 column <- function(code) {
   tr     <- trends[[code]]
-  is_d   <- code == "dist"
-  colour <- if (is_d) "black" else STRUCT_HEX[[code]]
+  colour <- STRUCT_HEX[[code]]
 
-  # Titles ride on the w_t row so they head the whole column. The dist label is
-  # bottom-set in its cell rather than topped like the others, which keeps it
-  # against the panel it names.
-  head <- if (is_d) panel_title_only("Base trends") else
-    panel_wt(tr$pre, colour, struct_title(STRUCT_FULL[[code]], code))
-
-  # nu* is mixed but not yet rescaled; the bottom row's nu is the final trend.
-  top <- panel_trends(tr$pre$x1, tr$pre$x2, colour, NULL,
-                      if (is_d) expression(mu[it]) else expression(tilde(nu)[it]))
-
-  # Spacers because dist carries no affine map, but the other columns' panels
-  # must stay aligned across the row.
-  coef_b   <- if (is_d) plot_spacer() else panel_coef(b_t, expression(b[t]), c(0.2, 1.0))
-  coef_a   <- if (is_d) plot_spacer() else panel_coef(a_t, expression(a[t]), c(0, 0.08))
-  rescaled <- if (is_d) plot_spacer() else
-    panel_trends(tr$post$x1, tr$post$x2, colour, NULL, expression(nu[it]))
-
-  head / top / coef_b / coef_a / rescaled +
+  p <- panel_wt(tr$pre, colour, struct_title(code)) /
+    panel_trends(tr$pre$x1, tr$pre$x2, colour, expression(tilde(nu)[it]),
+                 bg = TRUE, key = code == "fr") /
+    panel_coef(b_t, expression(b[t]), c(0.2, 1.0)) /
+    panel_coef(a_t, expression(a[t]), c(0, 0.08)) /
+    panel_trends(tr$post$x1, tr$post$x2, colour, expression(nu[it])) +
     plot_layout(heights = c(1, 3, 0.6, 0.6, 3))
+
+  if (code == "fr") p else p & bare_y
 }
 
-fig_trends <- column("dist") | column("fr") | column("rs") | column("rm")
+# No `widths`: patchwork allocates the null (panel) space and leaves the axis
+# furniture outside it, so equal weights already give equal panels. Weighting
+# the labelled column up skews them instead.
+fig_trends <- column("fr") | column("rs") | column("rm")
 
 ggsave(file.path(IMG_DIR, "fig-trends.png"),
        fig_trends, width = 6.5, height = 4, units = "in", dpi = 450)
