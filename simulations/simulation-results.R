@@ -143,9 +143,9 @@ panel_trends <- function(x1, x2, colour, ylab, bg = FALSE, key = FALSE) {
     theme_panel
   # coloured to match the backdrop, so it needs no swatch
   if (key)
-    p <- p + annotate("text", x = 0.98 * n, y = y_lim[2],
+    p <- p + annotate("text", x = 0.0 * n, y = y_lim[1],
                       label = "'grey = base trends'~mu[it]", parse = TRUE,
-                      hjust = 1, vjust = 1, size = ANNOT, colour = "grey55")
+                      hjust = 0, vjust = 0, size = ANNOT, colour = "grey55")
   p
 }
 
