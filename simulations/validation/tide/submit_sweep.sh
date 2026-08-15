@@ -3,10 +3,8 @@
 #
 # Usage: bash simulations/validation/tide/submit_sweep.sh
 #
-# Three jobs total (see design.md for details):
-#   rho-s100   (Panel A: rho accuracy)
-#   var-s100   (Panel A: V accuracy)
-#   e2e-s100   (Panel B: end-to-end pipeline)
+# One job (see design.md for details):
+#   e2e-s100   both panels: Proposition 1 moments and pipeline calibration
 
 NAMESPACE="cal-poly-ruiz"
 SIM_SEED=7291
@@ -81,13 +79,6 @@ spec:
 EOF
 }
 
-# Panel A: Proposition 1 moment accuracy
-# rho runs at 100 reps, not 2000: at 500 the Monte Carlo error is smaller than
-# the line width and the empirical curve disappears under the theoretical one.
-submit_job "rho-s100"  100   1  "1Gi"
-submit_job "var-s100"  2000  1  "2Gi"
-
-# Panel B: end-to-end pipeline
 submit_job "e2e-s100"  1000  2  "2Gi"
 
 echo ""

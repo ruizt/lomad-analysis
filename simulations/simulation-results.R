@@ -349,13 +349,14 @@ p_trend <- ggplot(trend_df, aes(t, nu, group = k)) +
 
 # ---- Proposition 1 moment accuracy ------------------------------------------
 
-r_rho <- exp_of("rho")
-valid <- which(!is.na(r_rho$R_mean) & !is.na(r_rho$rho_th))
+# Both moments come from the end-to-end experiment's dense grid.
+mom <- exp_of("e2e")$band
+mom <- mom[mom$type == "Oracle" & is.finite(mom$R_mean) & is.finite(mom$R_var), ]
 
 rho_df <- data.frame(
-  t   = rep(valid, 2),
-  rho = c(r_rho$rho_th[valid], r_rho$R_mean[valid]),
-  type = rep(c("theoretical", "empirical"), each = length(valid))
+  t    = rep(mom$t, 2),
+  rho  = c(mom$rho, mom$R_mean),
+  type = rep(c("theoretical", "empirical"), each = nrow(mom))
 )
 
 p_rho <- ggplot() +
@@ -386,15 +387,8 @@ p_rho <- ggplot() +
     plot.margin = margin(3, 5.5, 5.5, 5.5)
   )
 
-r_var   <- exp_of("var")
-V_emp   <- r_var$s * apply(r_var$R_mat, 2, var, na.rm = TRUE)
-V_theory <- r_var$V_theory
-valid_v  <- which(!is.na(V_emp) & !is.na(V_theory) & V_theory > 0)
-
-v_df <- data.frame(
-  V_theory = V_theory[valid_v],
-  V_emp    = V_emp[valid_v]
-)
+v_df <- data.frame(V_theory = mom$V_th, V_emp = exp_of("e2e")$s * mom$R_var)
+v_df <- v_df[is.finite(v_df$V_theory) & is.finite(v_df$V_emp) & v_df$V_theory > 0, ]
 rng <- range(c(v_df$V_theory, v_df$V_emp))
 
 p_v <- ggplot(v_df, aes(V_theory, V_emp)) +
@@ -561,12 +555,10 @@ local({
   e <- results[[grep("^e2e-", names(results), value = TRUE)]]
 
   params <- data.frame(
-    experiment = rep(c("Oracle", "End-to-end"), each = 2),
-    series     = rep(1:2, 2),
-    phi        = c(0.6, 0.4, 0.5, 0.3),
-    theta      = c(0.3, -0.2, NA, NA),
-    sigma2     = c(0.64, 1.00, 0.64, 0.64),
-    sigma2_eta = round(c(e$sigma2_eta, e$e2e_sigma2_eta), 3))
+    series     = 1:2,
+    phi        = c(0.5, 0.3),
+    sigma2     = c(0.64, 0.64),
+    sigma2_eta = round(e$sigma2_eta, 3))
   write.csv(params, file.path(TBL_DIR, "tbl-validation-params.csv"), row.names = FALSE)
 
   p <- e$eval_pts

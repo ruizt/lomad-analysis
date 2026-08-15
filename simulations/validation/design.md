@@ -2,14 +2,14 @@
 
 ## Experiments
 
-Two validation experiments:
+One experiment, reported in two parts:
 
-1. **Oracle experiment** checks that Proposition 1's expressions for the
-    limiting mean $\rho_t$ and variance $V_t$ are accurate at realistic
-    sample sizes
+1. **Moment accuracy** checks Proposition 1's expressions for the limiting mean
+    $\rho_t$ and variance $V_t$ against their empirical counterparts
 
-2. **End-to-end experiment** checks that the full `lomad_fit()` + `lomad_test()` 
-    pipeline preserves approximation accuracy despite estimation error
+2. **Calibration** checks that the full `lomad_fit()` + `lomad_test()` pipeline
+    preserves approximation accuracy despite estimation error, against an
+    oracle standardization using the true $\rho_t$ and $V_t$
 
 ### Data generation
 
@@ -28,39 +28,28 @@ Fixed parameters throughout both experiments are:
 | Trend | `sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)` |
 | Affine map | $\nu_2 = 2\nu_1$ (`affine_a = 0`, `affine_b = 2`) |
 
-Noise is independent ARMA, fixed within each experiment and differing between
-them: ARMA(1,1) for the oracle experiment, AR(1) for the end-to-end. Here
-$\phi_k, \theta_k, \sigma^2_k$ are the AR coefficient, MA coefficient and
-innovation variance for series $k$, and $\sigma^2_{\eta_k}$ is the smoothed
+Noise is independent AR(1). Here $\phi_k, \sigma^2_k$ are the AR coefficient
+and innovation variance for series $k$, and $\sigma^2_{\eta_k}$ is the smoothed
 noise variance that enters the CLT.
 
-| Experiment | Series $k$ | $\phi_k$ | $\theta_k$ | $\sigma^2_k$ | $\sigma^2_{\eta_k}$ |
-|------------|-----------|----------|------------|--------------|----------------------|
-| Oracle | 1 | 0.6 | 0.3 | 0.64 | 0.862 |
-| Oracle | 2 | 0.4 | −0.2 | 1.00 | 0.307 |
-| End-to-end | 1 | 0.5 | — | 0.64 | 0.380 |
-| End-to-end | 2 | 0.3 | — | 0.64 | 0.227 |
+| Series $k$ | $\phi_k$ | $\sigma^2_k$ | $\sigma^2_{\eta_k}$ |
+|-----------|----------|--------------|----------------------|
+| 1 | 0.5 | 0.64 | 0.380 |
+| 2 | 0.3 | 0.64 | 0.227 |
 
-Each experiment also checks approximations at specific evaluation points:
-
-- Oracle experiments: every 20th testable point (`var`) and the running mean
-  over all testable points (`rho`)
-- E2E experiment: t ∈ {400, 900, 1400, 1900}, plus a dense grid at
-  spacing 5 over the full testable range for the coverage band
+Approximations are checked at t ∈ {400, 900, 1400, 1900}, plus a dense grid at
+spacing 5 over the full testable range. The dense grid carries the coverage
+band and the moments of $R_t$ used for the $\rho_t$ and $V_t$ comparisons.
+$\bar R_t$ is formed from the first 100 replicates only (`E2E_RHO_REPS`): over
+all 1000 its Monte Carlo error is thinner than the plotted line.
 
 ### Job table
 
-Experiments are distributed across three jobs:
+A single job:
 
 | Experiment ID | *s* | Reps | Output |
 |---------------|-----|------|--------|
-| `rho-s100` | 100 | 100 | Running mean R̄_t over time |
-| `var-s100` | 100 | 2000 | R_t at every 20th eval point |
-| `e2e-s100` | 100 | 1000 | Oracle + pipeline quantities at 4 eval pts |
-
-`rho` runs at 100 reps rather than 2000: at larger *S* the Monte Carlo error is
-smaller than the line width and the empirical curve is hidden by the
-theoretical one.
+| `e2e-s100` | 100 | 1000 | Oracle + pipeline quantities at 4 eval pts, and moments of R_t over the dense grid |
 
 ---
 
@@ -69,7 +58,7 @@ theoretical one.
 Per job (Tide) or per experiment (local):
 
 - `{experiment}.rds` — one file per experiment in `results/_raw/`, named by the
-  `SIM_EXPERIMENT` label (`rho-s100`, `var-s100`, `e2e-s100`)
+  `SIM_EXPERIMENT` label (`e2e-s100`)
 
 Aggregated (after `collect-results.R`):
 
@@ -135,7 +124,7 @@ A wrapper around the simulation steps provides a one-shot submission:
 bash simulations/validation/tide/submit.sh
 ```
 
-This creates the PVC, submits one job per experiment (3 jobs), polls until all
+This creates the PVC, submits the job, polls until all
 complete, and fetches results to `results/_raw/`.
 
 This can also be executed step by step:

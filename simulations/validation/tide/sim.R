@@ -57,31 +57,13 @@ trend2 <- B_SCALE * trend
 ma_trend  <- as.numeric(stats::filter(trend,  rep(1 / h_win, h_win), sides = 1))
 ma_trend2 <- as.numeric(stats::filter(trend2, rep(1 / h_win, h_win), sides = 1))
 
-# Oracle ARMA(1,1) noise (Figures 1–2)
-oracle_ar1 <- 0.6;  oracle_ma1 <- 0.3;   oracle_sd1 <- 0.8
-oracle_ar2 <- 0.4;  oracle_ma2 <- -0.2;  oracle_sd2 <- 1.0
-
-# End-to-end AR(1) noise (Figure 3)
+# AR(1) noise
 e2e_ar1 <- 0.5;  e2e_sd1 <- 0.8
 e2e_ar2 <- 0.3;  e2e_sd2 <- 0.8
 
-# Precompute filtered autocovariances for oracle experiments
 .ma_filter_acov <- lomad:::.ma_filter_acov
 
-acov_raw1  <- arma_acov(oracle_ar1, oracle_ma1, oracle_sd1^2, lag_max = 200)
-acov_raw2  <- arma_acov(oracle_ar2, oracle_ma2, oracle_sd2^2, lag_max = 200)
-acov_eta1  <- .ma_filter_acov(acov_raw1, h_win, lag_max = 200)
-acov_eta2  <- .ma_filter_acov(acov_raw2, h_win, lag_max = 200)
-sigma1_sq  <- acov_eta1[1]
-sigma2_sq  <- acov_eta2[1]
-acov_eta1  <- acov_eta1[!is.na(acov_eta1)]
-acov_eta2  <- acov_eta2[!is.na(acov_eta2)]
-ml         <- min(length(acov_eta1), length(acov_eta2))
-acov_eta1  <- acov_eta1[1:ml]
-acov_eta2  <- acov_eta2[1:ml]
-cov_sums   <- acov_sums(acov_eta1, acov_eta2)
-
-# Precompute e2e oracle quantities
+# Filtered autocovariances and oracle quantities
 e2e_acov_raw1  <- arma_acov(e2e_ar1, numeric(0), e2e_sd1^2, lag_max = h_win + 100)
 e2e_acov_raw2  <- arma_acov(e2e_ar2, numeric(0), e2e_sd2^2, lag_max = h_win + 100)
 e2e_acov_filt1 <- .ma_filter_acov(e2e_acov_raw1, h_win, lag_max = 100)
@@ -110,75 +92,10 @@ e2e_V_oracle   <- compute_V(e2e_tau_sq, e2e_tau2_sq, e2e_sigma1, e2e_sigma2,
 # 5th t shows coverage there is closest to nominal, so including it costs
 # nothing in calibration terms and widens the range on display.
 e2e_eval_pts <- c(400, 900, 1400, 1900)
+e2e_band_pts <- seq(h_win + e2e_s, n_obs, by = 5L)
+E2E_RHO_REPS <- 100L
 
 # ---- run_rep functions -------------------------------------------------------
-
-run_rep_clt <- function(s, seed, eval_t = 600) {
-  set.seed(seed)
-  z1 <- arima.sim(model = list(ar = oracle_ar1, ma = oracle_ma1),
-                  n = n_obs, sd = oracle_sd1)
-  z2 <- arima.sim(model = list(ar = oracle_ar2, ma = oracle_ma2),
-                  n = n_obs, sd = oracle_sd2)
-  y1 <- trend + z1
-  y2 <- trend2 + z2
-  m1 <- as.numeric(stats::filter(y1, rep(1 / h_win, h_win), sides = 1))
-  m2 <- as.numeric(stats::filter(y2, rep(1 / h_win, h_win), sides = 1))
-  idx <- (eval_t - s + 1):eval_t
-  if (any(is.na(m1[idx])) || any(is.na(m2[idx]))) return(NA_real_)
-  cor(m1[idx], m2[idx])
-}
-
-run_rep_rho <- function(s, seed) {
-  set.seed(seed)
-  z1 <- arima.sim(model = list(ar = oracle_ar1, ma = oracle_ma1),
-                  n = n_obs, sd = oracle_sd1)
-  z2 <- arima.sim(model = list(ar = oracle_ar2, ma = oracle_ma2),
-                  n = n_obs, sd = oracle_sd2)
-  y1 <- trend + z1
-  y2 <- trend2 + z2
-  m1 <- as.numeric(stats::filter(y1, rep(1 / h_win, h_win), sides = 1))
-  m2 <- as.numeric(stats::filter(y2, rep(1 / h_win, h_win), sides = 1))
-
-  R <- rep(NA_real_, n_obs)
-  for (t in s:n_obs) {
-    idx <- (t - s + 1):t
-    a <- m1[idx]; b <- m2[idx]
-    if (any(is.na(a)) || any(is.na(b))) next
-    R[t] <- cor(a, b)
-  }
-  R
-}
-
-run_rep_var <- function(s, seed, eval_pts) {
-  set.seed(seed)
-  z1 <- arima.sim(model = list(ar = oracle_ar1, ma = oracle_ma1),
-                  n = n_obs, sd = oracle_sd1)
-  z2 <- arima.sim(model = list(ar = oracle_ar2, ma = oracle_ma2),
-                  n = n_obs, sd = oracle_sd2)
-  y1 <- trend + z1
-  y2 <- trend2 + z2
-  m1 <- as.numeric(stats::filter(y1, rep(1 / h_win, h_win), sides = 1))
-  m2 <- as.numeric(stats::filter(y2, rep(1 / h_win, h_win), sides = 1))
-
-  R <- numeric(length(eval_pts))
-  for (j in seq_along(eval_pts)) {
-    t0  <- eval_pts[j]
-    idx <- (t0 - s + 1):t0
-    a <- m1[idx]; b <- m2[idx]
-    R[j] <- if (any(is.na(a)) || any(is.na(b))) NA_real_ else cor(a, b)
-  }
-  R
-}
-
-# `b` scales the second trend: nu_2 = b * nu_1. Any b > 0 satisfies the affine
-# null, so the test must stay calibrated while tau_2^2 = b^2 tau_1^2. This is
-# the one configuration the rest of the study cannot produce -- every other arm
-# uses the same trend for both series, so tau_1 == tau_2 and the two-tau path
-# is never exercised.
-# Dense grid for the band in the figure. lomad_fit already runs over the whole
-# series, so extracting 367 points instead of 4 costs about 0.4%; keeping the
-# band in results/ is what makes the figure reproducible from the repo.
-e2e_band_pts <- seq(h_win + e2e_s, n_obs, by = 5L)
 
 run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05) {
   set.seed(seed)
@@ -214,78 +131,7 @@ seeds <- sample.int(1e6, S)
 
 # ---- Run simulation ----------------------------------------------------------
 
-if (exp_type == "clt") {
-  R_vec <- vapply(seeds, function(sd) {
-    run_rep_clt(s_val, sd, eval_t = 600)
-  }, numeric(1))
-
-  tau_sq  <- compute_tau_sq(ma_trend,  s_val)
-  tau2_sq <- compute_tau_sq(ma_trend2, s_val)
-  rho_t  <- compute_rho(tau_sq, tau2_sq, sigma1_sq, sigma2_sq)
-  V_t    <- compute_V(tau_sq, tau2_sq, sigma1_sq, sigma2_sq,
-                       cov_sums$L1, cov_sums$L2,
-                       cov_sums$Q1, cov_sums$Q2, cov_sums$Q12)
-
-  result <- list(
-    experiment = experiment, s = s_val, S = S, seed0 = seed0, h = h_win,
-    sigma2_eta = c(sigma1_sq, sigma2_sq),
-    e2e_sigma2_eta = c(e2e_sigma1, e2e_sigma2),
-    eval_t     = 600,
-    R_vec      = R_vec,
-    rho_oracle = rho_t[600],
-    V_oracle   = V_t[600]
-  )
-
-} else if (exp_type == "rho") {
-  R_accum <- rep(0, n_obs)
-  R_count <- rep(0L, n_obs)
-
-  for (i in seq_along(seeds)) {
-    R_rep <- run_rep_rho(s_val, seeds[i])
-    ok <- !is.na(R_rep)
-    R_accum[ok] <- R_accum[ok] + R_rep[ok]
-    R_count[ok] <- R_count[ok] + 1L
-    if (i %% 100 == 0) cat(sprintf("  %d / %d\n", i, S))
-  }
-
-  R_mean <- ifelse(R_count > 0, R_accum / R_count, NA_real_)
-  tau_sq  <- compute_tau_sq(ma_trend,  s_val)
-  tau2_sq <- compute_tau_sq(ma_trend2, s_val)
-  rho_th <- compute_rho(tau_sq, tau2_sq, sigma1_sq, sigma2_sq)
-
-  result <- list(
-    experiment = experiment, s = s_val, S = S, seed0 = seed0, h = h_win,
-    sigma2_eta = c(sigma1_sq, sigma2_sq),
-    e2e_sigma2_eta = c(e2e_sigma1, e2e_sigma2),
-    R_mean     = R_mean,
-    rho_th     = rho_th
-  )
-
-} else if (exp_type == "var") {
-  eval_pts <- seq(s_val + h_win, n_obs, by = 20)
-
-  R_mat <- matrix(NA_real_, S, length(eval_pts))
-  for (i in seq_along(seeds)) {
-    R_mat[i, ] <- run_rep_var(s_val, seeds[i], eval_pts)
-    if (i %% 100 == 0) cat(sprintf("  %d / %d\n", i, S))
-  }
-
-  tau_sq  <- compute_tau_sq(ma_trend,  s_val)
-  tau2_sq <- compute_tau_sq(ma_trend2, s_val)
-  V_th   <- compute_V(tau_sq, tau2_sq, sigma1_sq, sigma2_sq,
-                       cov_sums$L1, cov_sums$L2,
-                       cov_sums$Q1, cov_sums$Q2, cov_sums$Q12)
-
-  result <- list(
-    experiment = experiment, s = s_val, S = S, seed0 = seed0, h = h_win,
-    sigma2_eta = c(sigma1_sq, sigma2_sq),
-    e2e_sigma2_eta = c(e2e_sigma1, e2e_sigma2),
-    eval_pts   = eval_pts,
-    R_mat      = R_mat,
-    V_theory   = V_th[eval_pts]
-  )
-
-} else if (exp_type == "e2e") {
+if (exp_type == "e2e") {
   e2e_results <- vector("list", S)
   for (i in seq_along(seeds)) {
     e2e_results[[i]] <- run_rep_e2e(s_val, seeds[i], e2e_eval_pts)
@@ -323,6 +169,14 @@ if (exp_type == "clt") {
     Zp <- bZ[, j]; Zp <- Zp[is.finite(Zp)]
     f <- function(Z, ty) data.frame(
       t = tt, lambda1 = e2e_tau_sq[tt] / e2e_sigma1, rho = e2e_rho_oracle[tt],
+      # Moments of R over replicates, so rho and V accuracy come from this
+      # experiment rather than separate oracle runs. The mean uses the first
+      # E2E_RHO_REPS only: over all S its Monte Carlo error is thinner than the
+      # plotted line and the empirical curve vanishes under the theoretical.
+      R_mean = mean(bR[seq_len(min(E2E_RHO_REPS, nrow(bR))), j], na.rm = TRUE),
+      R_mean_n = min(E2E_RHO_REPS, nrow(bR)),
+      R_var  = stats::var(bR[, j], na.rm = TRUE),
+      V_th   = e2e_V_oracle[tt],
       cov = mean(abs(Z) < stats::qnorm(0.975)),
       t05 = mean(Z < stats::qnorm(0.05)),
       t01 = mean(Z < stats::qnorm(0.01)),
@@ -332,8 +186,7 @@ if (exp_type == "clt") {
 
   result <- list(
     experiment  = experiment, s = s_val, S = S, seed0 = seed0, h = h_win,
-    sigma2_eta = c(sigma1_sq, sigma2_sq),
-    e2e_sigma2_eta = c(e2e_sigma1, e2e_sigma2),
+    sigma2_eta = c(e2e_sigma1, e2e_sigma2),
     eval_pts    = e2e_eval_pts,
     R_mat       = R_mat,
     rho_est_mat = rho_mat,
