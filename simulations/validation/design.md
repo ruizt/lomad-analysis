@@ -4,8 +4,9 @@
 
 Two validation experiments:
 
-1. **Oracle experiment** checks that the asymptotic normal approximation for the 
-    standardized rolling correlation is accurate at realistic sample sizes
+1. **Oracle experiment** checks that Proposition 1's expressions for the
+    limiting mean $\rho_t$ and variance $V_t$ are accurate at realistic
+    sample sizes
 
 2. **End-to-end experiment** checks that the full `lomad_fit()` + `lomad_test()` 
     pipeline preserves approximation accuracy despite estimation error
@@ -22,7 +23,8 @@ Fixed parameters throughout both experiments are:
 | Parameter | Value |
 |-----------|-------|
 | Series length *n* | 2000 |
-| MA smoothing window *h* | 20 |
+| MA smoothing window *h* | 5 |
+| Correlation window *s* | 100 |
 | Trend | `sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)` |
 | Affine map | $\nu_2 = 2\nu_1$ (`affine_a = 0`, `affine_b = 2`) |
 
@@ -34,29 +36,31 @@ noise variance that enters the CLT.
 
 | Experiment | Series $k$ | $\phi_k$ | $\theta_k$ | $\sigma^2_k$ | $\sigma^2_{\eta_k}$ |
 |------------|-----------|----------|------------|--------------|----------------------|
-| Oracle | 1 | 0.6 | 0.3 | 0.64 | 0.305 |
-| Oracle | 2 | 0.4 | −0.2 | 1.00 | 0.086 |
-| End-to-end | 1 | 0.5 | — | 0.64 | 0.119 |
-| End-to-end | 2 | 0.3 | — | 0.64 | 0.063 |
+| Oracle | 1 | 0.6 | 0.3 | 0.64 | 0.862 |
+| Oracle | 2 | 0.4 | −0.2 | 1.00 | 0.307 |
+| End-to-end | 1 | 0.5 | — | 0.64 | 0.380 |
+| End-to-end | 2 | 0.3 | — | 0.64 | 0.227 |
 
 Each experiment also checks approximations at specific evaluation points:
 
-- CLT experiments: t = 600 (where ρ ≈ 0.24–0.35 across s values)
+- Oracle experiments: every 20th testable point (`var`) and the running mean
+  over all testable points (`rho`)
 - E2E experiment: t ∈ {400, 900, 1400, 1900}, plus a dense grid at
   spacing 5 over the full testable range for the coverage band
 
 ### Job table
 
-Experiments are distributed across six jobs:
+Experiments are distributed across three jobs:
 
 | Experiment ID | *s* | Reps | Output |
 |---------------|-----|------|--------|
-| `clt-s80` | 80 | 2000 | R_t at t = 600 per rep |
-| `clt-s150` | 150 | 2000 | R_t at t = 600 per rep |
-| `clt-s300` | 300 | 2000 | R_t at t = 600 per rep |
-| `rho-s150` | 150 | 500 | Running mean R̄_t over time |
-| `var-s150` | 150 | 2000 | R_t at every 20th eval point |
-| `e2e-s150` | 150 | 1000 | Oracle + pipeline quantities at 4 eval pts |
+| `rho-s100` | 100 | 100 | Running mean R̄_t over time |
+| `var-s100` | 100 | 2000 | R_t at every 20th eval point |
+| `e2e-s100` | 100 | 1000 | Oracle + pipeline quantities at 4 eval pts |
+
+`rho` runs at 100 reps rather than 2000: at larger *S* the Monte Carlo error is
+smaller than the line width and the empirical curve is hidden by the
+theoretical one.
 
 ---
 
@@ -65,8 +69,7 @@ Experiments are distributed across six jobs:
 Per job (Tide) or per experiment (local):
 
 - `{experiment}.rds` — one file per experiment in `results/_raw/`, named by the
-  `SIM_EXPERIMENT` label (`clt-s80`, `clt-s150`, `clt-s300`, `rho-s150`,
-  `var-s150`, `e2e-s150`)
+  `SIM_EXPERIMENT` label (`rho-s100`, `var-s100`, `e2e-s100`)
 
 Aggregated (after `collect-results.R`):
 
@@ -115,7 +118,7 @@ Before submitting at scale, test the container entrypoint locally with a small
 number of replicates:
 
 ```bash
-SIM_EXPERIMENT=clt-s80 SIM_S=5 SIM_SEED=7291 \
+SIM_EXPERIMENT=e2e-s100 SIM_S=5 SIM_SEED=7291 \
   SIM_OUT_DIR=simulations/validation/results/_raw \
   Rscript simulations/validation/tide/sim.R
 ```
@@ -132,7 +135,7 @@ A wrapper around the simulation steps provides a one-shot submission:
 bash simulations/validation/tide/submit.sh
 ```
 
-This creates the PVC, submits one job per experiment (6 jobs), polls until all
+This creates the PVC, submits one job per experiment (3 jobs), polls until all
 complete, and fetches results to `results/_raw/`.
 
 This can also be executed step by step:

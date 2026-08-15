@@ -19,12 +19,19 @@ S          <- as.integer(Sys.getenv("SIM_S",       "200"))
 seed0      <- as.integer(Sys.getenv("SIM_SEED",    "7291"))
 out_dir    <- Sys.getenv("SIM_OUT_DIR", "/jobs/output")
 
-cat(sprintf("experiment = %s, S = %d, seed0 = %d\n", experiment, S, seed0))
+# Parsed here rather than at dispatch: the oracle quantities below are built at
+# the window size, so s_val has to be known before them.
+parts    <- strsplit(experiment, "-")[[1]]
+exp_type <- parts[1]
+s_val    <- as.integer(sub("^s", "", parts[2]))
+
+cat(sprintf("experiment = %s (type %s, s = %d), S = %d, seed0 = %d\n",
+            experiment, exp_type, s_val, S, seed0))
 
 # ---- Fixed parameters --------------------------------------------------------
 
 n_obs <- 2000
-h_win <- 20
+h_win <- 5
 
 # Shared trend via sim_trends (common trend, d = 0)
 # Two trends that are equal under affine transformation: nu_2 = B_SCALE * nu_1
@@ -88,7 +95,7 @@ e2e_acov_filt2 <- e2e_acov_filt2[1:e2e_ml]
 e2e_sigma1     <- e2e_acov_filt1[1]
 e2e_sigma2     <- e2e_acov_filt2[1]
 e2e_sums       <- acov_sums(e2e_acov_filt1, e2e_acov_filt2)
-e2e_s          <- 150
+e2e_s          <- s_val
 # Use noiseless ma_trend directly — no bias correction needed in oracle setting
 e2e_tau_sq     <- compute_tau_sq(ma_trend,  e2e_s)
 e2e_tau2_sq    <- compute_tau_sq(ma_trend2, e2e_s)
@@ -200,13 +207,7 @@ run_rep_e2e <- function(s, seed, eval_pts, alpha = 0.05) {
   )
 }
 
-# ---- Parse experiment ID and dispatch ----------------------------------------
-
-parts <- strsplit(experiment, "-")[[1]]
-exp_type <- parts[1]
-s_val    <- as.integer(sub("^s", "", parts[2]))
-
-cat(sprintf("Experiment type: %s, s = %d, S = %d reps\n", exp_type, s_val, S))
+# ---- Dispatch ----------------------------------------------------------------
 
 set.seed(seed0 + s_val)
 seeds <- sample.int(1e6, S)
@@ -226,7 +227,9 @@ if (exp_type == "clt") {
                        cov_sums$Q1, cov_sums$Q2, cov_sums$Q12)
 
   result <- list(
-    experiment = experiment, s = s_val, S = S, seed0 = seed0,
+    experiment = experiment, s = s_val, S = S, seed0 = seed0, h = h_win,
+    sigma2_eta = c(sigma1_sq, sigma2_sq),
+    e2e_sigma2_eta = c(e2e_sigma1, e2e_sigma2),
     eval_t     = 600,
     R_vec      = R_vec,
     rho_oracle = rho_t[600],
@@ -251,7 +254,9 @@ if (exp_type == "clt") {
   rho_th <- compute_rho(tau_sq, tau2_sq, sigma1_sq, sigma2_sq)
 
   result <- list(
-    experiment = experiment, s = s_val, S = S, seed0 = seed0,
+    experiment = experiment, s = s_val, S = S, seed0 = seed0, h = h_win,
+    sigma2_eta = c(sigma1_sq, sigma2_sq),
+    e2e_sigma2_eta = c(e2e_sigma1, e2e_sigma2),
     R_mean     = R_mean,
     rho_th     = rho_th
   )
@@ -272,7 +277,9 @@ if (exp_type == "clt") {
                        cov_sums$Q1, cov_sums$Q2, cov_sums$Q12)
 
   result <- list(
-    experiment = experiment, s = s_val, S = S, seed0 = seed0,
+    experiment = experiment, s = s_val, S = S, seed0 = seed0, h = h_win,
+    sigma2_eta = c(sigma1_sq, sigma2_sq),
+    e2e_sigma2_eta = c(e2e_sigma1, e2e_sigma2),
     eval_pts   = eval_pts,
     R_mat      = R_mat,
     V_theory   = V_th[eval_pts]
@@ -324,7 +331,9 @@ if (exp_type == "clt") {
   }))
 
   result <- list(
-    experiment  = experiment, s = s_val, S = S, seed0 = seed0,
+    experiment  = experiment, s = s_val, S = S, seed0 = seed0, h = h_win,
+    sigma2_eta = c(sigma1_sq, sigma2_sq),
+    e2e_sigma2_eta = c(e2e_sigma1, e2e_sigma2),
     eval_pts    = e2e_eval_pts,
     R_mat       = R_mat,
     rho_est_mat = rho_mat,
@@ -338,6 +347,8 @@ if (exp_type == "clt") {
     # b^2 sigma_1^2 / sigma_2^2, since both trends are one curve up to scale.
     lambda1     = e2e_tau_sq  / e2e_sigma1,
     lambda2     = e2e_tau2_sq / e2e_sigma2,
+    tau2_1      = e2e_tau_sq,
+    tau2_2      = e2e_tau2_sq,
     band        = e2e_band
   )
 

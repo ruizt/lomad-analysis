@@ -11,11 +11,11 @@
 
 PT <- list(
   title  = 9,     # axis titles
-  text   = 7.5,   # tick labels
+  text   = 7,   # tick labels
   strip  = 8,     # facet strips
   legend = 8,     # legend keys
-  ltitle = 9,     # legend titles, panel titles
-  annot  = 8      # in-panel text
+  ltitle = 8,     # legend titles, panel titles
+  annot  = 7      # in-panel text
 )
 
 # geom_text(), annotate("text") and geom_sf_text() take MILLIMETRES, not points.

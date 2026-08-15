@@ -3,11 +3,10 @@
 #
 # Usage: bash simulations/validation/tide/submit_sweep.sh
 #
-# Six jobs total (see design.md for details):
-#   clt-s80, clt-s150, clt-s300   (Figure 1: CLT QQ)
-#   rho-s150                      (Figure 2: rho accuracy)
-#   var-s150                      (Figure 2: V accuracy)
-#   e2e-s150                      (Figure 3: end-to-end pipeline)
+# Three jobs total (see design.md for details):
+#   rho-s100   (Panel A: rho accuracy)
+#   var-s100   (Panel A: V accuracy)
+#   e2e-s100   (Panel B: end-to-end pipeline)
 
 NAMESPACE="cal-poly-ruiz"
 SIM_SEED=7291
@@ -82,17 +81,14 @@ spec:
 EOF
 }
 
-# Figure 1: CLT QQ (3 jobs)
-submit_job "clt-s80"   2000  1  "1Gi"
-submit_job "clt-s150"  2000  1  "1Gi"
-submit_job "clt-s300"  2000  1  "1Gi"
+# Panel A: Proposition 1 moment accuracy
+# rho runs at 100 reps, not 2000: at 500 the Monte Carlo error is smaller than
+# the line width and the empirical curve disappears under the theoretical one.
+submit_job "rho-s100"  100   1  "1Gi"
+submit_job "var-s100"  2000  1  "2Gi"
 
-# Figure 2: Proposition 1 moment accuracy (2 jobs, both s = 150)
-submit_job "rho-s150"  500   1  "1Gi"
-submit_job "var-s150"  2000  1  "2Gi"
-
-# Figure 3: end-to-end pipeline (1 job)
-submit_job "e2e-s150"  1000  2  "2Gi"
+# Panel B: end-to-end pipeline
+submit_job "e2e-s100"  1000  2  "2Gi"
 
 echo ""
 echo "All jobs submitted. Monitor with:"

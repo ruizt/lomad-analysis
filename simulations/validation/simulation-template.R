@@ -13,7 +13,7 @@ library(patchwork)
 # ---- Common DGP --------------------------------------------------------------
 
 n_obs <- 2000
-h_win <- 20
+h_win <- 5
 
 # Shared trend via sim_trends (common trend, d = 0)
 tr     <- sim_trends(n = n_obs, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)
@@ -31,7 +31,9 @@ oracle_ar2 <- 0.4;  oracle_ma2 <- -0.2;  oracle_sd2 <- 1.0
 # AR(1) noise parameters (end-to-end, Figure 3)
 e2e_ar1 <- 0.5;  e2e_sd1 <- 0.8
 e2e_ar2 <- 0.3;  e2e_sd2 <- 0.8
-e2e_s   <- 150
+# The window the oracle quantities are built at. Must match the s the
+# replicates run at, or the oracle arm is standardized at the wrong width.
+e2e_s   <- 100
 
 # Precompute oracle filtered autocovariances
 .ma_filter_acov <- lomad:::.ma_filter_acov

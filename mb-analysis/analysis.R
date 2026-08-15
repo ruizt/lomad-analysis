@@ -36,23 +36,20 @@ H_WIN <- 4L
 S_WIN <- 60L
 ALPHA <- 0.05
 
-# m >= 1.5s. Below the regime the power sweep covered (n = 4s throughout), so
-# it was checked against the global null in
-# simulations/calibration/blocklength-calibration.R: FDR 0.013, against 0.05.
+# m >= 1.5s, below the power sweep's regime; checked separately against the
+# global null.
 MIN_LEN <- as.integer(2.5 * S_WIN) + H_WIN
 
 STATION_NAME <- c(BM1 = "Bay Mouth (BM)", BS1 = "Bay Head (BH)")
 STATION_ABBR <- c(BM1 = "BM", BS1 = "BH")
 
-# theme_minimal like every other figure, with the panel border kept explicitly:
-# the raster reads better framed.
+# panel border kept explicitly; the raster reads better framed
 ggthm <- theme_minimal(base_size = PT$title) +
   theme(panel.grid.minor = element_blank(),
         panel.grid.major.x = element_blank(),
         panel.grid.major.y = element_line(color = "black", linewidth = 0.1),
         panel.border = element_rect(fill = NA, colour = "grey40", linewidth = 0.3)) +
   fig_sizes()
-
 
 # =============================================================================
 # Presmooth
@@ -68,11 +65,9 @@ presm_all <- lapply(split(block_data, block_data$location), function(loc_dat) {
   setNames(out, vapply(out, \(b) as.character(b$block_id[[1]]), character(1)))
 })
 
-
 # =============================================================================
-# Fit per block, test globally
-# One Benjamini-Yekutieli step-up correction over the pooled p-values, so FDR
-# is controlled study-wide rather than per block.
+# Fit per block; one BY step-up over the pooled p-values, so FDR is
+# controlled study-wide.
 # =============================================================================
 
 loc_results <- lapply(names(presm_all), function(loc) {
@@ -86,8 +81,7 @@ loc_results <- lapply(names(presm_all), function(loc) {
   blocks       <- blocks[!too_short]
   blocks_presm <- blocks_presm[!too_short]
 
-  # lomad_test() here is only a container for the raw p-values; its decisions
-  # are overwritten by the global stage below.
+  # a container for the raw p-values; decisions are overwritten below
   block_fits <- lapply(names(blocks), \(nm) {
     b <- blocks[[nm]]
     tryCatch({
@@ -186,16 +180,12 @@ aligned <- bind_rows(lapply(names(loc_results), function(loc) {
 saveRDS(aligned, "_mb-data/lomad_windows.rds")
 message("Wrote _mb-data/lomad_windows.rds (", nrow(aligned), " windows)")
 
-
 # =============================================================================
 # Station comparison
-# Descriptive only. A seasonal hypothesis would have to be specified after
-# seeing these data, and a rate interval would be inference on inference. What
-# follows the point estimates is sensitivity, not uncertainty.
+# Descriptive only: point estimates and sensitivity, not inference.
 # =============================================================================
 
-# `rejected` was NA-filled to FALSE upstream; a window is under test only where
-# the fit produced both a correlation and a benchmark for it.
+# `rejected` was NA-filled to FALSE upstream; keep only tested windows.
 wv <- aligned |>
   mutate(valid = !is.na(R) & !is.na(rho), blk = paste(location, block_id)) |>
   filter(valid)
@@ -211,8 +201,7 @@ cat(sprintf("rate ratio BM1/BS1 = %.2f\n",
             rate_tbl$rate[rate_tbl$location == "BM1"] /
             rate_tbl$rate[rate_tbl$location == "BS1"]))
 
-# Does the ratio depend on any one block, or on the stations having been up at
-# different times?
+# Leave-one-block-out on the rate ratio.
 ratio_of <- function(d) {
   r <- tapply(d$rejected, d$location, mean)
   unname(r["BM1"] / r["BS1"])
@@ -231,8 +220,7 @@ for (loc in c("BM1", "BS1")) {
               loc, 100 * min(lo), 100 * max(lo)))
 }
 
-# Restricting to timestamps where both stations were under test removes
-# differing exposure as an explanation.
+# Timestamps where both stations were under test.
 conc <- wv |>
   select(location, datetime, rejected) |>
   pivot_wider(id_cols = datetime, names_from = location,
@@ -264,11 +252,9 @@ cat(paste(wv |> filter(rejected) |> group_by(location) |>
                                 100 * mean(month(datetime) %in% 3:6)),
                     .groups = "drop") |> pull(p), collapse = ", "), "\n")
 
-
 # =============================================================================
 # fig-mb-sites-coupling.png
-# Site map and both stations over the example block, above Bay Mouth's moving
-# averages for the same window.
+# Site map and both stations over the example block, above BM's moving averages.
 # =============================================================================
 
 STN <- tibble(
@@ -287,9 +273,8 @@ compass_star <- function(cx, cy, r) {
 }
 STAR <- compass_star(-120.8035, 35.3195, 0.0075)
 
-# `grid` takes a colour or FALSE. panel.grid.major has to be set by name:
-# fig_theme() sets it explicitly, and ggplot does not let a parent element
-# override an explicitly-set child.
+# panel.grid.major must be set by name: fig_theme() sets it explicitly and a
+# parent element cannot override an explicitly-set child.
 fig_panel <- function(fill = NA, grid = FALSE, border = TRUE) fig_theme() +
   theme(panel.grid.major = if (isFALSE(grid)) element_blank()
                            else element_line(linewidth = 0.1, colour = grid),
@@ -412,25 +397,11 @@ p_cpl <- ggplot() +
 ggsave(file.path(img_out, "fig-mb-sites-coupling.png"),
        (p_map + p_ser + plot_layout(widths = c(1, 1.7))) / p_cpl +
          plot_layout(heights = c(1, 1)),
-       width = 6, height = 5, dpi = 450)
-
+       width = 5, height = 4.5, dpi = 450)
 
 # =============================================================================
 # fig-affine-similarity.png
-# Global standardization does not remove local differences in level and
-# amplitude, and the affine map that would remove them is local, not global.
-# Motivates the affine-invariant null against a pointwise-equality null.
-#
-# Two windows a season apart: 28 Jan - 18 Feb and the month of September. The
-# point is that the affine map is local -- b_t crosses 1 between them, so pH
-# swings well over half again as far as DO in the first and slightly less than
-# it in the second. Both are 84 points, 21 days. W2 was trimmed from the left
-# rather than the right: the last three weeks of September give correlation
-# 0.834, where the first three give 0.415 and the realignment barely holds.
-#
-# Windows a few weeks apart will not show this -- anywhere in this record two
-# such windows have near-identical maps, and the best pair loses only 11 points
-# of RMS reduction when the maps are swapped. Separation has to be seasonal.
+# Two windows a season apart, 84 points each: 28 Jan - 18 Feb and September.
 # =============================================================================
 
 AFF_LOC <- "BS1"; AFF_BLK <- 23
@@ -442,8 +413,7 @@ aff <- aligned |>
   filter(location == AFF_LOC, block_id == AFF_BLK) |>
   arrange(datetime)
 
-# a_t, b_t from OLS of the pH moving average on the DO moving average over the
-# window. The method never estimates b; this shows what an affine map absorbs.
+# a_t, b_t from OLS of the pH moving average on the DO moving average.
 aff_fit <- function(ix) {
   d  <- aff[ix[1]:ix[2], ]
   ok <- is.finite(d$ma1) & is.finite(d$ma2)
@@ -470,9 +440,7 @@ for (k in names(aff_f)) {
               k, as.Date(f$t1), as.Date(f$t2), f$corr, f$kappa, f$a, f$b,
               f$rms0, f$rms1, 100 * (1 - f$rms1 / f$rms0)))
 }
-# Each window's map applied to the other. This is the locality claim in
-# numbers: a map fitted where it belongs removes about 59% of the separation,
-# and the same map a season away adds to it.
+# Each window's map applied to the other.
 for (k in names(aff_f)) {
   o <- setdiff(names(aff_f), k)
   d <- aligned |> filter(location == AFF_LOC, block_id == AFF_BLK) |>
@@ -540,15 +508,10 @@ ggsave(file.path(img_out, "fig-affine-similarity.png"),
          theme(plot.tag = element_text(size = PT$ltitle)),
        width = 5, height = 5, dpi = 450)
 
-
 # =============================================================================
 # fig-mb-example.png
-# The vignette's worked example. Drawn in ggplot rather than with lomad_plot()
-# so it matches the other figures; the two-panel layout and the shading
-# convention are lomad_plot()'s.
-#
-# Reads the INSTALLED package's data, so the fit is checked against what the
-# vignette reports: a stale install would silently draw a different block.
+# The vignette's worked example, drawn in ggplot to match the other figures.
+# Reads the INSTALLED package's data.
 # =============================================================================
 
 ex_fit <- lomad_fit(morro_bay$o2, morro_bay$ph, h = H_WIN, s = S_WIN)
@@ -567,9 +530,7 @@ runs <- function(flag) {
   r <- rle(flag); en <- cumsum(r$lengths); st <- en - r$lengths + 1L
   tibble(xmin = t_idx[st[r$values]], xmax = t_idx[en[r$values]])
 }
-# A rejection at t concerns the window ending at t, so the upper panel shades
-# back to t - s + 1. The span comes from the package, so this figure and the
-# vignette cannot disagree about which window a flag refers to.
+# A rejection at t concerns the window ending at t; shade back to t - s + 1.
 shade_up <- runs(lomad:::.rejected_window_span(ex_rej, S_WIN))
 shade_lo <- runs(ex_rej)
 
@@ -593,9 +554,8 @@ p_ex_up <- ggplot() +
         axis.text.x = element_blank(), axis.text.y = element_blank()) +
   labs(x = NULL, y = "Moving average")
 
-# The band runs between rho and the critical value below which R is flagged.
-# Both move with t, which is why the deepest dip in R need not be the flagged
-# one. Correlation keeps its tick labels: the value is directly interpretable.
+# Band between rho and the critical value below which R is flagged; both move
+# with t.
 p_ex_lo <- ggplot() +
   geom_rect(data = shade_lo, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
             fill = SHADE, alpha = 0.45) +
@@ -613,11 +573,9 @@ ggsave(file.path(img_out, "fig-mb-example.png"),
        p_ex_up / p_ex_lo + plot_layout(heights = c(1.35, 1)),
        width = 5, height = 3, dpi = 450)
 
-
 # =============================================================================
 # sfig-mb-detections.png
-# Every fitted block, both stations, series over correlation. Independent x
-# scales: the stations have different blocks, so this is a per-block view.
+# Every fitted block, both stations, series over correlation; independent x.
 # =============================================================================
 
 make_lomad_plot_data <- function(loc_name, results) {
@@ -709,18 +667,15 @@ plt_fits <- wrap_plots(panels, ncol = 1) +
 ggsave(file.path(img_out, "sfig-mb-detections.png"), plt_fits,
        width = 10, height = 5, dpi = 450)
 
-
 # =============================================================================
 # fig-mb-seasonality.png
-# Pooled monthly rate over a phenology raster: day of year across, year down,
-# upper lane BM, lower lane BH. Grey is every window the test reached a
-# decision on, which excludes the leading s + h - 2 points of each block.
+# Pooled monthly rate over a phenology raster: day of year across, year down.
+# Grey is every window the test decided on.
 # =============================================================================
 
 pal <- c(BM = "#C44E52", BH = "#4C72B0")
 
-# Tiles are centred on integer doy with width 1, so a month's visual centre
-# sits half a day right of its arithmetic midpoint.
+# Tiles centred on integer doy with width 1.
 MONTH_END   <- cumsum(c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31))
 MONTH_START <- c(0, head(MONTH_END, -1))
 MONTH_MID   <- (MONTH_START + MONTH_END + 1) / 2
@@ -742,9 +697,7 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
             height = 0.34, width = 1) +
   geom_text(data = lanes, aes(x = LANE_X, y = lane, label = station),
             inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey35") +
-  # Labelled by a function, not a vector: values= is matched by name but
-  # labels= is matched by position, so a literal vector would follow the
-  # scale's own (alphabetical) break order and swap the two stations.
+  # labels= matches by position, so a literal vector would swap the stations
   scale_fill_manual(values = pal, labels = \(x) paste(x, "detection")) +
   scale_x_continuous(breaks = MONTH_MID, labels = month.abb,
                      limits = X_LIM, oob = scales::oob_keep,
