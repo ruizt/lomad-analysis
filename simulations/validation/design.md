@@ -72,7 +72,7 @@ Aggregated (after `collect-results.R`):
 ```
 validation/
 ├── design.md           ← you are here
-├── simulation-template.R          ← local proof-of-concept (defines run_rep_*())
+├── simulation-template.R          ← local proof-of-concept, mirrors tide/sim.R
 ├── collect-results.R           ← assembles fetched per-job files into a compiled results object
 ├── results/
 │   ├── simulations-validation-results.rds  ← tracked
@@ -99,9 +99,9 @@ outside it because it only reads local files.
 
 ### Local testing
 
-Source `simulation-template.R`; it runs all experiments at small scale (reduced
-reps). The `run_rep_*()` functions it defines are the same ones used in
-`tide/sim.R`.
+Source `simulation-template.R`; it runs the experiment at *S* = 50 and draws
+draft versions of both panels. `tide/sim.R` is the source of truth: change it
+first, then mirror the change into the template.
 
 Before submitting at scale, test the container entrypoint locally with a small
 number of replicates:
