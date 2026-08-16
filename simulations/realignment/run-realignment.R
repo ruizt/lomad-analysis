@@ -1,5 +1,5 @@
-## run-realignment.R -- equality-based multiscale inference under local affine
-## similarity, vs lomad. See design.md for the cell table.
+## run-realignment.R -- does removing the affine map first make trend
+## comparison work under local affine similarity? See design.md for the cells.
 ##
 ## Outputs
 ##   results/_raw/ms-{scenario}-{framing}.rds   per-cell MSinference cache
@@ -16,16 +16,8 @@ AFFINE_S <- 50L    # window the affine drift cap applies over (data generation)
 REALIGN_S <- 50L   # window for the rolling realignment given to MSinference
 SNR <- 0.5; PHI <- 0.5; ALPHA <- 0.05
 
-## Seeds are overridable so the study can be redrawn on an unrelated pair and
-## checked for a freak draw. Everything downstream -- MSinference caches and
-## the compiled object -- is namespaced by seed, so an alternate draw never
-## reads or overwrites the default one. The alternate draw reported alongside
-## the showcase pair is
-##
-##   REALIGNMENT_TREND_SEED=7307 REALIGNMENT_NOISE_SEED=2411
-##
-## Redrawing costs ~30-90 min per MSinference cell; the lomad cells alone
-## re-run in seconds under REALIGNMENT_DRY=1.
+## Caches and compiled output are namespaced by seed, so draws never collide.
+## Second draw: REALIGNMENT_TREND_SEED=7307 REALIGNMENT_NOISE_SEED=2411
 TREND_SEED <- as.integer(Sys.getenv("REALIGNMENT_TREND_SEED", "6001"))
 NOISE_SEED <- as.integer(Sys.getenv("REALIGNMENT_NOISE_SEED", "1001"))
 
@@ -37,14 +29,11 @@ RAW_DIR <- file.path(OUT_DIR, "_raw")
 dir.create(RAW_DIR, showWarnings = FALSE, recursive = TRUE)
 
 # ---- scenarios --------------------------------------------------------------
-# `af` is the showcase pair. `eq` reuses its base trend with the affine layer
-# removed, so the two differ only in the map. Both satisfy the null, so every
-# rejection anywhere in this study is a false alarm; that lomad detects real
-# separation is established by the power study, not here.
+# `eq` reuses the `af` base trend with the affine layer removed, so the two
+# differ only in the map. Both satisfy the null.
 #
-# Argument types matter: sim_trends() consumes RNG differently for
-# `affine_s = 50` than for `affine_s = 50L`, so the integer literals below are
-# load-bearing for reproducing the cached MSinference cells.
+# The integer literals are load-bearing: sim_trends() consumes RNG differently
+# for `affine_s = 50` than for `affine_s = 50L`.
 tr_af <- sim_trends(n = N, d = 0, method = "rs", bw = 50, nb = NB,
                     seed = TREND_SEED, affine_s = AFFINE_S, affine_cap = 0.015)
 tr_eq <- tr_af
@@ -60,9 +49,7 @@ sim_pair <- function(tr) {
 scen <- list(eq = sim_pair(tr_eq), af = sim_pair(tr_af))
 
 # ---- lomad ------------------------------------------------------------------
-# The affine scenario is run across window sizes: s = 50 is the hardest cell of
-# the power study, so calibration there alone invites the objection that the
-# test would not reject regardless.
+# Run across window sizes; s = 50 is the hardest cell of the power study.
 LOMAD_CELLS <- list(
   list(scenario = "eq", s = 50L),
   list(scenario = "af", s = 50L),
@@ -83,8 +70,7 @@ run_lomad <- function(cell) {
 
 # ---- realignment ------------------------------------------------------------
 # Centered rolling regression of y on x over windows of width REALIGN_S;
-# unconstrained apart from a finiteness guard, so estimation error passes
-# through untouched.
+# unconstrained apart from a finiteness guard.
 roll_ab <- function(x, y, s) {
   n <- length(x); a <- numeric(n); b <- numeric(n)
   half <- s %/% 2L
@@ -143,8 +129,7 @@ MS_CELLS <- list(
   list(scenario = "af", framing = "realign-smooth", prep = function(sc) { re <- realign(sc, "smoothed"); list(y1 = sc$y1, y2 = re$y2_re, diag = re$diag) })
 )
 
-# Default-seed caches keep their original names; any other seed pair gets its
-# own namespace, so a robustness rerun can never read a stale default cache.
+# Default-seed caches keep their original names; other seeds get a suffix.
 seed_tag <- {
   if (TREND_SEED == 6001L && NOISE_SEED == 1001L) ""
   else sprintf("-seed%d.%d", TREND_SEED, NOISE_SEED)
@@ -202,8 +187,7 @@ results <- list(
                 trend_seed = TREND_SEED, noise_seed = NOISE_SEED),
   table  = tab,
   cells  = c(lomad_rows, ms_rows),
-  # Recomputed here rather than read back from the cells: realignment is
-  # deterministic and fast, and the cached MSinference cells predate this.
+  # Recomputed rather than read from the cells, which predate this field.
   realignment = lapply(c(raw = "raw", smoothed = "smoothed"), function(k) {
     re <- realign(scen$af, k)
     list(a = re$map$a, b = re$map$b, diag = re$diag)

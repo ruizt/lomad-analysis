@@ -7,12 +7,10 @@
 ##   simulations/_img/sfig-realignment.png    simulated series and estimated maps
 ##   simulations/_tbl/stbl-realignment*.csv   rejections by scenario x method x framing
 ##
-## The table drops `stat`/`quant`: they are NA for lomad, and for MSinference
-## they sit on the multiscale-corrected scale (see design.md), which invites
-## cross-method comparison that is not meaningful. Both remain in the compiled
-## .rds. `flagged`/`total` count windows for lomad and (location, bandwidth)
-## grid points for MSinference; the denominators are not comparable across
-## methods, and only `reject` is.
+## `stat`/`quant` stay in the compiled .rds and out of the table: NA for lomad,
+## and on the multiscale-corrected scale for MSinference. `flagged`/`total`
+## count windows for lomad and grid points for MSinference, so only `reject`
+## compares across methods.
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/realignment/realignment-results.R
@@ -34,8 +32,7 @@ res <- readRDS("simulations/realignment/results/realignment-results.rds")
 n   <- res$params$n
 
 SERIES_PAL <- c(`1` = "#0072B2", `2` = "#D55E00")
-# Disjoint from SERIES_PAL: these identify estimates of the map, not series,
-# and reusing the series colors reads as a correspondence that is not there.
+# Disjoint from SERIES_PAL: these are estimates of the map, not series.
 REALIGN_PAL <- c(raw = "#CC79A7", smoothed = "#009E73")
 
 # Panels are stacked and aligned on time, as in fig-trends: only the bottom
@@ -82,9 +79,8 @@ panel_coef <- function(y, ylab, digits, title = NULL) {
 }
 
 # ---- what the correction recovers -------------------------------------------
-# Error rather than level, so the true map is the zero line by construction and
-# the comparison of interest -- error against the drift being corrected for --
-# is read off directly. The band spans the full range of the true b_t.
+# Error rather than level, so the true map is the zero line. The band spans
+# the full range of the true b_t.
 b_drift <- diff(range(res$scenarios$af$b))
 p_err <- bind_rows(
   tibble(t = seq_len(n), value = res$realignment$raw$b - res$scenarios$af$b,
@@ -142,9 +138,7 @@ format_table <- function(tab) {
 write.csv(format_table(res$table), file.path(TBL_DIR, "stbl-realignment.csv"),
           row.names = FALSE)
 
-# The alternate draw gets a table but no figure: it exists to show the showcase
-# pair is not a freak draw, and a second copy of the same layout would not say
-# anything the numbers do not.
+# Table only for the second draw; the figure would be a duplicate layout.
 ALT_SEED <- "-seed7307.2411"
 alt_path <- sprintf("simulations/realignment/results/realignment-results%s.rds",
                     ALT_SEED)
