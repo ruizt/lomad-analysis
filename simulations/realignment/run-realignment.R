@@ -1,13 +1,13 @@
-## run-comparison.R -- equality-based multiscale inference under local affine
+## run-realignment.R -- equality-based multiscale inference under local affine
 ## similarity, vs lomad. See design.md for the cell table.
 ##
 ## Outputs
 ##   results/_raw/ms-{scenario}-{framing}.rds   per-cell MSinference cache
-##   results/comparison-results.rds             compiled study object
+##   results/realignment-results.rds             compiled study object
 ##
 ## Usage (from the repo root):
-##   COMPARISON_DRY=1 Rscript simulations/comparison/run-comparison.R  # fast
-##   Rscript simulations/comparison/run-comparison.R                   # full
+##   REALIGNMENT_DRY=1 Rscript simulations/realignment/run-realignment.R  # fast
+##   Rscript simulations/realignment/run-realignment.R                   # full
 
 suppressPackageStartupMessages({library(lomad); library(MSinference)})
 
@@ -16,18 +16,23 @@ AFFINE_S <- 50L    # window the affine drift cap applies over (data generation)
 REALIGN_S <- 50L   # window for the rolling realignment given to MSinference
 SNR <- 0.5; PHI <- 0.5; ALPHA <- 0.05
 
-TREND_SEED <- 6001L; NOISE_SEED <- 1001L
-## Robustness: uncomment to redraw the whole study on an unrelated pair and
-## confirm the showcase series is not a freak draw. MSinference caches are
-## namespaced by seed, so this does not read the default-seed caches (and a
-## non-dry rerun will spend ~30-90 min per cell building new ones). The lomad
-## cells alone re-run in seconds under COMPARISON_DRY=1.
-# TREND_SEED <- 7307L; NOISE_SEED <- 2411L
+## Seeds are overridable so the study can be redrawn on an unrelated pair and
+## checked for a freak draw. Everything downstream -- MSinference caches and
+## the compiled object -- is namespaced by seed, so an alternate draw never
+## reads or overwrites the default one. The alternate draw reported alongside
+## the showcase pair is
+##
+##   REALIGNMENT_TREND_SEED=7307 REALIGNMENT_NOISE_SEED=2411
+##
+## Redrawing costs ~30-90 min per MSinference cell; the lomad cells alone
+## re-run in seconds under REALIGNMENT_DRY=1.
+TREND_SEED <- as.integer(Sys.getenv("REALIGNMENT_TREND_SEED", "6001"))
+NOISE_SEED <- as.integer(Sys.getenv("REALIGNMENT_NOISE_SEED", "1001"))
 
 SIM_RUNS <- as.integer(Sys.getenv("SIM_RUNS", "1000"))
-DRY      <- nzchar(Sys.getenv("COMPARISON_DRY"))
+DRY      <- nzchar(Sys.getenv("REALIGNMENT_DRY"))
 
-OUT_DIR <- "simulations/comparison/results"
+OUT_DIR <- "simulations/realignment/results"
 RAW_DIR <- file.path(OUT_DIR, "_raw")
 dir.create(RAW_DIR, showWarnings = FALSE, recursive = TRUE)
 
@@ -102,6 +107,7 @@ realign <- function(sc, from = c("raw", "smoothed")) {
   map <- if (from == "raw") roll_ab(sc$y1, sc$y2, REALIGN_S)
          else roll_ab(ma(sc$y1, H), ma(sc$y2, H), REALIGN_S)
   list(y2_re = (sc$y2 - map$a) / map$b,
+       map = map,
        diag = list(b_mean = mean(map$b), b_range = range(map$b),
                    b_sd = stats::sd(map$b), b_negative = sum(map$b < 0),
                    true_b_range = range(sc$tr$b)))
@@ -196,10 +202,16 @@ results <- list(
                 trend_seed = TREND_SEED, noise_seed = NOISE_SEED),
   table  = tab,
   cells  = c(lomad_rows, ms_rows),
+  # Recomputed here rather than read back from the cells: realignment is
+  # deterministic and fast, and the cached MSinference cells predate this.
+  realignment = lapply(c(raw = "raw", smoothed = "smoothed"), function(k) {
+    re <- realign(scen$af, k)
+    list(a = re$map$a, b = re$map$b, diag = re$diag)
+  }),
   scenarios = lapply(scen, function(sc)
     list(y1 = sc$y1, y2 = sc$y2, x1 = sc$tr$x1, x2 = sc$tr$x2,
          a = sc$tr$a, b = sc$tr$b)))
-saveRDS(results, file.path(OUT_DIR, "comparison-results.rds"))
+saveRDS(results, file.path(OUT_DIR, sprintf("realignment-results%s.rds", seed_tag)))
 
 print(tab, row.names = FALSE, digits = 3)
-if (any(is.na(tab$reject))) message("\npending cells remain; rerun without COMPARISON_DRY=1")
+if (any(is.na(tab$reject))) message("\npending cells remain; rerun without REALIGNMENT_DRY=1")

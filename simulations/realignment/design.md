@@ -1,4 +1,4 @@
-# Comparison Study Design
+# Realignment Study Design
 
 ## Purpose
 
@@ -81,7 +81,7 @@ guard; $\hat b_t$ diagnostics (range, sd, sign flips) are recorded per cell.
 
 An optional fifth MSinference cell (`eq` + raw realignment: realignment breaks
 the test even when no map needs removing) can be added to `MS_CELLS` in
-`run-comparison.R` if a referee asks.
+`run-realignment.R` if a referee asks.
 
 ## Endpoints
 
@@ -122,32 +122,34 @@ correction.
 
 Note that `multiscale_test()` reports `stat` as a `max()` over a pairwise
 matrix padded with structural zeros, which floors the value at 0 for `n_ts = 2`;
-`run-comparison.R` extracts the true $(1,2)$ pairwise statistic instead. Test
+`run-realignment.R` extracts the true $(1,2)$ pairwise statistic instead. Test
 decisions are unaffected, since the critical value is positive.
 
 ## Expected outputs
 
-- `results/_raw/ms-{scenario}-{framing}.rds` — one cached file per MSinference
-  cell (slow: ~30 min each at `sim_runs = 1000`); gitignored, archived with
-  the other raw results on Zenodo
-- `results/comparison-results.rds` — compiled study object, tracked
-- `../_img/fig-comparison.png`, `../_tbl/tbl-comparison.csv` — via
-  `comparison-results.R`
+- `results/_raw/ms-{scenario}-{framing}[-seed{t}.{n}].rds` — one cached file per
+  MSinference cell (slow: ~30-90 min each at `sim_runs = 1000`); gitignored,
+  archived with the other raw results on Zenodo
+- `results/realignment-results[-seed{t}.{n}].rds` — compiled study object, one
+  per draw, both tracked
+- `../_img/sfig-realignment.png` (showcase draw only),
+  `../_tbl/stbl-realignment.csv`, `../_tbl/stbl-realignment-seed7307.2411.csv` —
+  via `realignment-results.R`
 
 ## Workflow
 
 ```bash
 # Development / fast pass: lomad cells only, MSinference cells left pending
-COMPARISON_DRY=1 Rscript simulations/comparison/run-comparison.R
+REALIGNMENT_DRY=1 Rscript simulations/realignment/run-realignment.R
 
 # Full run: executes any MSinference cell without a cache file (~2 h total)
-Rscript simulations/comparison/run-comparison.R
+Rscript simulations/realignment/run-realignment.R
 
 # Smoke test of the MSinference harness (coarse quantile, ~6 min/cell)
-SIM_RUNS=50 Rscript simulations/comparison/run-comparison.R
+SIM_RUNS=50 Rscript simulations/realignment/run-realignment.R
 
 # Figure and table from the compiled object
-Rscript simulations/comparison/comparison-results.R
+Rscript simulations/realignment/realignment-results.R
 ```
 
 Cached cells are never recomputed; delete the corresponding file in
@@ -156,14 +158,26 @@ stamped as such and must be deleted before the full run (the runner warns).
 
 ### Robustness to the draw
 
-The study rests on one series pair, so `run-comparison.R` carries a
-commented-out alternative seed pair for confirming the showcase pair is not a
-freak draw. Uncommenting it redraws everything; the lomad cells rerun in
-seconds under `COMPARISON_DRY=1`. MSinference caches are namespaced by seed, so
-a redraw cannot silently read default-seed results — but a full redraw does
-mean paying for four fresh MSinference cells.
+The study rests on one series pair, so it is also run on an unrelated draw to
+confirm the showcase pair is not a freak one:
+
+```bash
+REALIGNMENT_TREND_SEED=7307 REALIGNMENT_NOISE_SEED=2411 \
+  Rscript simulations/realignment/run-realignment.R
+```
+
+Both the MSinference caches and the compiled object are namespaced by seed, so
+an alternate draw never reads or overwrites the default one. The alternate
+draw is reported as a table only; a second copy of the figure would not say
+anything the numbers do not.
+
+The alternate draw lands at the 14th percentile of realized slope drift
+against the showcase pair's 54th (measured over 200 draws at
+`affine_cap = 0.015`), which makes it the more informative of the two: global
+standardization is *adequate* there, and local realignment still fails, which
+separates the failure of the repair from the size of the drift being repaired.
 
 Note that `sim_trends()` consumes RNG differently depending on argument
 *type*: `affine_s = 50` and `affine_s = 50L` yield different trends from the
-same seed. The integer literals in `run-comparison.R` are therefore
+same seed. The integer literals in `run-realignment.R` are therefore
 load-bearing for reproducing the cached cells.
