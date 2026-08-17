@@ -363,7 +363,7 @@ p_rho <- ggplot() +
   geom_line(data = rho_df[rho_df$type == "empirical", ],
             aes(t, rho), colour = "grey30", linewidth = 0.4, alpha = 0.8) +
   geom_line(data = rho_df[rho_df$type == "theoretical", ],
-            aes(t, rho), colour = col_th, linewidth = 0.4, alpha = 0.8) +
+            aes(t, rho), colour = col_th, linewidth = 0.2, alpha = 0.8) +
   # empty layer, drawn only to build the legend
   geom_line(data = data.frame(
               x = c(NA, NA), y = c(NA, NA),
