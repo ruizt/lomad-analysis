@@ -10,6 +10,7 @@
 ##   fig-affine-similarity.png   local level and amplitude differences
 ##   fig-mb-example.png          the vignette's worked example
 ##   fig-mb-seasonality.png      monthly detection rate over a phenology raster
+##   fig-mb-reconstruction.png   pooled vs local DO->pH relationship, by state
 ##   sfig-mb-detections.png      every fitted block, both stations
 ##
 ## Outputs -> _mb-data/
@@ -547,12 +548,12 @@ p_ex_up <- ggplot() +
   scale_colour_manual(values = VAR_PAL, name = NULL) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
   fig_theme() +
-  theme(legend.position = c(0.995, 0.98), legend.justification = c(1, 1),
-        legend.direction = "vertical",
-        legend.background = element_rect(fill = alpha("white", 0.75), colour = NA),
+  theme(legend.position = c(1, 1), legend.justification = c(1, 1),
+        legend.direction = "horizontal",
+        legend.background = element_rect(fill = NA, colour = NA),
         legend.key.width = unit(0.22, "in"),
         axis.text.x = element_blank(), axis.text.y = element_blank()) +
-  labs(x = NULL, y = "Moving average")
+  labs(x = NULL, y = expression(Y[t]))
 
 # Band between rho and the critical value below which R is flagged; both move
 # with t.
@@ -567,11 +568,11 @@ p_ex_lo <- ggplot() +
   geom_line(data = ex_d, aes(datetime, R), colour = "grey15", linewidth = LW_MA) +
   scale_x_datetime(date_breaks = "2 weeks", date_labels = "%d %b") +
   fig_theme() +
-  labs(x = NULL, y = "Correlation series")
+  labs(x = NULL, y = expression(R[t]))
 
 ggsave(file.path(img_out, "fig-mb-example.png"),
        p_ex_up / p_ex_lo + plot_layout(heights = c(1.35, 1)),
-       width = 5, height = 3, dpi = 450)
+       width = 3.5, height = 2, dpi = 450)
 
 # =============================================================================
 # sfig-mb-detections.png
@@ -731,11 +732,153 @@ plt_seas <- p_seas / p_ras + plot_layout(heights = c(1.9, 5))
 ggsave(file.path(img_out, "fig-mb-seasonality.png"), plt_seas,
        width = 5, height = 3.5, dpi = 450)
 
+# =============================================================================
+# fig-mb-reconstruction.png
+# A pooled DO->pH fit hides the local breakdown that raises prediction error.
+# =============================================================================
+
+CV_K      <- 50L     # random splits
+CV_TEST   <- 0.2     # held out per split
+BW_ADJ    <- 1.5     # kde bandwidth; windows overlap, so the default undersmooths
+COUPLED   <- "grey45"
+DECOUP    <- setNames(c("#C44E52", "#4C72B0"), STATION_NAME)
+
+rec <- aligned |> filter(!is.na(o2), !is.na(ph)) |>
+  arrange(location, block_id, datetime)
+rec_key <- paste(rec$location, rec$block_id)
+
+# rolling sum over the S_WIN rows ending at each position
+roll_sum <- function(v, s) {
+  cs <- c(0, cumsum(v)); n <- length(v); out <- rep(NA_real_, n)
+  if (n >= s) out[s:n] <- cs[(s:n) + 1] - cs[(s:n) - s + 1]
+  out
+}
+
+# within-window correlation of the raw pair
+rec$w_r <- NA_real_
+for (k in unique(rec_key)) {
+  i <- which(rec_key == k); if (length(i) < S_WIN) next
+  x <- rec$o2[i]; y <- rec$ph[i]; r <- rep(NA_real_, length(i))
+  for (t in S_WIN:length(i)) {
+    w <- (t - S_WIN + 1L):t
+    if (sd(x[w]) > 0 && sd(y[w]) > 0) r[t] <- cor(x[w], y[w])
+  }
+  rec$w_r[i] <- r
+}
+
+# Per-station line fit on training observations only; each window's error uses
+# only the held-out observations inside it, so nothing informs its own window.
+set.seed(4471)
+cv_mat <- matrix(NA_real_, nrow(rec), CV_K)
+for (j in seq_len(CV_K)) {
+  test <- runif(nrow(rec)) < CV_TEST
+  fit  <- rec[!test, ] |> group_by(location) |>
+    summarise(b0 = coef(lm(ph ~ o2))[1], b1 = coef(lm(ph ~ o2))[2], .groups = "drop")
+  m  <- match(rec$location, fit$location)
+  e2 <- ifelse(test, (rec$ph - (fit$b0[m] + fit$b1[m] * rec$o2))^2, 0)
+  for (k in unique(rec_key)) {
+    i <- which(rec_key == k); if (length(i) < S_WIN) next
+    num <- roll_sum(e2[i], S_WIN); den <- roll_sum(as.numeric(test[i]), S_WIN)
+    cv_mat[i, j] <- ifelse(!is.na(den) & den > 0, sqrt(num / den), NA_real_)
+  }
+}
+rec$cv_rmspe <- rowMeans(cv_mat, na.rm = TRUE)
+
+rec <- rec |> filter(is.finite(cv_rmspe), !is.na(w_r)) |>
+  mutate(station = factor(STATION_NAME[location], levels = STATION_NAME),
+         state   = factor(ifelse(rejected, "decoupled", "coupled"),
+                          levels = c("coupled", "decoupled")),
+         col     = ifelse(state == "coupled", COUPLED, DECOUP[as.character(station)]),
+         lcol    = ifelse(state == "coupled", "grey65", DECOUP[as.character(station)]))
+
+rec_pooled <- rec |> group_by(station) |> summarise(r = cor(o2, ph), .groups = "drop")
+
+rec_lab <- rec |> group_by(station, state, col) |>
+  summarise(r = cor(o2, ph), n = n(), .groups = "drop") |>
+  mutate(lab = sprintf("%s:  r = %.2f  (n = %s)", state, r, format(n, big.mark = ",")),
+         vj  = ifelse(state == "coupled", -8.2, -6.7))
+
+p_rec_scatter <- ggplot(rec, aes(o2, ph, colour = col)) +
+  geom_point(data = ~filter(.x, state == "coupled"),   size = 0.55, stroke = 0, alpha = 0.18) +
+  geom_point(data = ~filter(.x, state == "decoupled"), size = 0.70, stroke = 0, alpha = 0.55) +
+  geom_smooth(aes(colour = lcol), method = "lm", formula = y ~ x,
+              se = FALSE, linewidth = 0.6) +
+  geom_text(data = rec_lab, aes(x = Inf, y = -Inf, label = lab, vjust = vj),
+            hjust = 1.04, size = ANNOT, show.legend = FALSE) +
+  facet_wrap(~station) +
+  scale_colour_identity() +
+  labs(x = NULL, y = "pH ~ DO") +
+  fig_theme() +
+  theme(axis.text = element_blank(),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        strip.text = element_text(size = PT$title))
+
+p_rec_dens <- ggplot(rec, aes(w_r, fill = col, colour = col)) +
+  geom_density(alpha = 0.35, linewidth = 0.35, adjust = BW_ADJ) +
+  geom_vline(data = rec_pooled, aes(xintercept = r), inherit.aes = FALSE,
+             linetype = "dashed", colour = "grey25", linewidth = 0.4) +
+  geom_text(data = rec_pooled, aes(x = r, y = Inf, label = "pooled"),
+            inherit.aes = FALSE, hjust = 1.12, vjust = 1.6,
+            size = ANNOT, colour = "grey25") +
+  facet_wrap(~station) +
+  scale_colour_identity() + scale_fill_identity() +
+  # baseline drawn in data space so it stops at the limits, not the panel edge
+  annotate("segment", x = -1, xend = 1, y = 0, yend = 0,
+           linewidth = 0.25, colour = "grey40") +
+  scale_x_continuous(limits = c(-1, 1), breaks = c(-1, 0, 1)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  labs(x = NULL, y = "local correlation") +
+  fig_theme() +
+  theme(strip.text = element_blank(),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+        axis.ticks.x = element_line(linewidth = 0.25, colour = "grey40"),
+        axis.ticks.length.x = unit(1.5, "pt"))
+
+rec_ratio <- rec |> group_by(station, state) |>
+  summarise(m = mean(cv_rmspe), .groups = "drop") |>
+  pivot_wider(names_from = state, values_from = m) |>
+  mutate(lab = sprintf("%.2f\u00d7 increase", decoupled / coupled),
+         col = DECOUP[as.character(station)]) |>
+  # rests on the top edge of the decoupled box
+  left_join(rec |> filter(state == "decoupled") |> group_by(station) |>
+              summarise(y = as.numeric(quantile(cv_rmspe, 0.75)), .groups = "drop"),
+            by = "station")
+
+p_rec_err <- ggplot(rec, aes(state, cv_rmspe, fill = col)) +
+  geom_boxplot(outlier.size = 0.2, outlier.alpha = 0.2, linewidth = 0.3,
+               width = 0.5, colour = "grey25") +
+  geom_text(data = rec_ratio, aes(x = 1, y = y, label = lab, colour = col),
+            inherit.aes = FALSE, hjust = -0.06, vjust = -0.6, size = ANNOT) +
+  facet_wrap(~station) +
+  scale_fill_identity() + scale_colour_identity() +
+  scale_x_discrete(limits = c("decoupled", "coupled")) +
+  labs(x = NULL, y = "local RMSPE") +
+  fig_theme() +
+  theme(strip.text = element_blank(), panel.grid.major.x = element_blank())
+
+plt_rec <- (p_rec_scatter / p_rec_dens / p_rec_err) +
+  plot_layout(heights = c(1.1, 0.8, 0.8))
+ggsave(file.path(img_out, "fig-mb-reconstruction.png"), plt_rec,
+       width = 5.4, height = 6.2, units = "in", dpi = 450)
+
+cat("\nLocal RMSPE, decoupled / coupled:\n")
+for (k in seq_len(nrow(rec_ratio)))
+  cat(sprintf("  %-16s %.3f / %.3f = %.2f\n", rec_ratio$station[k],
+              rec_ratio$decoupled[k], rec_ratio$coupled[k],
+              rec_ratio$decoupled[k] / rec_ratio$coupled[k]))
+cat(sprintf("  %-16s %.3f / %.3f = %.2f\n", "pooled",
+            mean(rec$cv_rmspe[rec$state == "decoupled"]),
+            mean(rec$cv_rmspe[rec$state == "coupled"]),
+            mean(rec$cv_rmspe[rec$state == "decoupled"]) /
+              mean(rec$cv_rmspe[rec$state == "coupled"])))
+
 # Only when someone is watching: printing under Rscript opens a device and
 # leaves an Rplots.pdf behind.
 if (interactive()) {
   print(plt_fits)
   print(plt_seas)
+  print(plt_rec)
 }
 
 cat("\nFigures written to ", img_out, "\n", sep = "")
