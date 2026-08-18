@@ -2,6 +2,7 @@
 ##
 ## Inputs
 ##   _mb-data/ph_o2_blocks.csv          from mb-analysis/process_blocks.R
+##   _mb-data/scale_constants.csv       ditto; puts pH results in measured units
 ##   lomad::morro_bay                   the installed package's example block
 ##   _map/tl_2023_06079_areawater.shp   TIGER/Line, downloaded on first run
 ##
@@ -740,6 +741,11 @@ ggsave(file.path(img_out, "fig-mb-seasonality.png"), plt_seas,
 CV_K      <- 50L     # random splits
 CV_TEST   <- 0.2     # held out per split
 BW_ADJ    <- 1.5     # kde bandwidth; windows overlap, so the default undersmooths
+# R_t is a correlation of moving averages, so its support runs back a further
+# h - 1 observations than the s the correlation is taken over.
+W_RAW     <- S_WIN + H_WIN - 1L
+PH_SCALE  <- read_csv("_mb-data/scale_constants.csv", show_col_types = FALSE) |>
+  filter(variable == "ph") |> pull(scale)
 COUPLED   <- "grey45"
 DECOUP    <- setNames(c("#C44E52", "#4C72B0"), STATION_NAME)
 
@@ -747,7 +753,7 @@ rec <- aligned |> filter(!is.na(o2), !is.na(ph)) |>
   arrange(location, block_id, datetime)
 rec_key <- paste(rec$location, rec$block_id)
 
-# rolling sum over the S_WIN rows ending at each position
+# rolling sum over the W_RAW rows ending at each position
 roll_sum <- function(v, s) {
   cs <- c(0, cumsum(v)); n <- length(v); out <- rep(NA_real_, n)
   if (n >= s) out[s:n] <- cs[(s:n) + 1] - cs[(s:n) - s + 1]
@@ -757,10 +763,10 @@ roll_sum <- function(v, s) {
 # within-window correlation of the raw pair
 rec$w_r <- NA_real_
 for (k in unique(rec_key)) {
-  i <- which(rec_key == k); if (length(i) < S_WIN) next
+  i <- which(rec_key == k); if (length(i) < W_RAW) next
   x <- rec$o2[i]; y <- rec$ph[i]; r <- rep(NA_real_, length(i))
-  for (t in S_WIN:length(i)) {
-    w <- (t - S_WIN + 1L):t
+  for (t in W_RAW:length(i)) {
+    w <- (t - W_RAW + 1L):t
     if (sd(x[w]) > 0 && sd(y[w]) > 0) r[t] <- cor(x[w], y[w])
   }
   rec$w_r[i] <- r
@@ -777,12 +783,12 @@ for (j in seq_len(CV_K)) {
   m  <- match(rec$location, fit$location)
   e2 <- ifelse(test, (rec$ph - (fit$b0[m] + fit$b1[m] * rec$o2))^2, 0)
   for (k in unique(rec_key)) {
-    i <- which(rec_key == k); if (length(i) < S_WIN) next
-    num <- roll_sum(e2[i], S_WIN); den <- roll_sum(as.numeric(test[i]), S_WIN)
+    i <- which(rec_key == k); if (length(i) < W_RAW) next
+    num <- roll_sum(e2[i], W_RAW); den <- roll_sum(as.numeric(test[i]), W_RAW)
     cv_mat[i, j] <- ifelse(!is.na(den) & den > 0, sqrt(num / den), NA_real_)
   }
 }
-rec$cv_rmspe <- rowMeans(cv_mat, na.rm = TRUE)
+rec$cv_rmspe <- PH_SCALE * rowMeans(cv_mat, na.rm = TRUE)
 
 rec <- rec |> filter(is.finite(cv_rmspe), !is.na(w_r)) |>
   mutate(station = factor(STATION_NAME[location], levels = STATION_NAME),
@@ -853,21 +859,22 @@ p_rec_err <- ggplot(rec, aes(state, cv_rmspe, fill = col)) +
   facet_wrap(~station) +
   scale_fill_identity() + scale_colour_identity() +
   scale_x_discrete(limits = c("decoupled", "coupled")) +
-  labs(x = NULL, y = "local RMSPE") +
+  scale_y_continuous(breaks = c(0.05, 0.10, 0.15)) +
+  labs(x = NULL, y = "local RMSPE (pH)") +
   fig_theme() +
   theme(strip.text = element_blank(), panel.grid.major.x = element_blank())
 
 plt_rec <- (p_rec_scatter / p_rec_dens / p_rec_err) +
   plot_layout(heights = c(1.1, 0.8, 0.8))
 ggsave(file.path(img_out, "fig-mb-reconstruction.png"), plt_rec,
-       width = 5.4, height = 6.2, units = "in", dpi = 450)
+       width = 5.5, height = 6, units = "in", dpi = 450)
 
-cat("\nLocal RMSPE, decoupled / coupled:\n")
+cat("\nLocal RMSPE (pH units), decoupled / coupled:\n")
 for (k in seq_len(nrow(rec_ratio)))
-  cat(sprintf("  %-16s %.3f / %.3f = %.2f\n", rec_ratio$station[k],
+  cat(sprintf("  %-16s %.4f / %.4f = %.2f\n", rec_ratio$station[k],
               rec_ratio$decoupled[k], rec_ratio$coupled[k],
               rec_ratio$decoupled[k] / rec_ratio$coupled[k]))
-cat(sprintf("  %-16s %.3f / %.3f = %.2f\n", "pooled",
+cat(sprintf("  %-16s %.4f / %.4f = %.2f\n", "pooled",
             mean(rec$cv_rmspe[rec$state == "decoupled"]),
             mean(rec$cv_rmspe[rec$state == "coupled"]),
             mean(rec$cv_rmspe[rec$state == "decoupled"]) /

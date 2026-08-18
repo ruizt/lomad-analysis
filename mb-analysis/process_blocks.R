@@ -8,6 +8,8 @@
 #
 # Output
 #   _mb-data/ph_o2_blocks.csv     hourly, blocked, standardized; the analysis input
+#   _mb-data/scale_constants.csv  the location/scale used, so downstream work can
+#                                 report results in the measured units
 #
 # The QA'd record is produced by the mb-qartod repository. Copy it into
 # _mb-data/ before running this; nothing here reaches outside the repository.
@@ -89,6 +91,11 @@ hourly <- wp |>
 # with each other downstream, so a per-block standardization would remove
 # exactly the between-block differences the analysis looks at.
 
+scale_constants <- hourly |>
+  summarise(across(all_of(block_vars),
+                   list(center = \(x) mean(x), scale = \(x) sd(x)))) |>
+  pivot_longer(everything(), names_to = c("variable", ".value"), names_sep = "_")
+
 hourly <- hourly |>
   mutate(across(all_of(block_vars), \(x) as.numeric(scale(x))))
 
@@ -134,4 +141,8 @@ print(summary_tbl, n = Inf)
 
 out_path <- fs::path(out_dir, "ph_o2_blocks.csv")
 write_csv(blocks, out_path)
+
+const_path <- fs::path(out_dir, "scale_constants.csv")
+write_csv(scale_constants, const_path)
+message(sprintf("Wrote %s", const_path))
 message("Wrote ", out_path)
