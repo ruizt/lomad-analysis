@@ -10,8 +10,8 @@
 ##   fig-mb-sites-coupling.png   site map, both stations, coupled -> decoupled
 ##   fig-affine-similarity.png   local level and amplitude differences
 ##   fig-mb-example.png          the vignette's worked example
-##   fig-mb-seasonality.png      monthly detection rate over a phenology raster
-##   fig-mb-reconstruction.png   pooled vs local DO->pH relationship, by state
+##   fig-mb-patterns.png         monthly detection rate over a phenology raster
+##   fig-mb-posthoc.png          pooled vs local DO->pH relationship, by state
 ##   sfig-mb-detections.png      every fitted block, both stations
 ##
 ## Outputs -> _mb-data/
@@ -670,7 +670,7 @@ ggsave(file.path(img_out, "sfig-mb-detections.png"), plt_fits,
        width = 10, height = 5, dpi = 450)
 
 # =============================================================================
-# fig-mb-seasonality.png
+# fig-mb-patterns.png
 # Pooled monthly rate over a phenology raster: day of year across, year down.
 # Grey is every window the test decided on.
 # =============================================================================
@@ -766,11 +766,11 @@ p_rate <- ggplot() +
   labs(x = NULL, y = NULL) + theme_void(base_size = PT$title)
 
 plt_seas <- p_seas / p_ras / p_rate + plot_layout(heights = c(1.9, 5, 0.85))
-ggsave(file.path(img_out, "fig-mb-seasonality.png"), plt_seas,
+ggsave(file.path(img_out, "fig-mb-patterns.png"), plt_seas,
        width = SEAS_W, height = 3.9, dpi = 450)
 
 # =============================================================================
-# fig-mb-reconstruction.png
+# fig-mb-posthoc.png
 # A pooled DO->pH fit hides the local breakdown that raises prediction error.
 # =============================================================================
 
@@ -902,7 +902,7 @@ p_rec_err <- ggplot(rec, aes(state, cv_rmspe, fill = col)) +
 
 plt_rec <- (p_rec_scatter / p_rec_dens / p_rec_err) +
   plot_layout(heights = c(1.1, 0.8, 0.8))
-ggsave(file.path(img_out, "fig-mb-reconstruction.png"), plt_rec,
+ggsave(file.path(img_out, "fig-mb-posthoc.png"), plt_rec,
        width = 5.5, height = 6, units = "in", dpi = 450)
 
 cat("\nLocal RMSPE (pH units), decoupled / coupled:\n")
