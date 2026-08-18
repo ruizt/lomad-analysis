@@ -1,8 +1,6 @@
 ## simulation-results.R -- figures and tables for the simulation studies
 ##
-## Reads compiled summaries only, never raw per-job files, so it runs in
-## seconds. The expensive stages are simulations/<study>/collect-results.R and
-## simulations/power/collect-results.R.
+## Reads compiled summaries only; the collect-results.R scripts do the work.
 ##
 ## Inputs
 ##   simulations/power/results/simulations-power-curves.rds
@@ -40,8 +38,7 @@ alpha   <- 0.05
 dir.create(IMG_DIR, showWarnings = FALSE, recursive = TRUE)
 dir.create(TBL_DIR, showWarnings = FALSE, recursive = TRUE)
 
-# Keyed by internal code, not display label: a named vector spliced into
-# another named vector via c() gets its names silently mangled.
+# Keyed by internal code: c() mangles names when splicing named vectors.
 STRUCT_FULL <- c(fr = "Fixed Rate", rs = "Random Separation",
                   rm = "Random Mixing")
 STRUCT_ABBR <- c(fr = "FR", rs = "RS", rm = "RM")
@@ -62,20 +59,13 @@ rate     <- 0.01    # event rate r
 
 seed_coef <- 2847   # Fourier base, shared across panels
 
-# The affine layer is illustrative, not the study's calibration: the cap is
-# 5% per window against the sweep's 1.5%, and map_seed is picked so a_t rises
-# and b_t falls monotonically. At the sweep's settings the drift is too small
-# to see at this scale.
+# Illustrative settings, not the sweep's: the cap is 5% per window, and
+# map_seed gives a monotone a_t and b_t.
 cap      <- 0.05
 a_mult   <- 0.9     # a_t amplitude, as a multiple of a trend's sd
 map_seed <- 40
 
-# One d for every structure, unlike the power study, which scales d per
-# structure to put them on a common delta_t. Here the base pair is drawn behind
-# each panel, and a per-structure d would leave the mixed trends short of it
-# even where w_t = 0 -- FR reaches only 45% of the backdrop at d = 0.45 d. The
-# columns are then not on a common delta_t, which an illustration of *where*
-# separation falls does not need.
+# One d for every structure, so each column meets the backdrop at w_t = 0.
 struct_args <- list(
   dist = list(),
   fr   = list(rate = rate, bump = "gaussian"),
@@ -88,10 +78,8 @@ set.seed(map_seed)
 a_t <- a_mult * amp * lomad:::.make_affine_walk(n, 20L, bw = 0.5, cap = cap)
 b_t <- 1 + lomad:::.make_affine_walk(n, 20L, bw = 0.5, cap = cap)
 
-# Each structure twice: once without the affine layer, once with. The map runs
-# after the mixing, so the middle row is the pre-map state and only x2 differs
-# between the two. `dist` has w == 0 throughout, giving the uncoupled pair the
-# other columns are drawn against.
+# Each structure twice, without and with the affine layer. `dist` has w == 0
+# throughout and supplies the backdrop.
 trends <- lapply(setNames(nm = names(struct_args)), function(code) {
   base <- list(n, d = d, method = code, seed = seed_coef)
   list(pre  = do.call(sim_trends, c(base, struct_args[[code]])),
@@ -120,16 +108,13 @@ theme_panel <- theme_minimal(base_size = PT$title) +
 bare_y <- theme(axis.title.y = element_blank(), axis.text.y = element_blank(),
                 axis.ticks.y = element_blank())
 
-# The uncoupled pair, drawn behind every mixed panel. Mixing pulls the trends in
-# toward their mean, so the coloured pair meets the backdrop exactly where
-# w_t = 0 and collapses onto the midline where w_t = 1.
+# The uncoupled pair, drawn behind every mixed panel.
 backdrop <- data.frame(t = seq_len(n),
                        x1 = trends[["dist"]]$pre$x1,
                        x2 = trends[["dist"]]$pre$x2) |>
   pivot_longer(c(x1, x2), names_to = "series", values_to = "value")
 
-# x1/x2 share the structure's colour: the panel is about the structure, not
-# about which series is which.
+# x1/x2 share the structure's colour.
 panel_trends <- function(x1, x2, colour, ylab, bg = FALSE, key = FALSE) {
   p <- data.frame(t = seq_len(n), x1 = x1, x2 = x2) |>
     pivot_longer(c(x1, x2), names_to = "series", values_to = "value") |>
@@ -141,7 +126,7 @@ panel_trends <- function(x1, x2, colour, ylab, bg = FALSE, key = FALSE) {
     scale_y_continuous(limits = y_lim) +
     labs(y = ylab) +
     theme_panel
-  # coloured to match the backdrop, so it needs no swatch
+  # coloured to match the backdrop
   if (key)
     p <- p + annotate("text", x = 0.0 * n, y = y_lim[1],
                       label = "'grey = base trends'~mu[it]", parse = TRUE,
@@ -161,8 +146,7 @@ panel_wt <- function(tr, colour, title) {
     theme_panel
 }
 
-# Ticks at the limits only: the strips are too short for an interior break to
-# read, and the pair of endpoints is all the scale a reader needs here.
+# Ticks at the limits only; the strips are too short for interior breaks.
 panel_coef <- function(y, ylab, limits) {
   ggplot(data.frame(t = seq_len(n), y = y), aes(t, y)) +
     geom_line(linewidth = 0.4, colour = "grey25", alpha = 0.9) +
@@ -173,14 +157,8 @@ panel_coef <- function(y, ylab, limits) {
 
 struct_title <- function(code) paste0(STRUCT_FULL[[code]], " (", STRUCT_ABBR[[code]], ")")
 
-# The a_t / b_t strips are the same series in all three columns. Repeating them
-# above each rescaled panel rather than drawing them once costs nothing and
-# keeps every column readable on its own. They lead the bottom half so each
-# column reads as map then effect, the order the generator applies them in.
-#
-# Titles ride on the w_t row so they head the whole column.
-#
-# nu* is mixed but not yet rescaled; the bottom row's nu is the final trend.
+# a_t / b_t repeat in every column. Titles ride on the w_t row so they head
+# the column. nu* is mixed but not rescaled; nu is the final trend.
 column <- function(code) {
   tr     <- trends[[code]]
   colour <- STRUCT_HEX[[code]]
@@ -196,16 +174,14 @@ column <- function(code) {
   if (code == "fr") p else p & bare_y
 }
 
-# No `widths`: patchwork allocates the null (panel) space and leaves the axis
-# furniture outside it, so equal weights already give equal panels. Weighting
-# the labelled column up skews them instead.
+# No `widths`: patchwork sizes the null (panel) space, so equal weights
+# already give equal panels.
 fig_trends <- column("fr") | column("rs") | column("rm")
 
 ggsave(file.path(IMG_DIR, "fig-trends.png"),
-       fig_trends, width = 6, height = 3, units = "in", dpi = 450)
+       fig_trends, width = 5.5, height = 3, units = "in", dpi = 450)
 
 })
-
 
 # =============================================================================
 # fig-power.png, panel A -- local power against realized separation
@@ -219,9 +195,7 @@ p_power <- local({
            lo = pmax(0, rejection - Z_LEVEL * se),
            hi = pmin(1, rejection + Z_LEVEL * se))
 
-  # delta_t = 1 is an atom, not the end of the mesh: under b > 0 every window
-  # whose trends reverse maps there exactly. Drawn as a separate point so the
-  # curve is not read as turning up at the boundary.
+  # delta_t = 1 is an atom; drawn as a point, not the end of the curve.
   cont <- filter(cv, !atom)
   at   <- filter(cv, atom) |> mutate(delta_mean = 1)
 
@@ -258,17 +232,11 @@ p_power <- local({
           panel.grid.major = element_line(linewidth = 0.1, colour = "darkgray"))
 })
 
-
 # =============================================================================
 # fig-power.png, panel B -- classification accuracy against the decoupling
 # threshold, and tbl-localization-auc.csv
 # =============================================================================
 
-# Read against panel A, not on its own. Precision and NPV both condition on the
-# decision, so they answer "given a flag, was it right" and are silent on what
-# was missed. Where power is low the surviving rejections concentrate on the
-# largest separations, which holds precision up: the s = 50, phi = 0.7 cells
-# score around 0.9 while flagging under 3% of windows.
 p_local <- local({
   roc <- readRDS("simulations/power/results/simulations-power-roc.rds") |>
     mutate(Structure = factor(STRUCT_ABBR[struct], levels = STRUCT_ABBR),
@@ -309,15 +277,13 @@ p_local <- local({
           panel.grid.major = element_line(linewidth = 0.1, colour = "darkgray"))
 })
 
-
 # =============================================================================
 # fig-power.png -- the two panel sets stacked
 # =============================================================================
 
 local({
-  # guides = "collect" merges only identical guides and panel A also maps
-  # fill, so suppress on B and C instead -- via guides(), which the trailing
-  # `&` cannot override.
+  # guides = "collect" merges identical guides only, and panel A also maps
+  # fill; suppress on B and C via guides(), which a trailing `&` cannot undo.
   drop_guide <- guides(colour = "none", fill = "none")
 
   composite <-
@@ -328,10 +294,9 @@ local({
     theme(legend.position = "bottom")
 
   out <- file.path(IMG_DIR, "fig-power.png")
-  ggsave(out, composite, width = 6, height = 7, dpi = 450)
+  ggsave(out, composite, width = 5.5, height = 6, dpi = 450)
   cat(sprintf("\nWrote %s\n", out))
 })
-
 
 # =============================================================================
 # fig-validation.png -- finite-sample accuracy of the CLT and of the plug-in
@@ -339,6 +304,14 @@ local({
 
 local({
   results <- readRDS("simulations/validation/results/simulations-validation-results.rds")
+
+# Experiments are keyed <type>-s<window>; look up by type.
+exp_of <- function(type) {
+  id <- grep(paste0("^", type, "-"), names(results), value = TRUE)
+  if (length(id) != 1L)
+    stop("expected exactly one '", type, "' experiment, found ", length(id))
+  results[[id]]
+}
 
 base_theme <- theme_minimal(base_size = PT$title) +
   theme(panel.grid.minor = element_blank()) +
@@ -349,47 +322,15 @@ col_emp <- "grey60"
 col_oracle   <- "#0072B2"
 col_pipeline <- "#D55E00"
 
-# ---- CLT QQ plots, oracle, faceted by s -------------------------------------
-
-clt_ids <- grep("^clt-", names(results), value = TRUE)
-
-qq_list <- lapply(clt_ids, function(id) {
-  r     <- results[[id]]
-  R_vec <- r$R_vec[!is.na(r$R_vec)]
-  Z     <- sqrt(r$s) * (R_vec - r$rho_oracle) / sqrt(r$V_oracle)
-  nn    <- length(Z)
-
-  data.frame(
-    theoretical = qnorm(ppoints(nn)),
-    empirical   = sort(Z),
-    s_label     = sprintf("s = %d", r$s),
-    s_num       = r$s
-  )
-})
-qq_df <- do.call(rbind, qq_list)
-qq_df$s_label <- reorder(qq_df$s_label, qq_df$s_num)
-
-p_clt <- ggplot(qq_df, aes(theoretical, empirical)) +
-  geom_abline(slope = 1, intercept = 0, colour = col_th, linewidth = 0.5) +
-  geom_point(colour = "black", alpha = 0.15, size = 0.9) +
-  facet_wrap(~ s_label, nrow = 1) +
-  labs(x = "N(0, 1) quantile", y = expression(G[t] ~ "quantile")) +
-  base_theme
-
 # ---- The two trends ---------------------------------------------------------
-# Regenerated, not stored: sim_trends() is deterministic given the seed. The
-# scale factor comes from the results rather than being hard-coded, so the
-# panel cannot drift from the study that produced the numbers beside it.
-# nu_2 = b * nu_1 with b > 0 satisfies H_0, so every window is a true null
-# despite the two series differing in amplitude.
+# Regenerated from the seed; b_scale is read from the results, not hard-coded.
 
-b_scale <- results[["e2e-s150"]]$b_scale
+b_scale <- exp_of("e2e")$b_scale
 if (is.null(b_scale)) stop("results predate b_scale; re-run the validation study")
 
 trend_v <- sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)$x1
 
-# Shared with rho, which is undefined over the first window: without a common
-# limit a given t lands at a different x in each panel.
+# Shared with rho, which is undefined over the first window.
 TLIM <- c(1, length(trend_v))
 
 trend_df <- rbind(
@@ -397,13 +338,6 @@ trend_df <- rbind(
   data.frame(t = seq_along(trend_v), nu = b_scale * trend_v, k = "2")
 )
 
-# Line type, not colour. Red is theory and grey is empirical throughout the
-# rest of this figure, and blue/orange are oracle and end-to-end; a fifth and
-# sixth colour here would collide with all of that. The two trends are the
-# same curve up to scale, so a linetype contrast separates them without
-# adding to the palette.
-# Both solid, same colour, no legend: which line is which follows from the
-# title and the amplitudes, so a key would only add ink.
 p_trend <- ggplot(trend_df, aes(t, nu, group = k)) +
   geom_line(linewidth = 0.3, colour = col_th) +
   coord_cartesian(xlim = TLIM) +
@@ -413,22 +347,23 @@ p_trend <- ggplot(trend_df, aes(t, nu, group = k)) +
   labs(x = NULL, y = expression(nu[it]),
        title = NULL)
 
-# ---- Proposition 1 moment accuracy, oracle, s = 150 -------------------------
+# ---- Proposition 1 moment accuracy ------------------------------------------
 
-r_rho <- results[["rho-s150"]]
-valid <- which(!is.na(r_rho$R_mean) & !is.na(r_rho$rho_th))
+# Both moments come from the end-to-end experiment's dense grid.
+mom <- exp_of("e2e")$band
+mom <- mom[mom$type == "Oracle" & is.finite(mom$R_mean) & is.finite(mom$R_var), ]
 
 rho_df <- data.frame(
-  t   = rep(valid, 2),
-  rho = c(r_rho$rho_th[valid], r_rho$R_mean[valid]),
-  type = rep(c("theoretical", "empirical"), each = length(valid))
+  t    = rep(mom$t, 2),
+  rho  = c(mom$rho, mom$R_mean),
+  type = rep(c("theoretical", "empirical"), each = nrow(mom))
 )
 
 p_rho <- ggplot() +
   geom_line(data = rho_df[rho_df$type == "empirical", ],
-            aes(t, rho), colour = "grey30", linewidth = 0.5) +
+            aes(t, rho), colour = "grey30", linewidth = 0.4, alpha = 0.8) +
   geom_line(data = rho_df[rho_df$type == "theoretical", ],
-            aes(t, rho), colour = col_th, linewidth = 0.6) +
+            aes(t, rho), colour = col_th, linewidth = 0.2, alpha = 0.8) +
   # empty layer, drawn only to build the legend
   geom_line(data = data.frame(
               x = c(NA, NA), y = c(NA, NA),
@@ -452,15 +387,8 @@ p_rho <- ggplot() +
     plot.margin = margin(3, 5.5, 5.5, 5.5)
   )
 
-r_var   <- results[["var-s150"]]
-V_emp   <- r_var$s * apply(r_var$R_mat, 2, var, na.rm = TRUE)
-V_theory <- r_var$V_theory
-valid_v  <- which(!is.na(V_emp) & !is.na(V_theory) & V_theory > 0)
-
-v_df <- data.frame(
-  V_theory = V_theory[valid_v],
-  V_emp    = V_emp[valid_v]
-)
+v_df <- data.frame(V_theory = mom$V_th, V_emp = exp_of("e2e")$s * mom$R_var)
+v_df <- v_df[is.finite(v_df$V_theory) & is.finite(v_df$V_emp) & v_df$V_theory > 0, ]
 rng <- range(c(v_df$V_theory, v_df$V_emp))
 
 p_v <- ggplot(v_df, aes(V_theory, V_emp)) +
@@ -472,15 +400,13 @@ p_v <- ggplot(v_df, aes(V_theory, V_emp)) +
        title = NULL) +
   base_theme
 
-# ---- End to end, s = 150 ----------------------------------------------------
+# ---- End to end -------------------------------------------------------------
 
-r_e2e    <- results[["e2e-s150"]]
+r_e2e    <- exp_of("e2e")
 s_val    <- r_e2e$s
 eval_pts <- r_e2e$eval_pts
 n_pts    <- length(eval_pts)
 
-# Every evaluation point, not one of them. Showing a single window hid three
-# and made the choice of which look arbitrary.
 qq_e <- do.call(rbind, lapply(seq_along(eval_pts), function(j) {
   Zo <- sqrt(s_val) * (r_e2e$R_mat[, j] - r_e2e$rho_oracle[j]) / sqrt(r_e2e$V_oracle[j])
   Zo <- Zo[is.finite(Zo)]
@@ -506,17 +432,13 @@ p_qq <- ggplot(qq_e, aes(theoretical, empirical, colour = type)) +
   geom_point(size = 0.35, alpha = 0.5) +
   facet_wrap(~ t, nrow = 2) +
   scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
-  # Square panels on a common symmetric range. A handful of lower-tail points
-  # fall outside and are clipped rather than allowed to set the scale for all
-  # four facets; QQ_CLIP_N below reports how many, for the caption.
+  # Common symmetric range; QQ_CLIP_N reports the points this clips.
   coord_cartesian(xlim = c(-QQ_LIM, QQ_LIM), ylim = c(-QQ_LIM, QQ_LIM)) +
   labs(x = "N(0, 1) quantile", y = expression(G[t] ~ "quantile")) +
   base_theme +
   theme(aspect.ratio = 1, legend.position = "none")
 
-# lomad_test forms p = pnorm(Z) and rejects when p <= alpha, so only the lower
-# tail fires. Two-sided coverage would let an inflated lower tail cancel a
-# deflated upper one; at s = 80 in panel A that cancellation is total.
+# Lower tail only: lomad_test rejects on p = pnorm(Z) <= alpha.
 cov_rows <- vector("list", 2 * n_pts)
 for (j in seq_len(n_pts)) {
   rho_j <- r_e2e$rho_oracle[j]
@@ -549,8 +471,6 @@ cov_df <- do.call(rbind, cov_rows)
 
 dodge <- position_dodge(width = 50)
 
-# The dense grid is computed by the validation runner and travels with the
-# results, so the band is reproducible from the repo.
 band_df <- r_e2e$band
 band_df$se05 <- sqrt(band_df$t05 * (1 - band_df$t05) / band_df$n)
 
@@ -564,12 +484,7 @@ band_layers <- if (!is.null(band_df)) list(
                     guide = "none")
 ) else list()
 
-# Local SNR over t, above the error panel on a shared axis, as the trend sits
-# above rho in row B. The rejection rate tracks SNR, so the strip is what makes
-# that panel readable rather than a scatter of four points. Both series
-# are drawn: lambda_2 is a constant multiple of lambda_1 by construction, and
-# showing only one would imply a single SNR governs the test when the
-# experiment cannot separate them.
+# Local SNR over t, on the coverage panel's axis. Both series are drawn.
 lam_df <- rbind(
   data.frame(t = seq_along(r_e2e$lambda1), lam = r_e2e$lambda1, k = "1"),
   data.frame(t = seq_along(r_e2e$lambda2), lam = r_e2e$lambda2, k = "2")
@@ -580,7 +495,7 @@ lam_ratio <- round(median(r_e2e$lambda2 / r_e2e$lambda1, na.rm = TRUE), 2)
 
 p_lam <- ggplot(lam_df, aes(t, lam, group = k)) +
   geom_line(linewidth = 0.3, colour = col_th) +
-  # Three breaks, two decades apart, spanning the realized range.
+
   scale_y_continuous(breaks = c(-3, -1, 1)) +
   coord_cartesian(xlim = TLIM) +
   base_theme +
@@ -596,44 +511,71 @@ p_cov <- ggplot(cov_df, aes(x = t, y = cov, colour = type)) +
                 position = dodge, linewidth = 0.5) +
   geom_point(size = 1.5, position = dodge) +
   scale_colour_manual(values = c(Oracle = col_oracle, `End-to-end` = col_pipeline)) +
-  coord_cartesian(xlim = TLIM) +
+  scale_y_continuous(breaks = c(0.05, 0.10, 0.15)) +
+  coord_cartesian(xlim = TLIM, ylim = c(0.025, 0.15)) +
   labs(x = "Time", y = "Type I error") +
   base_theme +
   theme(
-    # The two panels of row C share a colour scale, so one key serves both. It
-    # goes here rather than on the QQ, whose square panels have no free corner.
-    # Nudged in from the right edge: the t = 1900 intervals reach 0.085 and
-    # the key sat on them.
-    legend.position = c(0.86, 0.99),
+    # One key for both panels of the row; inset to clear the t = 1900 bars.
+    legend.position = c(0.99, 0.99),
     legend.justification = c(1, 1),
     legend.background = element_blank(),
     legend.key = element_blank(),
     legend.title = element_blank(),
-    legend.key.size = unit(0.3, "cm"),
-    legend.text = element_text(size = 7)
+    legend.key.size = unit(0.4, "cm")
   ) +
   guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # ---- Composite --------------------------------------------------------------
-# Three rows of equal height, trend flush above rho on a shared time axis.
+# Two rows; trend flush above rho on a shared time axis.
 
-full_fig <- (p_clt + labs(tag = "A")) + (p_trend + labs(tag = "B")) + p_rho +
-  p_v + (p_lam + labs(tag = "C")) + p_cov + p_qq +
+full_fig <- (p_trend + labs(tag = "A")) + p_rho + p_v +
+  (p_lam + labs(tag = "B")) + p_cov + p_qq +
   plot_layout(design = c(
-    area(1,  1,  6, 6),   # A  CLT QQ facets
-    area(7,  1,  9, 4),   # B  trend
-    area(10, 1, 12, 4),   #    rho
-    area(7,  5, 12, 6),   #    V
-    # Row C runs taller than A and B: the QQ facets are square, so their size
-    # is set by whichever of width or height binds first, and at an equal span
-    # it was height -- the panels came out a third of their width.
-    area(13,  1, 15, 4),  # C  local SNR, flush above coverage
-    area(16,  1, 21, 4),  #    coverage, on panel B's time axis
-    area(13,  5, 21, 6)   #    end-to-end QQ, faceted 2x2 by evaluation point
+    area(1,  1,  3, 4),   # A  trend
+    area(4,  1,  6, 4),   #    rho
+    area(1,  5,  6, 6),   #    V
+    # Row B is taller: the QQ facets are square and height binds first.
+    area(7,  1,  9, 4),   # B  local SNR, flush above coverage
+    area(10, 1, 15, 4),   #    coverage, on panel A's time axis
+    area(7,  5, 15, 6)    #    end-to-end QQ, faceted 2x2 by evaluation point
   ))
 
 ggsave(file.path(IMG_DIR, "fig-validation.png"),
-         full_fig, width = 6, height = 6.9, dpi = 450)
+         full_fig, width = 5.5, height = 4, dpi = 450)
+})
+
+# =============================================================================
+# tbl-validation-params.csv, tbl-oracle-quantities.csv -- the paper's Tables 1
+# and 2, from the compiled results rather than re-derived
+# =============================================================================
+
+local({
+  results <- readRDS("simulations/validation/results/simulations-validation-results.rds")
+  e <- results[[grep("^e2e-", names(results), value = TRUE)]]
+
+  params <- data.frame(
+    series     = 1:2,
+    phi        = c(0.5, 0.3),
+    sigma2     = c(0.64, 0.64),
+    sigma2_eta = round(e$sigma2_eta, 3))
+  write.csv(params, file.path(TBL_DIR, "tbl-validation-params.csv"), row.names = FALSE)
+
+  p <- e$eval_pts
+  oracle <- data.frame(
+    s      = e$s,
+    t      = p,
+    tau2_1 = round(e$tau2_1[p], 4),
+    tau2_2 = round(e$tau2_2[p], 4),
+    lambda1 = round(e$lambda1[p], 3),
+    lambda2 = round(e$lambda2[p], 3),
+    rho    = round(e$rho_oracle, 3),
+    V      = round(e$V_oracle, 3))
+  write.csv(oracle, file.path(TBL_DIR, "tbl-oracle-quantities.csv"), row.names = FALSE)
+
+  cat(sprintf("Wrote %s and %s\n",
+              file.path(TBL_DIR, "tbl-validation-params.csv"),
+              file.path(TBL_DIR, "tbl-oracle-quantities.csv")))
 })
 
 cat("All figures written to ", IMG_DIR, "\n", sep = "")

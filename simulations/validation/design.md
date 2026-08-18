@@ -2,13 +2,14 @@
 
 ## Experiments
 
-Two validation experiments:
+One experiment, reported in two parts:
 
-1. **Oracle experiment** checks that the asymptotic normal approximation for the 
-    standardized rolling correlation is accurate at realistic sample sizes
+1. **Moment accuracy** checks Proposition 1's expressions for the limiting mean
+    $\rho_t$ and variance $V_t$ against their empirical counterparts
 
-2. **End-to-end experiment** checks that the full `lomad_fit()` + `lomad_test()` 
-    pipeline preserves approximation accuracy despite estimation error
+2. **Calibration** checks that the full `lomad_fit()` + `lomad_test()` pipeline
+    preserves approximation accuracy despite estimation error, against an
+    oracle standardization using the true $\rho_t$ and $V_t$
 
 ### Data generation
 
@@ -22,41 +23,33 @@ Fixed parameters throughout both experiments are:
 | Parameter | Value |
 |-----------|-------|
 | Series length *n* | 2000 |
-| MA smoothing window *h* | 20 |
+| MA smoothing window *h* | 5 |
+| Correlation window *s* | 100 |
 | Trend | `sim_trends(n = 2000, d = 0, nb = 25, sd0 = 50, p = 1.5, seed = 5381)` |
 | Affine map | $\nu_2 = 2\nu_1$ (`affine_a = 0`, `affine_b = 2`) |
 
-Noise is independent ARMA, fixed within each experiment and differing between
-them: ARMA(1,1) for the oracle experiment, AR(1) for the end-to-end. Here
-$\phi_k, \theta_k, \sigma^2_k$ are the AR coefficient, MA coefficient and
-innovation variance for series $k$, and $\sigma^2_{\eta_k}$ is the smoothed
+Noise is independent AR(1). Here $\phi_k, \sigma^2_k$ are the AR coefficient
+and innovation variance for series $k$, and $\sigma^2_{\eta_k}$ is the smoothed
 noise variance that enters the CLT.
 
-| Experiment | Series $k$ | $\phi_k$ | $\theta_k$ | $\sigma^2_k$ | $\sigma^2_{\eta_k}$ |
-|------------|-----------|----------|------------|--------------|----------------------|
-| Oracle | 1 | 0.6 | 0.3 | 0.64 | 0.305 |
-| Oracle | 2 | 0.4 | −0.2 | 1.00 | 0.086 |
-| End-to-end | 1 | 0.5 | — | 0.64 | 0.119 |
-| End-to-end | 2 | 0.3 | — | 0.64 | 0.063 |
+| Series $k$ | $\phi_k$ | $\sigma^2_k$ | $\sigma^2_{\eta_k}$ |
+|-----------|----------|--------------|----------------------|
+| 1 | 0.5 | 0.64 | 0.380 |
+| 2 | 0.3 | 0.64 | 0.227 |
 
-Each experiment also checks approximations at specific evaluation points:
-
-- CLT experiments: t = 600 (where ρ ≈ 0.24–0.35 across s values)
-- E2E experiment: t ∈ {400, 900, 1400, 1900}, plus a dense grid at
-  spacing 5 over the full testable range for the coverage band
+Approximations are checked at t ∈ {400, 900, 1400, 1900}, plus a dense grid at
+spacing 5 over the full testable range. The dense grid carries the coverage
+band and the moments of $R_t$ used for the $\rho_t$ and $V_t$ comparisons.
+$\bar R_t$ is formed from the first 100 replicates only (`E2E_RHO_REPS`): over
+all 1000 its Monte Carlo error is thinner than the plotted line.
 
 ### Job table
 
-Experiments are distributed across six jobs:
+A single job:
 
 | Experiment ID | *s* | Reps | Output |
 |---------------|-----|------|--------|
-| `clt-s80` | 80 | 2000 | R_t at t = 600 per rep |
-| `clt-s150` | 150 | 2000 | R_t at t = 600 per rep |
-| `clt-s300` | 300 | 2000 | R_t at t = 600 per rep |
-| `rho-s150` | 150 | 500 | Running mean R̄_t over time |
-| `var-s150` | 150 | 2000 | R_t at every 20th eval point |
-| `e2e-s150` | 150 | 1000 | Oracle + pipeline quantities at 4 eval pts |
+| `e2e-s100` | 100 | 1000 | Oracle + pipeline quantities at 4 eval pts, and moments of R_t over the dense grid |
 
 ---
 
@@ -65,8 +58,7 @@ Experiments are distributed across six jobs:
 Per job (Tide) or per experiment (local):
 
 - `{experiment}.rds` — one file per experiment in `results/_raw/`, named by the
-  `SIM_EXPERIMENT` label (`clt-s80`, `clt-s150`, `clt-s300`, `rho-s150`,
-  `var-s150`, `e2e-s150`)
+  `SIM_EXPERIMENT` label (`e2e-s100`)
 
 Aggregated (after `collect-results.R`):
 
@@ -80,7 +72,7 @@ Aggregated (after `collect-results.R`):
 ```
 validation/
 ├── design.md           ← you are here
-├── simulation-template.R          ← local proof-of-concept (defines run_rep_*())
+├── simulation-template.R          ← local proof-of-concept, mirrors tide/sim.R
 ├── collect-results.R           ← assembles fetched per-job files into a compiled results object
 ├── results/
 │   ├── simulations-validation-results.rds  ← tracked
@@ -107,15 +99,15 @@ outside it because it only reads local files.
 
 ### Local testing
 
-Source `simulation-template.R`; it runs all experiments at small scale (reduced
-reps). The `run_rep_*()` functions it defines are the same ones used in
-`tide/sim.R`.
+Source `simulation-template.R`; it runs the experiment at *S* = 50 and draws
+draft versions of both panels. `tide/sim.R` is the source of truth: change it
+first, then mirror the change into the template.
 
 Before submitting at scale, test the container entrypoint locally with a small
 number of replicates:
 
 ```bash
-SIM_EXPERIMENT=clt-s80 SIM_S=5 SIM_SEED=7291 \
+SIM_EXPERIMENT=e2e-s100 SIM_S=5 SIM_SEED=7291 \
   SIM_OUT_DIR=simulations/validation/results/_raw \
   Rscript simulations/validation/tide/sim.R
 ```
@@ -132,7 +124,7 @@ A wrapper around the simulation steps provides a one-shot submission:
 bash simulations/validation/tide/submit.sh
 ```
 
-This creates the PVC, submits one job per experiment (6 jobs), polls until all
+This creates the PVC, submits the job, polls until all
 complete, and fetches results to `results/_raw/`.
 
 This can also be executed step by step:
