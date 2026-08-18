@@ -21,10 +21,12 @@ lomad-analysis/
 │   ├── Dockerfile              # shared image for the cluster jobs
 │   ├── build-image.sh          # builds and pushes that image
 │   ├── power/                  # local power vs realized separation
+│   ├── realignment/            # local realignment as a preprocessing strategy
 │   └── validation/             # finite-sample accuracy of the CLT
 ├── mb-analysis/                # Morro Bay field data analysis
 │   ├── process_blocks.R        # sensor record -> analysis blocks
 │   ├── analysis.R              # presmoothing, fitting, pooled inference, figures
+│   ├── sensitivity.R           # detection stability across h and s
 │   ├── export_example.R        # regenerates the block shipped with the package
 │   └── utils.R
 └── numerical-checks/           # numerical verification of the theory
@@ -49,7 +51,11 @@ Two studies, each with its own directory:
 - **`simulations/validation/` — does the asymptotic theory hold at finite $n$?**
 - **`simulations/power/` — can the test find a separation, and where?**
 
-Each study directory holds:
+In addition, a brief supplemental experiment:
+
+- **`simulations/realignment/` — is local realignment a workable alternative?**
+
+The first two run on the cluster and each hold:
 
 - `design.md` describes the study design and implementation details
 - `simulation-template.R` gives a local illustration at small scale (writes nothing)
@@ -86,6 +92,7 @@ Analysis of CeNCOOS data from Morro Bay during the five-year period 2020-2025.
 |---|---|
 | `process_blocks.R` | Builds the analysis blocks from `wp_data.parquet`: hourly binning, a 24-hour gap threshold, a 5-day minimum, and global standardization of pH and dissolved oxygen |
 | `analysis.R` | Presmooths, fits and tests each block, pools p-values across blocks for one Benjamini--Yekutieli correction, and writes every figure the paper uses |
+| `sensitivity.R` | Refits the analysis across a grid of smoothing bandwidths and window widths |
 | `utils.R` | Spectral notch filter that removes tidal periodicity, plus the downsampling helper |
 | `export_example.R` | Regenerates the one Bay Mouth block (late summer 2022) shipped with the package as `morro_bay` |
 
