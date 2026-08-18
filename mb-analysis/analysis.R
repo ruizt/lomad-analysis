@@ -699,13 +699,12 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
             height = 0.34, width = 1) +
   geom_text(data = lanes, aes(x = LANE_X, y = lane, label = station),
             inherit.aes = FALSE, hjust = 0, size = ANNOT, colour = "grey35") +
-  # labels= matches by position, so a literal vector would swap the stations
-  scale_fill_manual(values = pal, labels = \(x) paste(x, "detection")) +
+  scale_fill_manual(values = pal) +
   scale_x_continuous(breaks = MONTH_MID, labels = month.abb,
                      limits = X_LIM, oob = scales::oob_keep,
                      expand = X_EXPAND) +
   scale_y_reverse(breaks = 2020:2025) +
-  ggthm + theme(legend.position = "bottom", legend.title = element_blank(),
+  ggthm + theme(legend.position = "none",
                 panel.grid.major.y = element_blank(),
                 axis.ticks.length = unit(0, "in"),
                 panel.border = element_blank(),
@@ -729,9 +728,46 @@ p_seas <- seas |>
                 panel.grid.major.y = element_line(linewidth = 0.1, color = "darkgrey")) +
   labs(x = NULL, y = "Detections (%)")
 
-plt_seas <- p_seas / p_ras + plot_layout(heights = c(1.9, 5))
+# Pooled rates as a diverging strip, standing in for the legend. Bar lengths
+# are comparable to each other, not to an absolute reference.
+SEAS_W   <- 5      # export width, inches
+PANEL_IN <- 4.2    # bar row once patchwork aligns it to the raster
+GAP      <- 0.006  # hairline between the two bars
+TITLE    <- "Pooled detection rates:"
+
+rate_bm <- rate_tbl$rate[rate_tbl$location == "BM1"]
+rate_bh <- rate_tbl$rate[rate_tbl$location == "BS1"]
+
+grDevices::pdf(NULL)
+title_in <- grid::convertWidth(grid::grobWidth(grid::textGrob(
+  TITLE, gp = grid::gpar(fontsize = PT$annot))), "in", valueOnly = TRUE)
+grDevices::dev.off()
+
+t_x  <- 2 * title_in / PANEL_IN            # title width, panel spans 2
+ceil <- (rate_bm + rate_bh) / (2 - t_x - 0.10)
+f_bm <- rate_bm / ceil; f_bh <- rate_bh / ceil
+cx   <- -1 + t_x + 0.10 + f_bm             # centre, so BM starts after the title
+
+p_rate <- ggplot() +
+  geom_text(aes(-1, 0, label = TITLE), hjust = 0, size = ANNOT, colour = "grey25") +
+  geom_rect(data = tibble(xmin = c(cx - GAP - f_bm, cx + GAP),
+                          xmax = c(cx - GAP, cx + GAP + f_bh),
+                          fill = c(pal[["BM"]], pal[["BH"]])),
+            aes(xmin = xmin, xmax = xmax, ymin = -0.5, ymax = 0.5, fill = fill)) +
+  geom_text(data = tibble(x = c(cx - GAP - f_bm, cx + GAP + f_bh), h = c(-0.35, 1.35),
+                          lab = sprintf("%.1f%%", 100 * c(rate_bm, rate_bh))),
+            aes(x, 0, label = lab, hjust = h), colour = "white",
+            size = ANNOT, fontface = "bold") +
+  geom_text(data = tibble(x = c(cx - GAP - f_bm / 2, cx + GAP + f_bh / 2),
+                          lab = c("BM", "BH"), col = c(pal[["BM"]], pal[["BH"]])),
+            aes(x, -0.5, label = lab, colour = col), size = ANNOT, vjust = 1.5) +
+  scale_fill_identity() + scale_colour_identity() +
+  coord_cartesian(xlim = c(-1, 1), ylim = c(-1.6, 0.7), expand = FALSE) +
+  labs(x = NULL, y = NULL) + theme_void(base_size = PT$title)
+
+plt_seas <- p_seas / p_ras / p_rate + plot_layout(heights = c(1.9, 5, 0.85))
 ggsave(file.path(img_out, "fig-mb-seasonality.png"), plt_seas,
-       width = 5, height = 3.5, dpi = 450)
+       width = SEAS_W, height = 3.9, dpi = 450)
 
 # =============================================================================
 # fig-mb-reconstruction.png
