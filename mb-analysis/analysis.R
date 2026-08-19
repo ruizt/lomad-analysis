@@ -14,10 +14,13 @@
 ##   fig-mb-posthoc.png          pooled vs local DO->pH relationship, by state
 ##   sfig-mb-detections.png      every fitted block, both stations
 ##
+## Outputs -> mb-analysis/_tbl/
+##   tbl-mb-coverage.csv         analysed coverage and episodes, by station/year
+##
 ## Outputs -> _mb-data/
 ##   lomad_windows.rds           one row per analysed window, for ad hoc work
 ##
-## Rates and summaries are printed, not written.
+## Other rates and summaries are printed, not written.
 ##
 ## Usage (from the repo root), either of:
 ##   Rscript mb-analysis/analysis.R
@@ -32,6 +35,7 @@ suppressPackageStartupMessages({
 source("mb-analysis/utils.R")   # presmooth_tidal(), VAR_PAL, LW_*, figure-theme
 
 img_out <- "mb-analysis/_img"; fs::dir_create(img_out)
+tbl_out <- "mb-analysis/_tbl"; fs::dir_create(tbl_out)
 map_dir <- "_map";             fs::dir_create(map_dir)
 
 H_WIN <- 4L
@@ -253,6 +257,30 @@ cat(paste(wv |> filter(rejected) |> group_by(location) |>
           summarise(p = sprintf("%s %.0f%%", location[1],
                                 100 * mean(month(datetime) %in% 3:6)),
                     .groups = "drop") |> pull(p), collapse = ", "), "\n")
+
+# Coverage behind the application, by station and year. Episodes are maximal
+# runs of consecutive detected windows; windows overlap almost completely, so
+# the episode count is the effective sample size.
+cov_tbl <- wv |> arrange(location, block_id, datetime) |>
+  group_by(blk) |>
+  mutate(run = cumsum(rejected & !lag(rejected, default = FALSE)),
+         ep  = ifelse(rejected, paste(blk, run), NA_character_)) |>
+  ungroup() |>
+  mutate(year = year(datetime)) |>
+  group_by(location, year) |>
+  summarise(months_covered = n_distinct(month(datetime)),
+            windows = n(), detected = sum(rejected),
+            episodes = n_distinct(ep[!is.na(ep)]), .groups = "drop") |>
+  mutate(rate_pct = round(100 * detected / windows, 1))
+
+write_csv(cov_tbl, file.path(tbl_out, "tbl-mb-coverage.csv"))
+cat("\n========== Coverage by station and year ==========\n")
+print(as.data.frame(cov_tbl), row.names = FALSE)
+cat(sprintf("\ntotals: %s\n",
+    paste(cov_tbl |> group_by(location) |>
+          summarise(s = sprintf("%s %d windows, %d episodes", location[1],
+                                sum(windows), sum(episodes)), .groups = "drop") |>
+          pull(s), collapse = "; ")))
 
 # =============================================================================
 # fig-mb-sites-coupling.png
