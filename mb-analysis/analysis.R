@@ -713,15 +713,19 @@ p_ras <- ggplot(ras, aes(doy, lane)) +
 
 # Marginal strip above the raster, on the same x axis. Its height is set by the
 # rotated y title, which is bounded by panel height.
-p_seas <- seas |>
-  mutate(mid = MONTH_MID[month]) |>
-  ggplot(aes(mid, 100 * frac)) +
-  geom_line(linewidth = 0.4, colour = "grey25") +
-  geom_point(size = 1.3, colour = "grey15") +
+# One line per station: the two differ in monthly coverage, so a pooled rate
+# tracks which station was recording as much as the season.
+p_seas <- seas_loc |>
+  mutate(mid = MONTH_MID[month], frac = rej / n,
+         station = STATION_ABBR[location]) |>
+  ggplot(aes(mid, 100 * frac, colour = station)) +
+  geom_line(linewidth = 0.4) +
+  geom_point(size = 1.1) +
+  scale_colour_manual(values = pal, guide = "none") +
   scale_x_continuous(breaks = MONTH_MID, labels = month.abb,
                      limits = X_LIM, oob = scales::oob_keep,
                      expand = X_EXPAND) +
-  scale_y_continuous(breaks = c(0, 10, 20)) +
+  scale_y_continuous(breaks = c(0, 25, 50, 75)) +
   ggthm + theme(axis.text.x  = element_blank(),
                 axis.ticks = element_blank(),
                 panel.border = element_blank(),
