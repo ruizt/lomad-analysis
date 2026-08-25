@@ -16,6 +16,7 @@
 ##
 ## Outputs -> mb-analysis/_tbl/
 ##   tbl-mb-coverage.csv         analysed coverage and episodes, by station/year
+##   tbl-mb-monthly.csv          the same, by station and calendar month
 ##
 ## Outputs -> _mb-data/
 ##   lomad_windows.rds           one row per analysed window, for ad hoc work
@@ -274,6 +275,23 @@ cov_tbl <- wv |> arrange(location, block_id, datetime) |>
   mutate(rate_pct = round(100 * detected / windows, 1))
 
 write_csv(cov_tbl, file.path(tbl_out, "tbl-mb-coverage.csv"))
+
+# Same, by calendar month. An episode crossing a month boundary is counted in
+# both, so the episode column sums above the station total.
+mon_tbl <- wv |> arrange(location, block_id, datetime) |>
+  group_by(blk) |>
+  mutate(run = cumsum(rejected & !lag(rejected, default = FALSE)),
+         ep  = ifelse(rejected, paste(blk, run), NA_character_)) |>
+  ungroup() |>
+  mutate(month = month(datetime)) |>
+  group_by(location, month) |>
+  summarise(windows = n(), detected = sum(rejected),
+            episodes = n_distinct(ep[!is.na(ep)]), .groups = "drop") |>
+  mutate(rate_pct = round(100 * detected / windows, 1))
+
+write_csv(mon_tbl, file.path(tbl_out, "tbl-mb-monthly.csv"))
+cat("\n========== Coverage by station and month ==========\n")
+print(mon_tbl |> mutate(month = month.abb[month]) |> as.data.frame(), row.names = FALSE)
 cat("\n========== Coverage by station and year ==========\n")
 print(as.data.frame(cov_tbl), row.names = FALSE)
 cat(sprintf("\ntotals: %s\n",
