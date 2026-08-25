@@ -6,10 +6,11 @@
 ## Outputs -> mb-analysis/_tbl/
 ##   tbl-mb-sensitivity.csv             one row per (h, s) cell, h = 3 excluded
 ##
-## The block set is held fixed at the length the largest cell requires, so cells
-## differ only in the fit and not in the data they see. Presmoothing does not
-## depend on h or s and is done once. Rates therefore differ slightly from
-## analysis.R, which admits shorter blocks.
+## The block set is held fixed at the length the reported analysis requires, so
+## cells differ only in the fit and not in the data they see, and the reference
+## cell reproduces Section 4. A cell needs only h + s - 1 observations to yield a
+## window, so every cell is fittable on this set. Presmoothing does not depend on
+## h or s and is done once.
 ##
 ## Usage (from the repo root):
 ##   Rscript mb-analysis/sensitivity.R
@@ -28,7 +29,7 @@ S_GRID <- c(50L, 60L, 70L)
 H_REF  <- 4L; S_REF <- 60L
 H_TBL  <- c(4L, 5L)       # rows kept for the supplement table
 CV_K   <- 50L; CV_TEST <- 0.2
-BLOCK_MIN <- as.integer(2.5 * max(S_GRID)) + max(H_GRID)
+BLOCK_MIN <- as.integer(2.5 * S_REF) + H_REF   # matches MIN_LEN in analysis.R
 
 # ---- Presmooth once ---------------------------------------------------------
 
