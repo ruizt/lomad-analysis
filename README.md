@@ -2,10 +2,10 @@
 
 Reproduces results in:
 
-> Ruiz, T. D., Seifert, A. J., Hamilton, E., Mispagel, C. M., Hunt, O. P.,
-> Garcia, J., and Bockmon, E. E. (2026). Inference for local trend similarity in
-> nonstationary time series via rolling correlation, with application to
-> assessing stability in an estuarine system. *Manuscript in preparation.*
+> Ruiz, T. D., Seifert, A. J., Hamilton, E., Mispagel, C. M., Garcia, J., and
+> Bockmon, E. E. (2026). Affine-invariant inference for local trend similarity
+> in nonstationary time series, with application to biogeochemical decoupling in
+> an estuary. *Manuscript in preparation.*
 
 The method itself is implemented in an R package in the companion repository
 [`lomad-package`](https://github.com/ruizt/lomad-package). For the method, the
