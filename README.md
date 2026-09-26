@@ -98,7 +98,4 @@ Analysis of CeNCOOS data from Morro Bay during the five-year period 2020-2025.
 
 The scripts read and write `_mb-data/` at the repository root, which is
 gitignored and not distributed. They assume `wp_data.parquet` — the
-quality-controlled sensor record — has been placed there; nothing in this
-repository reaches outside it to fetch the data. That record is produced by
-[`mb-qartod`](https://github.com/ruizt/mb-qartod), which handles the
-quality control.
+quality-controlled sensor record — has been placed there.
