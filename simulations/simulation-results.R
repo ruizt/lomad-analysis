@@ -6,6 +6,7 @@
 ##   simulations/power/results/simulations-power-curves.rds
 ##   simulations/power/results/simulations-power-roc.rds
 ##   simulations/power/results/simulations-power-auc.rds
+##   simulations/power/results/simulations-power-fdr.rds
 ##   simulations/validation/results/simulations-validation-results.rds
 ##   (fig-trends.png simulates its own data)
 ##
@@ -16,6 +17,7 @@
 ##
 ## Outputs -> simulations/_tbl/
 ##   tbl-localization-auc.csv         AUC and concordance per design cell
+##   tbl-realized-fdr.csv             realized FDR under the BY adjustment
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/simulation-results.R
@@ -579,3 +581,23 @@ local({
 })
 
 cat("All figures written to ", IMG_DIR, "\n", sep = "")
+
+# =============================================================================
+# tbl-realized-fdr.csv -- realized false discovery rate under the BY adjustment
+# =============================================================================
+
+local({
+  fdr <- readRDS("simulations/power/results/simulations-power-fdr.rds")
+
+  out <- fdr |>
+    transmute(epsilon    = eps,
+              null_share = round(null_share, 3),
+              fdr        = round(fdr, 4),
+              se         = round(se, 4))
+
+  write.csv(out, file.path(TBL_DIR, "tbl-realized-fdr.csv"), row.names = FALSE)
+
+  cat(sprintf("\nRealized FDR over %s datasets (BY at the simulation's alpha):\n",
+              format(fdr$datasets[1], big.mark = ",")))
+  print(as.data.frame(out), row.names = FALSE)
+})

@@ -8,6 +8,7 @@
 ##   simulations-power-curves.rds  — rejection rate by delta_t (local power)
 ##   simulations-power-roc.rds     — precision and NPV vs the threshold c
 ##   simulations-power-auc.rds     — area under the precision / 1 - NPV curve
+##   simulations-power-fdr.rds     — realized FDR under the BY adjustment
 ##
 ## Usage (from the repo root):
 ##   Rscript simulations/power/collect-results.R
@@ -20,6 +21,11 @@ OUT_DIR <- "simulations/power/results"
 MESH     <- 100L     # mesh cells for the power curve
 NBIN     <- 1000L    # mesh cells for the threshold sweep
 MIN_CELL <- 10000L   # minimum per class for a cut to be kept
+
+# delta_t is never exactly zero under the trend construction, so a window
+# counts as a true null when delta_t <= EPS. Reported across a range because
+# the share of windows so classified rises with it.
+EPS <- c(0.001, 0.005, 0.010, 0.020, 0.050)
 
 # ---- Collect ----------------------------------------------------------------
 
@@ -71,7 +77,22 @@ tally <- lapply(win_files, function(f) {
     # NBIN + 1 so the delta == 1 atom lands in its own top rank rather than
     # being discarded by tabulate()
     rej_fine  = tabulate(fine[w$rejected],  nbins = NBIN + 1L),
-    non_fine  = tabulate(fine[!w$rejected], nbins = NBIN + 1L)
+    non_fine  = tabulate(fine[!w$rejected], nbins = NBIN + 1L),
+
+    # Per-replicate false discovery proportion, V / max(R, 1), summed here so
+    # the pooled mean and its standard error reconstruct without holding every
+    # replicate. Uses the stored decisions, which are the BY step-up applied
+    # once per replicate over that replicate's full family of windows.
+    fdr = do.call(rbind, lapply(EPS, function(e) {
+      nul <- w$delta <= e
+      R   <- tapply(w$rejected,       rep_id, sum)
+      V   <- tapply(w$rejected & nul, rep_id, sum)
+      fdp <- as.numeric(V) / pmax(as.numeric(R), 1)
+      data.frame(eps = e, replicates = k,
+                 sum_fdp = sum(fdp), sum_fdp2 = sum(fdp^2),
+                 sum_null = sum(as.numeric(tapply(nul, rep_id, mean))),
+                 windows = nrow(w), rejected = sum(w$rejected))
+    }))
   )
 })
 
@@ -164,6 +185,21 @@ auc <- roc |>
             .groups = "drop") |>
   right_join(totals, by = c("struct", "s", "n", "snr", "phi"))
 
+# ---- Realized FDR under the BY adjustment ------------------------------------
+
+# Pooled over every replicate in the design, not averaged over cells: the
+# dataset is the unit, so cell averages would weight unequal replicate counts.
+fdr <- lapply(tally, function(x) cbind(x$cell, x$fdr)) |>
+  bind_rows() |>
+  group_by(eps) |>
+  summarise(datasets   = sum(replicates),
+            null_share = sum(sum_null) / sum(replicates),
+            fdr        = sum(sum_fdp) / sum(replicates),
+            sd         = sqrt((sum(sum_fdp2) - sum(sum_fdp)^2 / sum(replicates)) /
+                              (sum(replicates) - 1)),
+            .groups    = "drop") |>
+  mutate(se = sd / sqrt(datasets))
+
 # ---- Save -------------------------------------------------------------------
 
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
@@ -171,6 +207,7 @@ saveRDS(results, file.path(OUT_DIR, "simulations-power-results.rds"))
 saveRDS(curves,  file.path(OUT_DIR, "simulations-power-curves.rds"))
 saveRDS(roc,     file.path(OUT_DIR, "simulations-power-roc.rds"))
 saveRDS(auc,     file.path(OUT_DIR, "simulations-power-auc.rds"))
+saveRDS(fdr,     file.path(OUT_DIR, "simulations-power-fdr.rds"))
 
 cat(sprintf("%d replicates, %s windows -> %d curve rows, %d cells\n",
             nrow(results), format(sum(auc$windows), big.mark = ","), nrow(curves), nrow(auc)))
